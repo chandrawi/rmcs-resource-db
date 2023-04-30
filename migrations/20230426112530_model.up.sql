@@ -1,6 +1,6 @@
 CREATE TABLE `model` (
   `model_id` int(10) UNSIGNED NOT NULL,
-  `table` enum('index','timestamp','timestamp_index','timestamp_micros') NOT NULL,
+  `indexing` enum('index','timestamp','timestamp_index','timestamp_micros') NOT NULL,
   `category` enum('UPLINK','DOWNLINK','VIRTUAL','ANALYSIS') NOT NULL,
   `name` varchar(64) NOT NULL,
   `description` varchar(255) NOT NULL DEFAULT ''
@@ -18,7 +18,7 @@ CREATE TABLE `model_config` (
   `index` smallint(5) UNSIGNED NOT NULL,
   `name` varchar(64) NOT NULL,
   `value` varbinary(255) NOT NULL,
-  `type` enum('int','float','string') NOT NULL,
+  `type` enum('int','float','str') NOT NULL,
   `category` enum('SCALE','UNIT','SYMBOL','THRESHOLD','OTHER') NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
@@ -31,6 +31,9 @@ ALTER TABLE `model_type`
 ALTER TABLE `model_config`
   ADD PRIMARY KEY (`id`),
   ADD KEY `model_config_model_id` (`model_id`);
+
+ALTER TABLE `model`
+  MODIFY `model_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 ALTER TABLE `model_config`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;

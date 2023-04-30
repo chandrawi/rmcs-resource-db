@@ -1,4 +1,4 @@
-use ConfigValue::{Int, Float, String as Str};
+use ConfigValue::{Int, Float, Str};
 use DataValue::{I8, I16, I32, I64, U8, U16, U32, U64, F32, F64, Char, Bool};
 
 pub trait BytesValue {
@@ -10,7 +10,7 @@ pub trait BytesValue {
 pub enum ConfigValue {
     Int(i64),
     Float(f64),
-    String(String),
+    Str(String),
     #[default]
     Null
 }
@@ -21,7 +21,7 @@ impl BytesValue for ConfigValue {
         match type_string {
             "int" => Int(i64::from_be_bytes(bytes.try_into().unwrap_or_default())),
             "float" => Float(f64::from_be_bytes(bytes.try_into().unwrap_or_default())),
-            "string" => Str(std::str::from_utf8(bytes).unwrap_or_default().to_owned()),
+            "str" => Str(std::str::from_utf8(bytes).unwrap_or_default().to_owned()),
             _ => ConfigValue::Null
         }
     }
