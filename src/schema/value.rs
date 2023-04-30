@@ -221,3 +221,191 @@ value_impl_try_into!(f32, DataValue, F32);
 value_impl_try_into!(f64, DataValue, F64);
 value_impl_try_into!(char, DataValue, Char);
 value_impl_try_into!(bool, DataValue, Bool);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn config_value_conversion()
+    {
+        let value: u8 = 1;
+        let conf = ConfigValue::from(value);
+        assert_eq!(value, conf.try_into().unwrap());
+        let value: i16 = -256;
+        let conf = ConfigValue::from(value);
+        assert_eq!(value, conf.try_into().unwrap());
+        let value: u32 = 65536;
+        let conf = ConfigValue::from(value);
+        assert_eq!(value, conf.try_into().unwrap());
+        let value: i64 = -4294967296;
+        let conf = ConfigValue::from(value);
+        assert_eq!(value, conf.try_into().unwrap());
+
+        let value: f32 = 65536.65536;
+        let conf = ConfigValue::from(value);
+        assert_eq!(value, conf.try_into().unwrap());
+        let value: f64 = 4294967296.4294967296;
+        let conf = ConfigValue::from(value);
+        assert_eq!(value, conf.try_into().unwrap());
+
+        let value: &str = "slice_value";
+        let conf = ConfigValue::from(value);
+        let convert: String = conf.try_into().unwrap();
+        assert_eq!(String::from("slice_value"), convert);
+    }
+
+    #[test]
+    fn config_value_bytes() 
+    {
+        let bytes = [255, 255, 255, 255, 255, 255, 255, 0];
+        let conf = ConfigValue::from_bytes(&bytes, "int");
+        assert_eq!(bytes.to_vec(), conf.into_bytes());
+        assert_eq!(conf, Int(-256));
+
+        let bytes = [63, 136, 0, 0, 0, 0, 0, 0];
+        let conf = ConfigValue::from_bytes(&bytes, "float");
+        assert_eq!(bytes.to_vec(), conf.into_bytes());
+        assert_eq!(conf, Float(0.01171875));
+
+        let bytes = [97, 98, 99, 100];
+        let conf = ConfigValue::from_bytes(&bytes, "string");
+        assert_eq!(bytes.to_vec(), conf.into_bytes());
+        assert_eq!(conf, Str(String::from("abcd")));
+    }
+
+    #[test]
+    fn data_value_conversion()
+    {
+        let value: i8 = -1;
+        let data = DataValue::from(value);
+        assert_eq!(value, data.try_into().unwrap());
+        let value: i16 = -256;
+        let data = DataValue::from(value);
+        assert_eq!(value, data.try_into().unwrap());
+        let value: i32 = -65536;
+        let data = DataValue::from(value);
+        assert_eq!(value, data.try_into().unwrap());
+        let value: i64 = -4294967296;
+        let data = DataValue::from(value);
+        assert_eq!(value, data.try_into().unwrap());
+
+        let value: u8 = 1;
+        let data = DataValue::from(value);
+        assert_eq!(value, data.try_into().unwrap());
+        let value: u16 = 256;
+        let data = DataValue::from(value);
+        assert_eq!(value, data.try_into().unwrap());
+        let value: u32 = 65536;
+        let data = DataValue::from(value);
+        assert_eq!(value, data.try_into().unwrap());
+        let value: u64 = 4294967296;
+        let data = DataValue::from(value);
+        assert_eq!(value, data.try_into().unwrap());
+
+        let value: f32 = 65536.65536;
+        let data = DataValue::from(value);
+        assert_eq!(value, data.try_into().unwrap());
+        let value: f64 = 4294967296.4294967296;
+        let data = DataValue::from(value);
+        assert_eq!(value, data.try_into().unwrap());
+
+        let value: bool = true;
+        let data = DataValue::from(value);
+        assert_eq!(value, data.try_into().unwrap());
+        let value: char = 'a';
+        let data = DataValue::from(value);
+        assert_eq!(value, data.try_into().unwrap());
+    }
+
+    #[test]
+    fn data_value_bytes() 
+    {
+        let bytes = [255];
+        let value = DataValue::from_bytes(&bytes, "i8");
+        assert_eq!(bytes.to_vec(), value.into_bytes());
+        assert_eq!(value, I8(-1));
+        let bytes = [255, 0];
+        let value = DataValue::from_bytes(&bytes, "i16");
+        assert_eq!(bytes.to_vec(), value.into_bytes());
+        assert_eq!(value, I16(-256));
+        let bytes = [255, 255, 255, 0];
+        let value = DataValue::from_bytes(&bytes, "i32");
+        assert_eq!(bytes.to_vec(), value.into_bytes());
+        assert_eq!(value, I32(-256));
+        let bytes = [255, 255, 255, 255, 255, 255, 255, 0];
+        let value = DataValue::from_bytes(&bytes, "i64");
+        assert_eq!(bytes.to_vec(), value.into_bytes());
+        assert_eq!(value, I64(-256));
+
+        let bytes = [1];
+        let value = DataValue::from_bytes(&bytes, "u8");
+        assert_eq!(bytes.to_vec(), value.into_bytes());
+        assert_eq!(value, U8(1));
+        let bytes = [1, 0];
+        let value = DataValue::from_bytes(&bytes, "u16");
+        assert_eq!(bytes.to_vec(), value.into_bytes());
+        assert_eq!(value, U16(256));
+        let bytes = [1, 0, 0, 0];
+        let value = DataValue::from_bytes(&bytes, "u32");
+        assert_eq!(bytes.to_vec(), value.into_bytes());
+        assert_eq!(value, U32(16777216));
+        let bytes = [1, 0, 0, 0, 0, 0, 0, 0];
+        let value = DataValue::from_bytes(&bytes, "u64");
+        assert_eq!(bytes.to_vec(), value.into_bytes());
+        assert_eq!(value, U64(72057594037927936));
+
+        let bytes = [62, 32, 0, 0];
+        let value = DataValue::from_bytes(&bytes, "f32");
+        assert_eq!(bytes.to_vec(), value.into_bytes());
+        assert_eq!(value, F32(0.15625));
+        let bytes = [63, 136, 0, 0, 0, 0, 0, 0];
+        let value = DataValue::from_bytes(&bytes, "f64");
+        assert_eq!(bytes.to_vec(), value.into_bytes());
+        assert_eq!(value, F64(0.01171875));
+
+        let bytes = [97];
+        let value = DataValue::from_bytes(&bytes, "char");
+        assert_eq!(bytes.to_vec(), value.into_bytes());
+        assert_eq!(value, Char('a'));
+        let bytes = [1];
+        let value = DataValue::from_bytes(&bytes, "bool");
+        assert_eq!(bytes.to_vec(), value.into_bytes());
+        assert_eq!(value, Bool(true));
+
+        // wrong bytes length
+        let bytes = [1, 0];
+        assert_eq!(DataValue::from_bytes(&bytes, "u8"), DataValue::Null);
+    }
+
+    #[test]
+    fn array_data_value_bytes() 
+    {
+        let bytes = [1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0];
+        let types = ["u8", "i16", "u32", "i64"];
+        let data = ArrayDataValue::from_bytes(&bytes, &types);
+        assert_eq!(data.0, [
+            U8(1),
+            I16(256),
+            U32(16777216),
+            I64(72057594037927936)
+        ]);
+
+        let bytes = [62, 32, 0, 0, 63, 136, 0, 0, 0, 0, 0, 0];
+        let types = ["f32", "f64"];
+        let data = ArrayDataValue::from_bytes(&bytes, &types);
+        assert_eq!(data.0, [
+            F32(0.15625),
+            F64(0.01171875)
+        ]);
+
+        let bytes = [97, 1];
+        let types = ["char", "bool"];
+        let data = ArrayDataValue::from_bytes(&bytes, &types);
+        assert_eq!(data.0, [
+            Char('a'),
+            Bool(true)
+        ]);
+    }
+
+}
