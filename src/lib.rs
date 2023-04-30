@@ -1,5 +1,8 @@
+pub mod schema;
+
 use sqlx::Pool;
 use sqlx::mysql::{MySql, MySqlPoolOptions};
+pub use schema::value::{ConfigValue, DataValue};
 
 pub struct Resource {
     pub pool: Pool<MySql>,
