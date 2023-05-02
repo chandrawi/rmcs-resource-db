@@ -23,7 +23,7 @@ CREATE TABLE `device_config` (
   `device_id` bigint(20) UNSIGNED NOT NULL,
   `name` varchar(32) NOT NULL,
   `value` varbinary(255) NOT NULL,
-  `type` enum('int','float','string') NOT NULL,
+  `type` enum('int','float','str') NOT NULL,
   `category` enum('NETWORK','CONVERSION','ANALYSIS','THRESHOLD','OTHER') NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
@@ -41,6 +41,9 @@ ALTER TABLE `device`
 ALTER TABLE `device_config`
   ADD PRIMARY KEY (`id`),
   ADD KEY `device_config_device_id` (`device_id`);
+
+ALTER TABLE `device_type`
+  MODIFY `type_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 ALTER TABLE `device_config`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;

@@ -6,6 +6,7 @@ use sqlx::mysql::{MySql, MySqlPoolOptions};
 
 pub use schema::value::{ConfigValue, DataValue};
 pub use schema::model::{ModelSchema, ModelConfigSchema};
+pub use schema::device::{DeviceSchema, GatewaySchema, TypeSchema, DeviceConfigSchema, GatewayConfigSchema};
 use operation::model;
 
 pub struct Resource {
