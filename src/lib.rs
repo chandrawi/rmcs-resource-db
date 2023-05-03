@@ -9,9 +9,11 @@ pub use schema::model::{ModelSchema, ModelConfigSchema};
 pub use schema::device::{DeviceSchema, GatewaySchema, TypeSchema, DeviceConfigSchema, GatewayConfigSchema};
 use schema::device::DeviceKind;
 pub use schema::group::{GroupModelSchema, GroupDeviceSchema, GroupGatewaySchema};
+use schema::group::GroupKind;
 use operation::model;
 use operation::device;
 use operation::types;
+use operation::group;
 
 pub struct Resource {
     pub pool: Pool<MySql>,
@@ -425,6 +427,237 @@ impl Resource {
         -> Result<(), Error>
     {
         types::delete_device_type_model(&self.pool, id, model_id)
+        .await
+    }
+
+    pub async fn read_group_model(&self, id: u32)
+        -> Result<GroupModelSchema, Error>
+    {
+        match group::select_group_by_id(&self.pool, GroupKind::Model, id).await {
+            Ok(value) => Ok(value.into_group_model()),
+            Err(error) => Err(error)
+        }
+    }
+
+    pub async fn list_group_model_by_name(&self, name: &str)
+        -> Result<Vec<GroupModelSchema>, Error>
+    {
+        match group::select_group_by_name(&self.pool, GroupKind::Model, name).await {
+            Ok(value) => {
+                value.into_iter().map(|el| Ok(el.into_group_model())).collect()
+            },
+            Err(error) => Err(error)
+        }
+    }
+
+    pub async fn list_group_model_by_category(&self, category: &str)
+        -> Result<Vec<GroupModelSchema>, Error>
+    {
+        match group::select_group_by_category(&self.pool, GroupKind::Model, category).await {
+            Ok(value) => {
+                value.into_iter().map(|el| Ok(el.into_group_model())).collect()
+            },
+            Err(error) => Err(error)
+        }
+    }
+
+    pub async fn list_group_model_by_name_category(&self, name: &str, category: &str)
+        -> Result<Vec<GroupModelSchema>, Error>
+    {
+        match group::select_group_by_name_category(&self.pool, GroupKind::Model, name, category).await {
+            Ok(value) => {
+                value.into_iter().map(|el| Ok(el.into_group_model())).collect()
+            },
+            Err(error) => Err(error)
+        }
+    }
+
+    pub async fn create_group_model(&self, name: &str, category: &str, description: Option<&str>)
+        -> Result<u32, Error>
+    {
+        group::insert_group(&self.pool, GroupKind::Model, name, category, description)
+        .await
+    }
+
+    pub async fn update_group_model(&self, id: u32, name: Option<&str>, category: Option<&str>, description: Option<&str>)
+        -> Result<(), Error>
+    {
+        group::update_group(&self.pool, GroupKind::Model, id, name, category, description)
+        .await
+    }
+
+    pub async fn delete_group_model(&self, id: u32)
+        -> Result<(), Error>
+    {
+        group::delete_group(&self.pool, GroupKind::Model, id)
+        .await
+    }
+
+    pub async fn add_group_model_member(&self, id: u32, model_id: u32)
+        -> Result<(), Error>
+    {
+        group::insert_group_map(&self.pool, GroupKind::Model, id, model_id as u64)
+        .await
+    }
+
+    pub async fn remove_group_model_member(&self, id: u32, model_id: u32)
+        -> Result<(), Error>
+    {
+        group::delete_group_map(&self.pool, GroupKind::Model, id, model_id as u64)
+        .await
+    }
+
+    pub async fn read_group_device(&self, id: u32)
+        -> Result<GroupDeviceSchema, Error>
+    {
+        match group::select_group_by_id(&self.pool, GroupKind::Device, id).await {
+            Ok(value) => Ok(value.into_group_device()),
+            Err(error) => Err(error)
+        }
+    }
+
+    pub async fn list_group_device_by_name(&self, name: &str)
+        -> Result<Vec<GroupDeviceSchema>, Error>
+    {
+        match group::select_group_by_name(&self.pool, GroupKind::Device, name).await {
+            Ok(value) => {
+                value.into_iter().map(|el| Ok(el.into_group_device())).collect()
+            },
+            Err(error) => Err(error)
+        }
+    }
+
+    pub async fn list_group_device_by_category(&self, category: &str)
+        -> Result<Vec<GroupDeviceSchema>, Error>
+    {
+        match group::select_group_by_category(&self.pool, GroupKind::Device, category).await {
+            Ok(value) => {
+                value.into_iter().map(|el| Ok(el.into_group_device())).collect()
+            },
+            Err(error) => Err(error)
+        }
+    }
+
+    pub async fn list_group_device_by_name_category(&self, name: &str, category: &str)
+        -> Result<Vec<GroupDeviceSchema>, Error>
+    {
+        match group::select_group_by_name_category(&self.pool, GroupKind::Device, name, category).await {
+            Ok(value) => {
+                value.into_iter().map(|el| Ok(el.into_group_device())).collect()
+            },
+            Err(error) => Err(error)
+        }
+    }
+
+    pub async fn create_group_device(&self, name: &str, category: &str, description: Option<&str>)
+        -> Result<u32, Error>
+    {
+        group::insert_group(&self.pool, GroupKind::Device, name, category, description)
+        .await
+    }
+
+    pub async fn update_group_device(&self, id: u32, name: Option<&str>, category: Option<&str>, description: Option<&str>)
+        -> Result<(), Error>
+    {
+        group::update_group(&self.pool, GroupKind::Device, id, name, category, description)
+        .await
+    }
+
+    pub async fn delete_group_device(&self, id: u32)
+        -> Result<(), Error>
+    {
+        group::delete_group(&self.pool, GroupKind::Device, id)
+        .await
+    }
+
+    pub async fn add_group_device_member(&self, id: u32, device_id: u64)
+        -> Result<(), Error>
+    {
+        group::insert_group_map(&self.pool, GroupKind::Device, id, device_id)
+        .await
+    }
+
+    pub async fn remove_group_device_member(&self, id: u32, device_id: u64)
+        -> Result<(), Error>
+    {
+        group::delete_group_map(&self.pool, GroupKind::Device, id, device_id)
+        .await
+    }
+
+    pub async fn read_group_gateway(&self, id: u32)
+        -> Result<GroupGatewaySchema, Error>
+    {
+        match group::select_group_by_id(&self.pool, GroupKind::Gateway, id).await {
+            Ok(value) => Ok(value.into_group_gateway()),
+            Err(error) => Err(error)
+        }
+    }
+
+    pub async fn list_group_gateway_by_name(&self, name: &str)
+        -> Result<Vec<GroupGatewaySchema>, Error>
+    {
+        match group::select_group_by_name(&self.pool, GroupKind::Gateway, name).await {
+            Ok(value) => {
+                value.into_iter().map(|el| Ok(el.into_group_gateway())).collect()
+            },
+            Err(error) => Err(error)
+        }
+    }
+
+    pub async fn list_group_gateway_by_category(&self, category: &str)
+        -> Result<Vec<GroupGatewaySchema>, Error>
+    {
+        match group::select_group_by_category(&self.pool, GroupKind::Gateway, category).await {
+            Ok(value) => {
+                value.into_iter().map(|el| Ok(el.into_group_gateway())).collect()
+            },
+            Err(error) => Err(error)
+        }
+    }
+
+    pub async fn list_group_gateway_by_name_category(&self, name: &str, category: &str)
+        -> Result<Vec<GroupGatewaySchema>, Error>
+    {
+        match group::select_group_by_name_category(&self.pool, GroupKind::Gateway, name, category).await {
+            Ok(value) => {
+                value.into_iter().map(|el| Ok(el.into_group_gateway())).collect()
+            },
+            Err(error) => Err(error)
+        }
+    }
+
+    pub async fn create_group_gateway(&self, name: &str, category: &str, description: Option<&str>)
+        -> Result<u32, Error>
+    {
+        group::insert_group(&self.pool, GroupKind::Gateway, name, category, description)
+        .await
+    }
+
+    pub async fn update_group_gateway(&self, id: u32, name: Option<&str>, category: Option<&str>, description: Option<&str>)
+        -> Result<(), Error>
+    {
+        group::update_group(&self.pool, GroupKind::Gateway, id, name, category, description)
+        .await
+    }
+
+    pub async fn delete_group_gateway(&self, id: u32)
+        -> Result<(), Error>
+    {
+        group::delete_group(&self.pool, GroupKind::Gateway, id)
+        .await
+    }
+
+    pub async fn add_group_gateway_member(&self, id: u32, device_id: u64)
+        -> Result<(), Error>
+    {
+        group::insert_group_map(&self.pool, GroupKind::Gateway, id, device_id)
+        .await
+    }
+
+    pub async fn remove_group_gateway_member(&self, id: u32, device_id: u64)
+        -> Result<(), Error>
+    {
+        group::delete_group_map(&self.pool, GroupKind::Gateway, id, device_id)
         .await
     }
 

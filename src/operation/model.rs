@@ -73,6 +73,7 @@ async fn select_join_model(pool: &Pool<MySql>,
     let (sql, values) = stmt
         .order_by((Model::Table, Model::ModelId), Order::Asc)
         .order_by((ModelType::Table, ModelType::Index), Order::Asc)
+        .order_by((ModelConfig::Table, ModelConfig::Id), Order::Asc)
         .build_sqlx(MysqlQueryBuilder);
 
     let mut id_vec: Vec<u32> = Vec::new();
@@ -118,11 +119,11 @@ async fn select_join_model(pool: &Pool<MySql>,
                 config_schema_vec.clear();
             }
             // update model_schema configs if non empty config found
-            if let Some(_) = config_id {
+            if let Some(cfg_id) = config_id {
                 let bytes = config_value.unwrap_or_default();
                 let type_string = config_type.unwrap_or_default();
                 config_schema_vec.push(ModelConfigSchema {
-                    id: config_id.unwrap_or_default(),
+                    id: cfg_id,
                     model_id: id,
                     index: type_index,
                     name: config_name.unwrap_or_default(),
@@ -337,7 +338,11 @@ async fn select_model_config(pool: &Pool<MySql>,
             stmt = stmt.and_where(Expr::col(ModelConfig::ModelId).eq(model_id)).to_owned();
         }
     }
-    let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
+    let (sql, values) = stmt
+        .order_by(ModelConfig::ModelId, Order::Asc)
+        .order_by(ModelConfig::Index, Order::Asc)
+        .order_by(ModelConfig::Id, Order::Asc)
+        .build_sqlx(MysqlQueryBuilder);
 
     let rows = sqlx::query_with(&sql, values)
         .map(|row: MySqlRow| {
@@ -385,6 +390,7 @@ pub(crate) async fn insert_model_config(pool: &Pool<MySql>,
 ) -> Result<u32, Error>
 {
     let config_value = value.into_bytes();
+    let config_type = value.type_string();
     let (sql, values) = Query::insert()
         .into_table(ModelConfig::Table)
         .columns([
@@ -392,6 +398,7 @@ pub(crate) async fn insert_model_config(pool: &Pool<MySql>,
             ModelConfig::Index,
             ModelConfig::Name,
             ModelConfig::Value,
+            ModelConfig::Type,
             ModelConfig::Category
         ])
         .values([
@@ -399,6 +406,7 @@ pub(crate) async fn insert_model_config(pool: &Pool<MySql>,
             index.into(),
             name.into(),
             config_value.into(),
+            config_type.into(),
             category.into()
         ])
         .unwrap_or(&mut sea_query::InsertStatement::default())
@@ -409,7 +417,7 @@ pub(crate) async fn insert_model_config(pool: &Pool<MySql>,
         .await?;
 
     let sql = Query::select()
-        .expr(Func::max(Expr::col(ModelConfig::ModelId)))
+        .expr(Func::max(Expr::col(ModelConfig::Id)))
         .from(ModelConfig::Table)
         .to_string(MysqlQueryBuilder);
     let id: u32 = sqlx::query(&sql)

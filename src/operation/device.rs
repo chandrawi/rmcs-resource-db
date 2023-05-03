@@ -101,6 +101,7 @@ async fn select_join_device(pool: &Pool<MySql>,
     }
     let (sql, values) = stmt
         .order_by((Device::Table, Device::DeviceId), Order::Asc)
+        .order_by((DeviceConfig::Table, DeviceConfig::Id), Order::Asc)
         .build_sqlx(MysqlQueryBuilder);
 
     let mut id_vec: Vec<u64> = Vec::new();
@@ -125,9 +126,10 @@ async fn select_join_device(pool: &Pool<MySql>,
             let config_type: Result<String, Error> = row.try_get(12);
             let config_category: Result<String, Error> = row.try_get(13);
 
-            // on every new id found add id_vec and update device_schema scalar member
+            // on every new id found add id_vec, clear model_vec, and update device_schema scalar member
             if id_vec.iter().filter(|el| **el == id).count() == 0 {
                 id_vec.push(id);
+                model_vec.clear();
                 device_schema.id = id;
                 device_schema.gateway_id = gateway_id;
                 device_schema.serial_number = serial_number;
@@ -367,7 +369,6 @@ async fn select_device_config(pool: &Pool<MySql>,
         )
         .to_owned();
 
-
     match selector {
         ConfigSelector::Id(id) => {
             stmt = stmt.and_where(Expr::col((DeviceConfig::Table, DeviceConfig::Id)).eq(id)).to_owned();
@@ -381,7 +382,10 @@ async fn select_device_config(pool: &Pool<MySql>,
             Expr::col((DeviceConfig::Table, DeviceConfig::DeviceId)).equals((Device::Table, Device::GatewayId))
         ).to_owned()
     }
-    let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
+    let (sql, values) = stmt
+        .order_by((DeviceConfig::Table, DeviceConfig::DeviceId), Order::Asc)
+        .order_by((DeviceConfig::Table, DeviceConfig::Id), Order::Asc)
+        .build_sqlx(MysqlQueryBuilder);
 
     let rows = sqlx::query_with(&sql, values)
         .map(|row: MySqlRow| {
