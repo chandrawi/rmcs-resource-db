@@ -4,6 +4,7 @@ use DataValue::{I8, I16, I32, I64, U8, U16, U32, U64, F32, F64, Char, Bool};
 pub trait BytesValue {
     fn from_bytes(bytes: &[u8], type_string: &str) -> Self;
     fn into_bytes(&self) -> Vec<u8>;
+    fn type_string(&self) -> String;
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -32,6 +33,14 @@ impl BytesValue for ConfigValue {
             Float(value) => value.to_be_bytes().to_vec(),
             Str(value) => value.as_bytes().to_vec(),
             ConfigValue::Null => vec![]
+        }
+    }
+    fn type_string(&self) -> String {
+        match self {
+            Int(_) => String::from("int"),
+            Float(_) => String::from("float"),
+            Str(_) => String::from("str"),
+            ConfigValue::Null => String::from("")
         }
     }
 }
@@ -99,6 +108,23 @@ impl BytesValue for DataValue {
             Char(value) => vec![*value as u8],
             Bool(value) => vec![*value as u8],
             _ => vec![]
+        }
+    }
+    fn type_string(&self) -> String {
+        match self {
+            I8(_) => String::from("i8"),
+            I16(_) => String::from("i16"),
+            I32(_) => String::from("i32"),
+            I64(_) => String::from("i64"),
+            U8(_) => String::from("u8"),
+            U16(_) => String::from("u16"),
+            U32(_) => String::from("u32"),
+            U64(_) => String::from("u64"),
+            F32(_) => String::from("f32"),
+            F64(_) => String::from("f64"),
+            Char(_) => String::from("char"),
+            Bool(_) => String::from("bool"),
+            DataValue::Null => String::from("")
         }
     }
 }
@@ -269,7 +295,7 @@ mod tests {
         assert_eq!(conf, Float(0.01171875));
 
         let bytes = [97, 98, 99, 100];
-        let conf = ConfigValue::from_bytes(&bytes, "string");
+        let conf = ConfigValue::from_bytes(&bytes, "str");
         assert_eq!(bytes.to_vec(), conf.into_bytes());
         assert_eq!(conf, Str(String::from("abcd")));
     }

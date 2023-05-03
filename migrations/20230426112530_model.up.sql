@@ -1,8 +1,8 @@
 CREATE TABLE `model` (
   `model_id` int(10) UNSIGNED NOT NULL,
+  `name` varchar(64) NOT NULL,
   `indexing` enum('index','timestamp','timestamp_index','timestamp_micros') NOT NULL,
   `category` enum('UPLINK','DOWNLINK','VIRTUAL','ANALYSIS') NOT NULL,
-  `name` varchar(64) NOT NULL,
   `description` varchar(255) NOT NULL DEFAULT ''
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 

@@ -8,6 +8,7 @@ pub use schema::value::{ConfigValue, DataValue};
 pub use schema::model::{ModelSchema, ModelConfigSchema};
 pub use schema::device::{DeviceSchema, GatewaySchema, TypeSchema, DeviceConfigSchema, GatewayConfigSchema};
 use schema::device::DeviceKind;
+pub use schema::group::{GroupModelSchema, GroupDeviceSchema, GroupGatewaySchema};
 use operation::model;
 use operation::device;
 use operation::types;
