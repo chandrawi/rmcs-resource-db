@@ -9,7 +9,8 @@ use crate::schema::model::{Model, ModelType, ModelConfig, ModelSchema, ModelConf
 enum ModelSelector {
     Id(u32),
     Name(String),
-    Category((String, String))
+    Category(String),
+    NameCategory(String, String)
 }
 
 enum ConfigSelector {
@@ -63,7 +64,10 @@ async fn select_join_model(pool: &Pool<MySql>,
         ModelSelector::Name(name) => {
             stmt = stmt.and_where(Expr::col((Model::Table, Model::Name)).like(name)).to_owned();
         },
-        ModelSelector::Category((name, category)) => {
+        ModelSelector::Category(category) => {
+            stmt = stmt.and_where(Expr::col((Model::Table, Model::Category)).eq(category)).to_owned();
+        },
+        ModelSelector::NameCategory(name, category) => {
             stmt = stmt
                 .and_where(Expr::col((Model::Table, Model::Name)).like(name))
                 .and_where(Expr::col((Model::Table, Model::Category)).eq(category))
@@ -134,7 +138,7 @@ async fn select_join_model(pool: &Pool<MySql>,
                 model_schema.configs.push(config_schema_vec.clone());
             }
             // update model_schema_vec with updated model_schema
-            if model_schema_vec.len() > 0 { model_schema_vec.pop(); }
+            model_schema_vec.pop();
             model_schema_vec.push(model_schema.clone());
         })
         .fetch_all(pool)
@@ -162,13 +166,20 @@ pub(crate) async fn select_join_model_by_name(pool: &Pool<MySql>,
     select_join_model(pool, ModelSelector::Name(name_like)).await
 }
 
+pub(crate) async fn select_join_model_by_category(pool: &Pool<MySql>, 
+    category: &str
+) -> Result<Vec<ModelSchema>, Error>
+{
+    select_join_model(pool, ModelSelector::Category(String::from(category))).await
+}
+
 pub(crate) async fn select_join_model_by_name_category(pool: &Pool<MySql>, 
     name: &str,
     category: &str
 ) -> Result<Vec<ModelSchema>, Error>
 {
     let name_like = String::from("%") + name + "%";
-    select_join_model(pool, ModelSelector::Category((String::from(name_like), String::from(category)))).await
+    select_join_model(pool, ModelSelector::NameCategory(String::from(name_like), String::from(category))).await
 }
 
 pub(crate) async fn insert_model(pool: &Pool<MySql>,

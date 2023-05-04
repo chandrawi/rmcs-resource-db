@@ -46,9 +46,9 @@ ALTER TABLE `group_device`
   MODIFY `group_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 ALTER TABLE `group_model_map`
-  ADD CONSTRAINT `group_model_model_id` FOREIGN KEY (`model_id`) REFERENCES `model` (`model_id`),
-  ADD CONSTRAINT `group_model_group_id` FOREIGN KEY (`group_id`) REFERENCES `group_model` (`group_id`);
+  ADD CONSTRAINT `group_model_model_id` FOREIGN KEY (`model_id`) REFERENCES `model` (`model_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `group_model_group_id` FOREIGN KEY (`group_id`) REFERENCES `group_model` (`group_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE `group_device_map`
-  ADD CONSTRAINT `group_device_device_id` FOREIGN KEY (`device_id`) REFERENCES `device` (`device_id`),
-  ADD CONSTRAINT `group_device_group_id` FOREIGN KEY (`group_id`) REFERENCES `group_device` (`group_id`);
+  ADD CONSTRAINT `group_device_device_id` FOREIGN KEY (`device_id`) REFERENCES `device` (`device_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `group_device_group_id` FOREIGN KEY (`group_id`) REFERENCES `group_device` (`group_id`) ON DELETE CASCADE ON UPDATE CASCADE;

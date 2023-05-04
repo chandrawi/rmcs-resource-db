@@ -97,6 +97,13 @@ impl Resource {
         .await
     }
 
+    pub async fn list_model_by_category(&self, category: &str)
+        -> Result<Vec<ModelSchema>, Error>
+    {
+        model::select_join_model_by_category(&self.pool, category)
+        .await
+    }
+
     pub async fn list_model_by_name_category(&self, name: &str, category: &str)
         -> Result<Vec<ModelSchema>, Error>
     {

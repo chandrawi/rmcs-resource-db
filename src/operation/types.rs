@@ -67,7 +67,7 @@ async fn select_device_type(pool: &Pool<MySql>,
                 type_schema.models.push(value);
             }
             // update type_schema_vec with updated type_schema
-            if type_schema_vec.len() > 0 { type_schema_vec.pop(); }
+            type_schema_vec.pop();
             type_schema_vec.push(type_schema.clone());
         })
         .fetch_all(pool)

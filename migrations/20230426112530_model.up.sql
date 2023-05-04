@@ -39,7 +39,7 @@ ALTER TABLE `model_config`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 ALTER TABLE `model_type`
-  ADD CONSTRAINT `model_type_model_id` FOREIGN KEY (`model_id`) REFERENCES `model` (`model_id`);
+  ADD CONSTRAINT `model_type_model_id` FOREIGN KEY (`model_id`) REFERENCES `model` (`model_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE `model_config`
-  ADD CONSTRAINT `model_config_model_id` FOREIGN KEY (`model_id`) REFERENCES `model` (`model_id`);
+  ADD CONSTRAINT `model_config_model_id` FOREIGN KEY (`model_id`) REFERENCES `model` (`model_id`) ON DELETE CASCADE ON UPDATE CASCADE;

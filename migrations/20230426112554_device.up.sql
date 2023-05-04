@@ -49,11 +49,11 @@ ALTER TABLE `device_config`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 ALTER TABLE `device_type_model`
-  ADD CONSTRAINT `device_type_model_type_id` FOREIGN KEY (`type_id`) REFERENCES `device_type` (`type_id`),
-  ADD CONSTRAINT `device_type_model_model_id` FOREIGN KEY (`model_id`) REFERENCES `model` (`model_id`);
+  ADD CONSTRAINT `device_type_model_type_id` FOREIGN KEY (`type_id`) REFERENCES `device_type` (`type_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `device_type_model_model_id` FOREIGN KEY (`model_id`) REFERENCES `model` (`model_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE `device`
   ADD CONSTRAINT `device_type_id` FOREIGN KEY (`type_id`) REFERENCES `device_type` (`type_id`);
 
 ALTER TABLE `device_config`
-  ADD CONSTRAINT `device_config_device_id` FOREIGN KEY (`device_id`) REFERENCES `device` (`device_id`);
+  ADD CONSTRAINT `device_config_device_id` FOREIGN KEY (`device_id`) REFERENCES `device` (`device_id`) ON DELETE CASCADE ON UPDATE CASCADE;

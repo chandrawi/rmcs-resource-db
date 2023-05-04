@@ -39,8 +39,8 @@ pub(crate) enum GroupKind {
     Gateway
 }
 
-impl GroupKind {
-    pub(crate) fn to_string(&self) -> String {
+impl std::string::ToString for GroupKind {
+    fn to_string(&self) -> String {
         match &self {
             GroupKind::Device => String::from("DEVICE"),
             GroupKind::Gateway => String::from("GATEWAY"),

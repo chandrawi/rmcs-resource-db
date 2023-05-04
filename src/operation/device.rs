@@ -15,8 +15,8 @@ enum DeviceSelector {
     Type(u32),
     SN(String),
     Name(String),
-    GatewayType((u64, u32)),
-    GatewayName((u64, String))
+    GatewayType(u64, u32),
+    GatewayName(u64, String)
 }
 
 enum ConfigSelector {
@@ -83,12 +83,12 @@ async fn select_join_device(pool: &Pool<MySql>,
         DeviceSelector::Name(name) => {
             stmt = stmt.and_where(Expr::col((Device::Table, Device::Name)).like(name)).to_owned();
         },
-        DeviceSelector::GatewayType((id, ty)) => {
+        DeviceSelector::GatewayType(id, ty) => {
             stmt = stmt.and_where(Expr::col((Device::Table, Device::GatewayId)).eq(id))
                 .and_where(Expr::col((Device::Table, Device::TypeId)).eq(ty))
                 .to_owned();
         },
-        DeviceSelector::GatewayName((id, name)) => {
+        DeviceSelector::GatewayName(id, name) => {
             stmt = stmt.and_where(Expr::col((Device::Table, Device::GatewayId)).eq(id))
                 .and_where(Expr::col((Device::Table, Device::Name)).like(name))
                 .to_owned();
@@ -101,6 +101,8 @@ async fn select_join_device(pool: &Pool<MySql>,
     }
     let (sql, values) = stmt
         .order_by((Device::Table, Device::DeviceId), Order::Asc)
+        .order_by((DeviceType::Table, DeviceType::TypeId), Order::Asc)
+        .order_by((DeviceTypeModel::Table, DeviceTypeModel::ModelId), Order::Asc)
         .order_by((DeviceConfig::Table, DeviceConfig::Id), Order::Asc)
         .build_sqlx(MysqlQueryBuilder);
 
@@ -149,7 +151,8 @@ async fn select_join_device(pool: &Pool<MySql>,
                     name: type_name,
                     description: type_description,
                     models: model_vec.clone()
-                }
+                };
+                device_schema.configs = Vec::new();
             }
             // update device_schema configs if non empty config found
             if let Ok(cfg_id) = config_id {
@@ -164,7 +167,7 @@ async fn select_join_device(pool: &Pool<MySql>,
                 });
             }
             // update device_schema_vec with updated device_schema
-            if device_schema_vec.len() > 0 { device_schema_vec.pop(); }
+            device_schema_vec.pop();
             device_schema_vec.push(device_schema.clone());
         })
         .fetch_all(pool)
@@ -228,7 +231,7 @@ pub(crate) async fn select_device_by_gateway_type(pool: &Pool<MySql>,
     type_id: u32
 ) -> Result<Vec<DeviceSchema>, Error>
 {
-    select_join_device(pool, kind, DeviceSelector::GatewayType((gateway_id, type_id))).await
+    select_join_device(pool, kind, DeviceSelector::GatewayType(gateway_id, type_id)).await
 }
 
 pub(crate) async fn select_device_by_gateway_name(pool: &Pool<MySql>,
@@ -238,7 +241,7 @@ pub(crate) async fn select_device_by_gateway_name(pool: &Pool<MySql>,
 ) -> Result<Vec<DeviceSchema>, Error>
 {
     let name_like = String::from("%") + name + "%";
-    select_join_device(pool, kind, DeviceSelector::GatewayName((gateway_id, name_like))).await
+    select_join_device(pool, kind, DeviceSelector::GatewayName(gateway_id, name_like)).await
 }
 
 pub(crate) async fn insert_device(pool: &Pool<MySql>,

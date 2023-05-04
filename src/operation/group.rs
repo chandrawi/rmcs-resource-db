@@ -9,7 +9,7 @@ enum GroupSelector {
     Id(u32),
     Name(String),
     Category(String),
-    NameCategory((String, String))
+    NameCategory(String, String)
 }
 
 async fn select_group(pool: &Pool<MySql>, 
@@ -46,7 +46,7 @@ async fn select_group(pool: &Pool<MySql>,
                 GroupSelector::Category(category) => {
                     stmt = stmt.and_where(Expr::col((GroupModel::Table, GroupModel::Category)).eq(category)).to_owned();
                 },
-                GroupSelector::NameCategory((name, category)) => {
+                GroupSelector::NameCategory(name, category) => {
                     stmt = stmt
                         .and_where(Expr::col((GroupModel::Table, GroupModel::Name)).like(name))
                         .and_where(Expr::col((GroupModel::Table, GroupModel::Category)).eq(category))
@@ -82,7 +82,7 @@ async fn select_group(pool: &Pool<MySql>,
                 GroupSelector::Category(category) => {
                     stmt = stmt.and_where(Expr::col((GroupDevice::Table, GroupDevice::Category)).eq(category)).to_owned();
                 },
-                GroupSelector::NameCategory((name, category)) => {
+                GroupSelector::NameCategory(name, category) => {
                     stmt = stmt
                         .and_where(Expr::col((GroupDevice::Table, GroupDevice::Name)).like(name))
                         .and_where(Expr::col((GroupDevice::Table, GroupDevice::Category)).eq(category))
@@ -120,7 +120,7 @@ async fn select_group(pool: &Pool<MySql>,
                 group_schema.members.push(value);
             }
             // update group_schema_vec with updated group_schema
-            if group_schema_vec.len() > 0 { group_schema_vec.pop(); }
+            group_schema_vec.pop();
             group_schema_vec.push(group_schema.clone());
         })
         .fetch_all(pool)
@@ -165,7 +165,7 @@ pub(crate) async fn select_group_by_name_category(pool: &Pool<MySql>,
 ) -> Result<Vec<GroupSchema>, Error>
 {
     let name_like = String::from("%") + name + "%";
-    select_group(pool, kind, GroupSelector::NameCategory((name_like, String::from(category)))).await
+    select_group(pool, kind, GroupSelector::NameCategory(name_like, String::from(category))).await
 }
 
 pub(crate) async fn insert_group(pool: &Pool<MySql>,
