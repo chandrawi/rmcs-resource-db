@@ -10,6 +10,7 @@ pub use schema::device::{DeviceSchema, GatewaySchema, TypeSchema, DeviceConfigSc
 use schema::device::DeviceKind;
 pub use schema::group::{GroupModelSchema, GroupDeviceSchema, GroupGatewaySchema};
 use schema::group::GroupKind;
+pub use schema::data::{DataSchema, DataModel};
 use operation::model;
 use operation::device;
 use operation::types;
