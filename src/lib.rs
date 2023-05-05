@@ -3,8 +3,9 @@ pub mod operation;
 
 use sqlx::{Pool, Error};
 use sqlx::mysql::{MySql, MySqlPoolOptions};
+use sqlx::types::chrono::{DateTime, Utc};
 
-pub use schema::value::{ConfigType, ConfigValue, DataIndexing, DataType, DataValue};
+pub use schema::value::{ConfigType, ConfigValue, DataIndexing, DataType, DataValue, ArrayDataValue};
 pub use schema::model::{ModelSchema, ModelConfigSchema};
 pub use schema::device::{DeviceSchema, GatewaySchema, TypeSchema, DeviceConfigSchema, GatewayConfigSchema};
 use schema::device::DeviceKind;
@@ -15,6 +16,7 @@ use operation::model;
 use operation::device;
 use operation::types;
 use operation::group;
+use operation::data;
 
 pub struct Resource {
     pub pool: Pool<MySql>,
@@ -666,6 +668,132 @@ impl Resource {
         -> Result<(), Error>
     {
         group::delete_group_map(&self.pool, GroupKind::Gateway, id, device_id)
+        .await
+    }
+
+    pub async fn read_data(&self, device_id: u64, model_id: u32, timestamp: DateTime<Utc>, index: Option<u16>)
+        -> Result<DataSchema, Error>
+    {
+        let model = data::select_data_model(&self.pool, model_id).await?;
+        data::select_data_by_time(&self.pool, model, device_id, timestamp, index).await?.into_iter().next()
+            .ok_or(Error::RowNotFound)
+    }
+
+    pub async fn list_data_by_time(&self, device_id: u64, model_id: u32, timestamp: DateTime<Utc>)
+        -> Result<Vec<DataSchema>, Error>
+    {
+        let model = data::select_data_model(&self.pool, model_id).await?;
+        data::select_data_by_time(&self.pool, model, device_id, timestamp, None)
+        .await
+    }
+
+    pub async fn list_data_by_last_time(&self, device_id: u64, model_id: u32, last: DateTime<Utc>)
+        -> Result<Vec<DataSchema>, Error>
+    {
+        let model = data::select_data_model(&self.pool, model_id).await?;
+        data::select_data_by_last_time(&self.pool, model, device_id, last)
+        .await
+    }
+
+    pub async fn list_data_by_range_time(&self, device_id: u64, model_id: u32, begin: DateTime<Utc>, end: DateTime<Utc>)
+        -> Result<Vec<DataSchema>, Error>
+    {
+        let model = data::select_data_model(&self.pool, model_id).await?;
+        data::select_data_by_range_time(&self.pool, model, device_id, begin, end)
+        .await
+    }
+
+    pub async fn list_data_by_number_before(&self, device_id: u64, model_id: u32, before: DateTime<Utc>, number: u32)
+        -> Result<Vec<DataSchema>, Error>
+    {
+        let model = data::select_data_model(&self.pool, model_id).await?;
+        data::select_data_by_number_before(&self.pool, model, device_id, before, number)
+        .await
+    }
+
+    pub async fn list_data_by_number_after(&self, device_id: u64, model_id: u32, after: DateTime<Utc>, number: u32)
+        -> Result<Vec<DataSchema>, Error>
+    {
+        let model = data::select_data_model(&self.pool, model_id).await?;
+        data::select_data_by_number_after(&self.pool, model, device_id, after, number)
+        .await
+    }
+
+    pub async fn get_data_model(&self, model_id: u32)
+        -> Result<DataModel, Error>
+    {
+        data::select_data_model(&self.pool, model_id).await
+    }
+
+    pub async fn read_data_with_model(&self, model: DataModel, device_id: u64, timestamp: DateTime<Utc>, index: Option<u16>)
+        -> Result<DataSchema, Error>
+    {
+        data::select_data_by_time(&self.pool, model, device_id, timestamp, index).await?.into_iter().next()
+            .ok_or(Error::RowNotFound)
+    }
+
+    pub async fn list_data_with_model_by_time(&self, model: DataModel, device_id: u64, timestamp: DateTime<Utc>)
+        -> Result<Vec<DataSchema>, Error>
+    {
+        data::select_data_by_time(&self.pool, model, device_id, timestamp, None)
+        .await
+    }
+
+    pub async fn list_data_with_model_by_last_time(&self, model: DataModel, device_id: u64, last: DateTime<Utc>)
+        -> Result<Vec<DataSchema>, Error>
+    {
+        data::select_data_by_last_time(&self.pool, model, device_id, last)
+        .await
+    }
+
+    pub async fn list_data_with_model_by_range_time(&self, model: DataModel, device_id: u64, begin: DateTime<Utc>, end: DateTime<Utc>)
+        -> Result<Vec<DataSchema>, Error>
+    {
+        data::select_data_by_range_time(&self.pool, model, device_id, begin, end)
+        .await
+    }
+
+    pub async fn list_data_with_model_by_number_before(&self, model: DataModel, device_id: u64, before: DateTime<Utc>, number: u32)
+        -> Result<Vec<DataSchema>, Error>
+    {
+        data::select_data_by_number_before(&self.pool, model, device_id, before, number)
+        .await
+    }
+
+    pub async fn list_data_with_model_by_number_after(&self, model: DataModel, device_id: u64, after: DateTime<Utc>, number: u32)
+        -> Result<Vec<DataSchema>, Error>
+    {
+        data::select_data_by_number_after(&self.pool, model, device_id, after, number)
+        .await
+    }
+
+    pub async fn create_data(&self, device_id: u64, model_id: u32, timestamp: DateTime<Utc>, index: Option<u16>, data: Vec<DataValue>)
+        -> Result<(), Error>
+    {
+        let model = data::select_data_model(&self.pool, model_id).await?;
+        data::insert_data(&self.pool, model, device_id, timestamp, index, data)
+        .await
+    }
+
+    pub async fn create_data_with_model(&self, model: DataModel, device_id: u64, timestamp: DateTime<Utc>, index: Option<u16>, data: Vec<DataValue>)
+        -> Result<(), Error>
+    {
+        data::insert_data(&self.pool, model, device_id, timestamp, index, data)
+        .await
+    }
+
+    pub async fn delete_data(&self, device_id: u64, model_id: u32, timestamp: DateTime<Utc>, index: Option<u16>)
+        -> Result<(), Error>
+    {
+        let model = data::select_data_model(&self.pool, model_id).await?;
+        data::delete_data(&self.pool, model, device_id, timestamp, index)
+        .await
+    }
+
+    pub async fn delete_data_with_model(&self, model: DataModel, device_id: u64, timestamp: DateTime<Utc>, index: Option<u16>)
+        -> Result<(), Error>
+    {
+        data::delete_data(&self.pool, model, device_id, timestamp, index)
         .await
     }
 
