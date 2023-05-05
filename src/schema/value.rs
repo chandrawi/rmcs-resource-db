@@ -1,10 +1,33 @@
 use ConfigValue::{Int, Float, Str};
 use DataValue::{I8, I16, I32, I64, U8, U16, U32, U64, F32, F64, Char, Bool};
+use ConfigType::{IntT, FloatT, StrT};
+use DataType::{I8T, I16T, I32T, I64T, U8T, U16T, U32T, U64T, F32T, F64T, CharT, BoolT};
 
-pub trait BytesValue {
-    fn from_bytes(bytes: &[u8], type_string: &str) -> Self;
-    fn into_bytes(&self) -> Vec<u8>;
-    fn type_string(&self) -> String;
+#[derive(Debug)]
+pub enum ConfigType {
+    IntT,
+    FloatT,
+    StrT,
+    NullT
+}
+
+impl ConfigType {
+    pub(crate) fn from_str(value: &str) -> Self {
+        match value {
+            "int" => IntT,
+            "float" => FloatT,
+            "str" => StrT,
+            _ => Self::NullT
+        }
+    }
+    pub(crate) fn to_string(self) -> String {
+        match self {
+            IntT => String::from("int"),
+            FloatT => String::from("float"),
+            StrT => String::from("str"),
+            Self::NullT => String::new()
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -16,31 +39,110 @@ pub enum ConfigValue {
     Null
 }
 
-impl BytesValue for ConfigValue {
-    fn from_bytes(bytes: &[u8], type_string: &str) -> Self
-    {
-        match type_string {
-            "int" => Int(i64::from_be_bytes(bytes.try_into().unwrap_or_default())),
-            "float" => Float(f64::from_be_bytes(bytes.try_into().unwrap_or_default())),
-            "str" => Str(std::str::from_utf8(bytes).unwrap_or_default().to_owned()),
-            _ => ConfigValue::Null
+impl ConfigValue {
+    pub fn from_bytes(bytes: &[u8], type_: ConfigType) -> Self {
+        match type_ {
+            IntT => Int(i64::from_be_bytes(bytes.try_into().unwrap_or_default())),
+            FloatT => Float(f64::from_be_bytes(bytes.try_into().unwrap_or_default())),
+            StrT => Str(std::str::from_utf8(bytes).unwrap_or_default().to_owned()),
+            _ => Self::Null
         }
     }
-    fn into_bytes(&self) -> Vec<u8>
-    {
+    pub fn to_bytes(&self) -> Vec<u8> {
         match self {
             Int(value) => value.to_be_bytes().to_vec(),
             Float(value) => value.to_be_bytes().to_vec(),
             Str(value) => value.as_bytes().to_vec(),
-            ConfigValue::Null => vec![]
+            Self::Null => Vec::new()
         }
     }
-    fn type_string(&self) -> String {
+    pub fn get_type(&self) -> ConfigType {
         match self {
-            Int(_) => String::from("int"),
-            Float(_) => String::from("float"),
-            Str(_) => String::from("str"),
-            ConfigValue::Null => String::from("")
+            Int(_) => IntT,
+            Float(_) => FloatT,
+            Str(_) => StrT,
+            Self::Null => ConfigType::NullT
+        }
+    }
+}
+
+pub type LogValue = ConfigValue;
+
+#[derive(Debug, Default, PartialEq, Clone)]
+pub enum DataIndexing {
+    #[default]
+    Timestamp,
+    TimestampIndex,
+    TimestampMicros
+}
+
+impl DataIndexing {
+    pub fn from_str(value: &str) -> Self {
+        match value {
+            "timestamp_index" => Self::TimestampIndex,
+            "timestamp_micros" => Self::TimestampMicros,
+            _ => Self::Timestamp,
+        }
+    }
+    pub fn to_string(self) -> String {
+        match self {
+            Self::Timestamp => String::from("timestamp"),
+            Self::TimestampIndex => String::from("timestamp_index"),
+            Self::TimestampMicros => String::from("timestamp_micros")
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum DataType {
+    I8T,
+    I16T,
+    I32T,
+    I64T,
+    U8T,
+    U16T,
+    U32T,
+    U64T,
+    F32T,
+    F64T,
+    CharT,
+    BoolT,
+    NullT
+}
+
+impl DataType {
+    pub(crate) fn from_str(value: &str) -> Self {
+        match value {
+            "i8" => I8T,
+            "i16" => I16T,
+            "i32" => I32T,
+            "i64" => I64T,
+            "u8" => U8T,
+            "u16" => U16T,
+            "u32" => U32T,
+            "u64" => U64T,
+            "f32" => F32T,
+            "f64" => F64T,
+            "char" => CharT,
+            "bool" => BoolT,
+            _ => Self::NullT
+        }
+    }
+    pub(crate) fn to_string(self) -> String {
+        match self {
+            I8T => String::from("i8"),
+            I16T => String::from("i16"),
+            I32T => String::from("i32"),
+            I64T => String::from("i64"),
+            U8T => String::from("u8"),
+            U16T => String::from("u16"),
+            U32T => String::from("u32"),
+            U64T => String::from("u64"),
+            F32T => String::from("f32"),
+            F64T => String::from("f64"),
+            CharT => String::from("char"),
+            BoolT => String::from("bool"),
+            Self::NullT => String::new()
         }
     }
 }
@@ -63,9 +165,8 @@ pub enum DataValue {
     Null
 }
 
-impl BytesValue for DataValue {
-    fn from_bytes(bytes: &[u8], type_string: &str) -> Self
-    {
+impl DataValue {
+    pub fn from_bytes(bytes: &[u8], type_: DataType) -> Self {
         if bytes.len() == 0 {
             return DataValue::Null;
         }
@@ -77,23 +178,23 @@ impl BytesValue for DataValue {
                 DataValue::Null
             }
         };
-        match type_string {
-            "i8" => sel_val(1, I8(i8::from_be_bytes(bytes.try_into().unwrap_or_default()))),
-            "i16" => sel_val(2, I16(i16::from_be_bytes(bytes.try_into().unwrap_or_default()))),
-            "i32" => sel_val(4, I32(i32::from_be_bytes(bytes.try_into().unwrap_or_default()))),
-            "i64" => sel_val(8, I64(i64::from_be_bytes(bytes.try_into().unwrap_or_default()))),
-            "u8" => sel_val(1, U8(u8::from_be_bytes(bytes.try_into().unwrap_or_default()))),
-            "u16" => sel_val(2, U16(u16::from_be_bytes(bytes.try_into().unwrap_or_default()))),
-            "u32" => sel_val(4, U32(u32::from_be_bytes(bytes.try_into().unwrap_or_default()))),
-            "u64" => sel_val(8, U64(u64::from_be_bytes(bytes.try_into().unwrap_or_default()))),
-            "f32" => sel_val(4, F32(f32::from_be_bytes(bytes.try_into().unwrap_or_default()))),
-            "f64" => sel_val(8, F64(f64::from_be_bytes(bytes.try_into().unwrap_or_default()))),
-            "char" => sel_val(1, Char(char::from_u32(first_el as u32).unwrap_or_default())),
-            "bool" => sel_val(1, Bool(bool::from(first_el > 0))),
-            _ => DataValue::Null
+        match type_ {
+            I8T => sel_val(1, I8(i8::from_be_bytes(bytes.try_into().unwrap_or_default()))),
+            I16T => sel_val(2, I16(i16::from_be_bytes(bytes.try_into().unwrap_or_default()))),
+            I32T => sel_val(4, I32(i32::from_be_bytes(bytes.try_into().unwrap_or_default()))),
+            I64T => sel_val(8, I64(i64::from_be_bytes(bytes.try_into().unwrap_or_default()))),
+            U8T => sel_val(1, U8(u8::from_be_bytes(bytes.try_into().unwrap_or_default()))),
+            U16T => sel_val(2, U16(u16::from_be_bytes(bytes.try_into().unwrap_or_default()))),
+            U32T => sel_val(4, U32(u32::from_be_bytes(bytes.try_into().unwrap_or_default()))),
+            U64T => sel_val(8, U64(u64::from_be_bytes(bytes.try_into().unwrap_or_default()))),
+            F32T => sel_val(4, F32(f32::from_be_bytes(bytes.try_into().unwrap_or_default()))),
+            F64T => sel_val(8, F64(f64::from_be_bytes(bytes.try_into().unwrap_or_default()))),
+            CharT => sel_val(1, Char(char::from_u32(first_el as u32).unwrap_or_default())),
+            BoolT => sel_val(1, Bool(bool::from(first_el > 0))),
+            _ => Self::Null
         }
     }
-    fn into_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Vec<u8> {
         match self {
             I8(value) => value.to_be_bytes().to_vec(),
             I16(value) => value.to_be_bytes().to_vec(),
@@ -105,26 +206,26 @@ impl BytesValue for DataValue {
             U64(value) => value.to_be_bytes().to_vec(),
             F32(value) => value.to_be_bytes().to_vec(),
             F64(value) => value.to_be_bytes().to_vec(),
-            Char(value) => vec![*value as u8],
-            Bool(value) => vec![*value as u8],
-            _ => vec![]
+            Char(value) => Vec::from([*value as u8]),
+            Bool(value) => Vec::from([*value as u8]),
+            _ => Vec::new()
         }
     }
-    fn type_string(&self) -> String {
+    pub fn get_type(&self) -> DataType {
         match self {
-            I8(_) => String::from("i8"),
-            I16(_) => String::from("i16"),
-            I32(_) => String::from("i32"),
-            I64(_) => String::from("i64"),
-            U8(_) => String::from("u8"),
-            U16(_) => String::from("u16"),
-            U32(_) => String::from("u32"),
-            U64(_) => String::from("u64"),
-            F32(_) => String::from("f32"),
-            F64(_) => String::from("f64"),
-            Char(_) => String::from("char"),
-            Bool(_) => String::from("bool"),
-            DataValue::Null => String::from("")
+            I8(_) => I8T,
+            I16(_) => I16T,
+            I32(_) => I32T,
+            I64(_) => I64T,
+            U8(_) => U8T,
+            U16(_) => U16T,
+            U32(_) => U32T,
+            U64(_) => U64T,
+            F32(_) => F32T,
+            F64(_) => F64T,
+            Char(_) => CharT,
+            Bool(_) => BoolT,
+            Self::Null => DataType::NullT
         }
     }
 }
@@ -133,16 +234,15 @@ impl BytesValue for DataValue {
 pub struct ArrayDataValue(Vec<DataValue>);
 
 impl ArrayDataValue {
-    pub fn from_bytes(bytes: &[u8], types: &[&str]) -> Self
-    {
-        let mut values = vec![];
+    pub fn from_bytes(bytes: &[u8], types: &[DataType]) -> Self {
+        let mut values = Vec::new();
         let mut index = 0;
         for t in types {
-            let len = match *t {
-                "i8" | "u8" | "char" | "bool" => 1,
-                "i16" | "u16" => 2,
-                "i32" | "u32" | "f32" => 4,
-                "i64" | "u64" | "f64" => 8,
+            let len = match t {
+                I8T | U8T | CharT | BoolT => 1,
+                I16T | U16T => 2,
+                I32T | U32T | F32T => 4,
+                I64T | U64T | F64T => 8,
                 _ => 0
             };
             if index + len > bytes.len() {
@@ -151,18 +251,23 @@ impl ArrayDataValue {
             if len == 0 {
                 continue;
             }
-            values.push(DataValue::from_bytes(&bytes[index..index + len], t));
+            values.push(DataValue::from_bytes(&bytes[index..index + len], t.clone()));
             index += len;
         }
         ArrayDataValue(values)
     }
-    pub fn into_bytes(&self) -> Vec<u8>
-    {
-        let mut bytes = vec![];
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
         for value in &self.0 {
-            bytes.append(&mut value.into_bytes());
+            bytes.append(&mut value.to_bytes());
         }
         bytes
+    }
+    pub fn from_vec(data_vec: &[DataValue]) -> Self {
+        Self(data_vec.to_vec())
+    }
+    pub fn to_vec(self) -> Vec<DataValue> {
+        self.0
     }
 }
 
@@ -285,18 +390,18 @@ mod tests {
     fn config_value_bytes() 
     {
         let bytes = [255, 255, 255, 255, 255, 255, 255, 0];
-        let conf = ConfigValue::from_bytes(&bytes, "int");
-        assert_eq!(bytes.to_vec(), conf.into_bytes());
+        let conf = ConfigValue::from_bytes(&bytes, IntT);
+        assert_eq!(bytes.to_vec(), conf.to_bytes());
         assert_eq!(conf, Int(-256));
 
         let bytes = [63, 136, 0, 0, 0, 0, 0, 0];
-        let conf = ConfigValue::from_bytes(&bytes, "float");
-        assert_eq!(bytes.to_vec(), conf.into_bytes());
+        let conf = ConfigValue::from_bytes(&bytes, FloatT);
+        assert_eq!(bytes.to_vec(), conf.to_bytes());
         assert_eq!(conf, Float(0.01171875));
 
         let bytes = [97, 98, 99, 100];
-        let conf = ConfigValue::from_bytes(&bytes, "str");
-        assert_eq!(bytes.to_vec(), conf.into_bytes());
+        let conf = ConfigValue::from_bytes(&bytes, StrT);
+        assert_eq!(bytes.to_vec(), conf.to_bytes());
         assert_eq!(conf, Str(String::from("abcd")));
     }
 
@@ -348,67 +453,67 @@ mod tests {
     fn data_value_bytes() 
     {
         let bytes = [255];
-        let value = DataValue::from_bytes(&bytes, "i8");
-        assert_eq!(bytes.to_vec(), value.into_bytes());
+        let value = DataValue::from_bytes(&bytes, I8T);
+        assert_eq!(bytes.to_vec(), value.to_bytes());
         assert_eq!(value, I8(-1));
         let bytes = [255, 0];
-        let value = DataValue::from_bytes(&bytes, "i16");
-        assert_eq!(bytes.to_vec(), value.into_bytes());
+        let value = DataValue::from_bytes(&bytes, I16T);
+        assert_eq!(bytes.to_vec(), value.to_bytes());
         assert_eq!(value, I16(-256));
         let bytes = [255, 255, 255, 0];
-        let value = DataValue::from_bytes(&bytes, "i32");
-        assert_eq!(bytes.to_vec(), value.into_bytes());
+        let value = DataValue::from_bytes(&bytes, I32T);
+        assert_eq!(bytes.to_vec(), value.to_bytes());
         assert_eq!(value, I32(-256));
         let bytes = [255, 255, 255, 255, 255, 255, 255, 0];
-        let value = DataValue::from_bytes(&bytes, "i64");
-        assert_eq!(bytes.to_vec(), value.into_bytes());
+        let value = DataValue::from_bytes(&bytes, I64T);
+        assert_eq!(bytes.to_vec(), value.to_bytes());
         assert_eq!(value, I64(-256));
 
         let bytes = [1];
-        let value = DataValue::from_bytes(&bytes, "u8");
-        assert_eq!(bytes.to_vec(), value.into_bytes());
+        let value = DataValue::from_bytes(&bytes, U8T);
+        assert_eq!(bytes.to_vec(), value.to_bytes());
         assert_eq!(value, U8(1));
         let bytes = [1, 0];
-        let value = DataValue::from_bytes(&bytes, "u16");
-        assert_eq!(bytes.to_vec(), value.into_bytes());
+        let value = DataValue::from_bytes(&bytes, U16T);
+        assert_eq!(bytes.to_vec(), value.to_bytes());
         assert_eq!(value, U16(256));
         let bytes = [1, 0, 0, 0];
-        let value = DataValue::from_bytes(&bytes, "u32");
-        assert_eq!(bytes.to_vec(), value.into_bytes());
+        let value = DataValue::from_bytes(&bytes, U32T);
+        assert_eq!(bytes.to_vec(), value.to_bytes());
         assert_eq!(value, U32(16777216));
         let bytes = [1, 0, 0, 0, 0, 0, 0, 0];
-        let value = DataValue::from_bytes(&bytes, "u64");
-        assert_eq!(bytes.to_vec(), value.into_bytes());
+        let value = DataValue::from_bytes(&bytes, U64T);
+        assert_eq!(bytes.to_vec(), value.to_bytes());
         assert_eq!(value, U64(72057594037927936));
 
         let bytes = [62, 32, 0, 0];
-        let value = DataValue::from_bytes(&bytes, "f32");
-        assert_eq!(bytes.to_vec(), value.into_bytes());
+        let value = DataValue::from_bytes(&bytes, F32T);
+        assert_eq!(bytes.to_vec(), value.to_bytes());
         assert_eq!(value, F32(0.15625));
         let bytes = [63, 136, 0, 0, 0, 0, 0, 0];
-        let value = DataValue::from_bytes(&bytes, "f64");
-        assert_eq!(bytes.to_vec(), value.into_bytes());
+        let value = DataValue::from_bytes(&bytes, F64T);
+        assert_eq!(bytes.to_vec(), value.to_bytes());
         assert_eq!(value, F64(0.01171875));
 
         let bytes = [97];
-        let value = DataValue::from_bytes(&bytes, "char");
-        assert_eq!(bytes.to_vec(), value.into_bytes());
+        let value = DataValue::from_bytes(&bytes, CharT);
+        assert_eq!(bytes.to_vec(), value.to_bytes());
         assert_eq!(value, Char('a'));
         let bytes = [1];
-        let value = DataValue::from_bytes(&bytes, "bool");
-        assert_eq!(bytes.to_vec(), value.into_bytes());
+        let value = DataValue::from_bytes(&bytes, BoolT);
+        assert_eq!(bytes.to_vec(), value.to_bytes());
         assert_eq!(value, Bool(true));
 
         // wrong bytes length
         let bytes = [1, 0];
-        assert_eq!(DataValue::from_bytes(&bytes, "u8"), DataValue::Null);
+        assert_eq!(DataValue::from_bytes(&bytes, U8T), DataValue::Null);
     }
 
     #[test]
     fn array_data_value_bytes() 
     {
         let bytes = [1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0];
-        let types = ["u8", "i16", "u32", "i64"];
+        let types = [U8T, I16T, U32T, I64T];
         let data = ArrayDataValue::from_bytes(&bytes, &types);
         assert_eq!(data.0, [
             U8(1),
@@ -418,7 +523,7 @@ mod tests {
         ]);
 
         let bytes = [62, 32, 0, 0, 63, 136, 0, 0, 0, 0, 0, 0];
-        let types = ["f32", "f64"];
+        let types = [F32T, F64T];
         let data = ArrayDataValue::from_bytes(&bytes, &types);
         assert_eq!(data.0, [
             F32(0.15625),
@@ -426,7 +531,7 @@ mod tests {
         ]);
 
         let bytes = [97, 1];
-        let types = ["char", "bool"];
+        let types = [CharT, BoolT];
         let data = ArrayDataValue::from_bytes(&bytes, &types);
         assert_eq!(data.0, [
             Char('a'),

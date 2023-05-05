@@ -3,7 +3,7 @@ use sqlx::mysql::{MySql, MySqlRow};
 use sea_query::{MysqlQueryBuilder, Query, Expr, Order, Func};
 use sea_query_binder::SqlxBinder;
 
-use crate::schema::value::{ConfigValue, BytesValue};
+use crate::schema::value::{ConfigValue, ConfigType};
 use crate::schema::device::{
     Device, DeviceType, DeviceTypeModel, DeviceConfig, DeviceKind,
     DeviceSchema, TypeSchema, DeviceConfigSchema
@@ -157,12 +157,12 @@ async fn select_join_device(pool: &Pool<MySql>,
             // update device_schema configs if non empty config found
             if let Ok(cfg_id) = config_id {
                 let bytes = config_value.unwrap_or_default();
-                let type_string = config_type.unwrap_or_default();
+                let type_string = ConfigType::from_str(&config_type.unwrap_or_default());
                 device_schema.configs.push(DeviceConfigSchema {
                     id: cfg_id,
                     device_id: id,
                     name: config_name.unwrap_or_default(),
-                    value: ConfigValue::from_bytes(bytes.as_slice(), &type_string),
+                    value: ConfigValue::from_bytes(bytes.as_slice(), type_string),
                     category: config_category.unwrap_or_default()
                 });
             }
@@ -393,7 +393,7 @@ async fn select_device_config(pool: &Pool<MySql>,
     let rows = sqlx::query_with(&sql, values)
         .map(|row: MySqlRow| {
             let bytes = row.get(3);
-            let type_string = row.get(4);
+            let type_string = ConfigType::from_str(row.get(4));
             DeviceConfigSchema {
                 id: row.get(0),
                 device_id: row.get(1),
@@ -435,8 +435,8 @@ pub(crate) async fn insert_device_config(pool: &Pool<MySql>,
     category: &str
 ) -> Result<u32, Error>
 {
-    let config_value = value.into_bytes();
-    let config_type = value.type_string();
+    let config_value = value.to_bytes();
+    let config_type = value.get_type().to_string();
     let (sql, values) = Query::insert()
         .into_table(DeviceConfig::Table)
         .columns([
@@ -487,8 +487,11 @@ pub(crate) async fn update_device_config(pool: &Pool<MySql>,
         stmt = stmt.value(DeviceConfig::Name, value).to_owned();
     }
     if let Some(value) = value {
-        let bytes = value.into_bytes();
-        stmt = stmt.value(DeviceConfig::Value, bytes).to_owned();
+        let bytes = value.to_bytes();
+        let type_ = value.get_type().to_string();
+        stmt = stmt
+            .value(DeviceConfig::Value, bytes)
+            .value(DeviceConfig::Type, type_).to_owned();
     }
     if let Some(value) = category {
         stmt = stmt.value(DeviceConfig::Category, value).to_owned();

@@ -3,7 +3,7 @@ use sqlx::mysql::{MySql, MySqlRow};
 use sea_query::{MysqlQueryBuilder, Query, Expr, Cond, Order, Func};
 use sea_query_binder::SqlxBinder;
 
-use crate::schema::value::{ConfigValue, BytesValue};
+use crate::schema::value::{ConfigType, ConfigValue, DataIndexing, DataType};
 use crate::schema::model::{Model, ModelType, ModelConfig, ModelSchema, ModelConfigSchema};
 
 enum ModelSelector {
@@ -106,7 +106,7 @@ async fn select_join_model(pool: &Pool<MySql>,
                 id_vec.push(id);
                 index_vec.clear();
                 model_schema.id = id;
-                model_schema.indexing = indexing;
+                model_schema.indexing = DataIndexing::from_str(&indexing);
                 model_schema.category = category;
                 model_schema.name = name;
                 model_schema.description = description;
@@ -118,20 +118,20 @@ async fn select_join_model(pool: &Pool<MySql>,
             // on every new index found add index_vec, update model_schema types, and clear config_schema_vec
             if index_vec.iter().filter(|el| **el == type_index).count() == 0 {
                 index_vec.push(type_index);
-                model_schema.types.push(type_string);
+                model_schema.types.push(DataType::from_str(&type_string));
                 model_schema.configs.push(Vec::new());
                 config_schema_vec.clear();
             }
             // update model_schema configs if non empty config found
             if let Some(cfg_id) = config_id {
                 let bytes = config_value.unwrap_or_default();
-                let type_string = config_type.unwrap_or_default();
+                let type_string = ConfigType::from_str(&config_type.unwrap_or_default());
                 config_schema_vec.push(ModelConfigSchema {
                     id: cfg_id,
                     model_id: id,
                     index: type_index,
                     name: config_name.unwrap_or_default(),
-                    value: ConfigValue::from_bytes(bytes.as_slice(), &type_string),
+                    value: ConfigValue::from_bytes(bytes.as_slice(), type_string),
                     category: config_category.unwrap_or_default()
                 });
                 model_schema.configs.pop();
@@ -183,7 +183,7 @@ pub(crate) async fn select_join_model_by_name_category(pool: &Pool<MySql>,
 }
 
 pub(crate) async fn insert_model(pool: &Pool<MySql>,
-    indexing: &str,
+    indexing: DataIndexing,
     category: &str,
     name: &str,
     description: Option<&str>,
@@ -198,7 +198,7 @@ pub(crate) async fn insert_model(pool: &Pool<MySql>,
             Model::Description
         ])
         .values([
-            indexing.into(),
+            indexing.to_string().into(),
             category.into(),
             name.into(),
             description.unwrap_or_default().into()
@@ -224,7 +224,7 @@ pub(crate) async fn insert_model(pool: &Pool<MySql>,
 
 pub(crate) async fn update_model(pool: &Pool<MySql>,
     id: u32,
-    indexing: Option<&str>,
+    indexing: Option<DataIndexing>,
     category: Option<&str>,
     name: Option<&str>,
     description: Option<&str>,
@@ -235,7 +235,7 @@ pub(crate) async fn update_model(pool: &Pool<MySql>,
         .to_owned();
 
     if let Some(value) = indexing {
-        stmt = stmt.value(Model::Indexing, value).to_owned();
+        stmt = stmt.value(Model::Indexing, value.to_string()).to_owned();
     }
     if let Some(value) = category {
         stmt = stmt.value(Model::Category, value).to_owned();
@@ -276,7 +276,7 @@ pub(crate) async fn delete_model(pool: &Pool<MySql>,
 
 pub(crate) async fn insert_model_types(pool: &Pool<MySql>,
     id: u32,
-    types: &[&str]
+    types: &[DataType]
 ) -> Result<(), Error>
 {
     let mut stmt = Query::insert()
@@ -289,11 +289,11 @@ pub(crate) async fn insert_model_types(pool: &Pool<MySql>,
         .to_owned();
     let mut i = 0;
     for ty in types {
-        let t = *ty;
+        let t = ty.clone();
         stmt = stmt.values([
                 id.into(),
                 i.into(),
-                t.into()
+                t.to_string().into()
             ])
             .unwrap_or(&mut sea_query::InsertStatement::default())
             .to_owned();
@@ -358,7 +358,7 @@ async fn select_model_config(pool: &Pool<MySql>,
     let rows = sqlx::query_with(&sql, values)
         .map(|row: MySqlRow| {
             let bytes: &[u8] = row.get(4);
-            let type_string = row.get(5);
+            let type_string = ConfigType::from_str(row.get(5));
             ModelConfigSchema {
                 id: row.get(0),
                 model_id: row.get(1),
@@ -400,8 +400,8 @@ pub(crate) async fn insert_model_config(pool: &Pool<MySql>,
     category: &str
 ) -> Result<u32, Error>
 {
-    let config_value = value.into_bytes();
-    let config_type = value.type_string();
+    let config_value = value.to_bytes();
+    let config_type = value.get_type().to_string();
     let (sql, values) = Query::insert()
         .into_table(ModelConfig::Table)
         .columns([
@@ -454,8 +454,11 @@ pub(crate) async fn update_model_config(pool: &Pool<MySql>,
         stmt = stmt.value(ModelConfig::Name, value).to_owned();
     }
     if let Some(value) = value {
-        let bytes = value.into_bytes();
-        stmt = stmt.value(ModelConfig::Value, bytes).to_owned();
+        let bytes = value.to_bytes();
+        let type_ = value.get_type().to_string();
+        stmt = stmt
+            .value(ModelConfig::Value, bytes)
+            .value(ModelConfig::Type, type_).to_owned();
     }
     if let Some(value) = category {
         stmt = stmt.value(ModelConfig::Category, value).to_owned();

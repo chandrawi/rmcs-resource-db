@@ -1,5 +1,5 @@
 use sea_query::Iden;
-use crate::schema::value::ConfigValue;
+use crate::schema::value::{ConfigValue, DataType, DataIndexing};
 
 #[derive(Iden)]
 pub(crate) enum Model {
@@ -34,11 +34,11 @@ pub(crate) enum ModelConfig {
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct ModelSchema {
     pub id: u32,
-    pub indexing: String,
+    pub indexing: DataIndexing,
     pub category: String,
     pub name: String,
     pub description: String,
-    pub types: Vec<String>,
+    pub types: Vec<DataType>,
     pub configs: Vec<Vec<ModelConfigSchema>>
 }
 

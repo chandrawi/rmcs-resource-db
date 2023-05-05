@@ -4,7 +4,7 @@ pub mod operation;
 use sqlx::{Pool, Error};
 use sqlx::mysql::{MySql, MySqlPoolOptions};
 
-pub use schema::value::{ConfigValue, DataValue};
+pub use schema::value::{ConfigType, ConfigValue, DataIndexing, DataType, DataValue};
 pub use schema::model::{ModelSchema, ModelConfigSchema};
 pub use schema::device::{DeviceSchema, GatewaySchema, TypeSchema, DeviceConfigSchema, GatewayConfigSchema};
 use schema::device::DeviceKind;
@@ -111,14 +111,14 @@ impl Resource {
         .await
     }
 
-    pub async fn create_model(&self, indexing: &str, category: &str, name: &str, description: Option<&str>)
+    pub async fn create_model(&self, indexing: DataIndexing, category: &str, name: &str, description: Option<&str>)
         -> Result<u32, Error>
     {
         model::insert_model(&self.pool, indexing, category, name, description)
         .await
     }
 
-    pub async fn update_model(&self, id: u32, indexing: Option<&str>, category: Option<&str>, name: Option<&str>, description: Option<&str>)
+    pub async fn update_model(&self, id: u32, indexing: Option<DataIndexing>, category: Option<&str>, name: Option<&str>, description: Option<&str>)
         -> Result<(), Error>
     {
         model::update_model(&self.pool, id, indexing, category, name, description)
@@ -132,7 +132,7 @@ impl Resource {
         .await
     }
 
-    pub async fn add_model_type(&self, id: u32, types: &[&str])
+    pub async fn add_model_type(&self, id: u32, types: &[DataType])
         -> Result<(), Error>
     {
         model::insert_model_types(&self.pool, id, types)

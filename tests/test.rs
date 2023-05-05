@@ -4,7 +4,7 @@ mod tests {
 
     use sqlx::{Pool, Row, Error};
     use sqlx::mysql::{MySql, MySqlRow, MySqlPoolOptions};
-    use rmcs_resource_db::{Resource, ConfigValue::*};
+    use rmcs_resource_db::{Resource, ConfigValue::*, DataIndexing::*, DataType::*};
 
     async fn get_connection_pool() -> Result<Pool<MySql>, Error>
     {
@@ -74,10 +74,10 @@ mod tests {
         }
 
         // create new data model and add data types
-        let model_id = resource.create_model("timestamp", "UPLINK", "speed and direction", None).await.unwrap();
-        let model_buffer_id = resource.create_model("timestamp", "UPLINK", "buffer8", None).await.unwrap();
-        resource.add_model_type(model_id, &["f32","f32"]).await.unwrap();
-        resource.add_model_type(model_buffer_id, &["u8","u8","u8","u8","u8","u8","u8","u8"]).await.unwrap();
+        let model_id = resource.create_model(Timestamp, "UPLINK", "speed and direction", None).await.unwrap();
+        let model_buffer_id = resource.create_model(Timestamp, "UPLINK", "buffer8", None).await.unwrap();
+        resource.add_model_type(model_id, &[F32T,F32T]).await.unwrap();
+        resource.add_model_type(model_buffer_id, &[U8T,U8T,U8T,U8T,U8T,U8T,U8T,U8T]).await.unwrap();
         // create scale, symbol, and threshold configurations for new created model
         resource.create_model_config(model_id, 0, "scale_0", Str("speed".to_owned()), "SCALE").await.unwrap();
         resource.create_model_config(model_id, 1, "scale_1", Str("direction".to_owned()), "SCALE").await.unwrap();
@@ -118,9 +118,9 @@ mod tests {
         let last_model = models.into_iter().last().unwrap();
         assert_eq!(model, last_model);
         assert_eq!(model.name, "speed and direction");
-        assert_eq!(model.indexing, "timestamp");
+        assert_eq!(model.indexing, Timestamp);
         assert_eq!(model.category, "UPLINK");
-        assert_eq!(model.types, ["f32","f32"]);
+        assert_eq!(model.types, [F32T,F32T]);
         // read model configurations
         let model_configs = resource.list_model_config_by_model(model_id).await.unwrap();
         let mut config_vec: Vec<rmcs_resource_db::ModelConfigSchema> = Vec::new();
@@ -161,10 +161,10 @@ mod tests {
         // update model
         resource.update_model(model_buffer_id, None, None, Some("buffer 10 bytes"), Some("Model for store 10 bytes temporary data")).await.unwrap();
         resource.remove_model_type(model_buffer_id).await.unwrap();
-        resource.add_model_type(model_buffer_id, &["u8","u8","u8","u8","u8","u8","u8","u8","u8","u8"]).await.unwrap();
+        resource.add_model_type(model_buffer_id, &[U8T,U8T,U8T,U8T,U8T,U8T,U8T,U8T,U8T,U8T]).await.unwrap();
         let model = resource.read_model(model_buffer_id).await.unwrap();
         assert_eq!(model.name, "buffer 10 bytes");
-        assert_eq!(model.types, ["u8","u8","u8","u8","u8","u8","u8","u8","u8","u8"]);
+        assert_eq!(model.types, [U8T,U8T,U8T,U8T,U8T,U8T,U8T,U8T,U8T,U8T]);
         // update model configurations
         resource.update_model_config(model_cfg_id, None, Some(Int(238)), None).await.unwrap();
         let config = resource.read_model_config(model_cfg_id).await.unwrap();
