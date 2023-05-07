@@ -18,6 +18,7 @@ use operation::device;
 use operation::types;
 use operation::group;
 use operation::data;
+use operation::buffer;
 
 pub struct Resource {
     pub pool: Pool<MySql>,
@@ -796,6 +797,60 @@ impl Resource {
     {
         data::delete_data(&self.pool, model, device_id, timestamp, index)
         .await
+    }
+
+    pub async fn read_buffer(&self, id: u32)
+        -> Result<BufferSchema, Error>
+    {
+        buffer::select_buffer_by_id(&self.pool, id).await
+    }
+
+    pub async fn read_buffer_first(&self, device_id: Option<u64>, model_id: Option<u32>, status: Option<&str>)
+        -> Result<BufferSchema, Error>
+    {
+        buffer::select_buffer_first(&self.pool, 1, device_id, model_id, status)
+            .await?.into_iter().next().ok_or(Error::RowNotFound)
+    }
+
+    pub async fn read_buffer_last(&self, device_id: Option<u64>, model_id: Option<u32>, status: Option<&str>)
+        -> Result<BufferSchema, Error>
+    {
+        buffer::select_buffer_last(&self.pool, 1, device_id, model_id, status)
+            .await?.into_iter().next().ok_or(Error::RowNotFound)
+    }
+
+    pub async fn list_buffer_first(&self, number: u32, device_id: Option<u64>, model_id: Option<u32>, status: Option<&str>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        buffer::select_buffer_first(&self.pool, number, device_id, model_id, status)
+        .await
+    }
+
+    pub async fn list_buffer_last(&self, number: u32, device_id: Option<u64>, model_id: Option<u32>, status: Option<&str>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        buffer::select_buffer_last(&self.pool, number, device_id, model_id, status)
+        .await
+    }
+
+    pub async fn create_buffer(&self, device_id: u64, model_id: u32, timestamp: DateTime<Utc>, index: Option<u16>, data: Vec<DataValue>, status: &str)
+        -> Result<u32, Error>
+    {
+        buffer::insert_buffer(&self.pool, device_id, model_id, timestamp, index, data, status)
+        .await
+    }
+
+    pub async fn update_buffer(&self, id: u32, data: Option<Vec<DataValue>>, status: Option<&str>)
+        -> Result<(), Error>
+    {
+        buffer::update_buffer(&self.pool, id, data, status)
+        .await
+    }
+
+    pub async fn delete_buffer(&self, id: u32)
+        -> Result<(), Error>
+    {
+        buffer::delete_buffer(&self.pool, id).await
     }
 
 }
