@@ -12,6 +12,7 @@ use schema::device::DeviceKind;
 pub use schema::group::{GroupModelSchema, GroupDeviceSchema, GroupGatewaySchema};
 use schema::group::GroupKind;
 pub use schema::data::{DataSchema, DataModel};
+pub use schema::buffer::BufferSchema;
 use operation::model;
 use operation::device;
 use operation::types;

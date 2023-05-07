@@ -34,7 +34,7 @@ pub(crate) enum DataTimestampMicros {
     Data
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct DataModel {
     pub(crate) id: u32,
     pub(crate) indexing: DataIndexing,
