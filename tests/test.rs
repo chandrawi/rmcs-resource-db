@@ -1,10 +1,13 @@
 #[cfg(test)]
 mod tests {
     use std::vec;
+    use std::str::FromStr;
 
     use sqlx::{Pool, Row, Error};
     use sqlx::mysql::{MySql, MySqlRow, MySqlPoolOptions};
-    use rmcs_resource_db::{Resource, ConfigValue::*, DataIndexing::*, DataType::*};
+    use sqlx::types::chrono::DateTime;
+    use rmcs_resource_db::{ModelConfigSchema, DeviceConfigSchema};
+    use rmcs_resource_db::{Resource, ConfigValue::{*, self}, DataIndexing::*, DataType::*, DataValue::*};
 
     async fn get_connection_pool() -> Result<Pool<MySql>, Error>
     {
@@ -26,10 +29,7 @@ mod tests {
 
         Ok(tables == vec![
             String::from("_sqlx_migrations"),
-            String::from("buffer_index"),
-            String::from("buffer_timestamp"),
-            String::from("buffer_timestamp_index"),
-            String::from("buffer_timestamp_micros"),
+            String::from("buffer"),
             String::from("data_index"),
             String::from("data_timestamp"),
             String::from("data_timestamp_index"),
@@ -75,9 +75,9 @@ mod tests {
 
         // create new data model and add data types
         let model_id = resource.create_model(Timestamp, "UPLINK", "speed and direction", None).await.unwrap();
-        let model_buffer_id = resource.create_model(Timestamp, "UPLINK", "buffer8", None).await.unwrap();
+        let model_buf_id = resource.create_model(Timestamp, "UPLINK", "buffer 4", None).await.unwrap();
         resource.add_model_type(model_id, &[F32T,F32T]).await.unwrap();
-        resource.add_model_type(model_buffer_id, &[U8T,U8T,U8T,U8T,U8T,U8T,U8T,U8T]).await.unwrap();
+        resource.add_model_type(model_buf_id, &[U8T,U8T,U8T,U8T]).await.unwrap();
         // create scale, symbol, and threshold configurations for new created model
         resource.create_model_config(model_id, 0, "scale_0", Str("speed".to_owned()), "SCALE").await.unwrap();
         resource.create_model_config(model_id, 1, "scale_1", Str("direction".to_owned()), "SCALE").await.unwrap();
@@ -88,7 +88,7 @@ mod tests {
         // Create new type and link it to newly created model
         let type_id = resource.create_type("Speedometer Compass", None).await.unwrap();
         resource.add_type_model(type_id, model_id).await.unwrap();
-        resource.add_type_model(type_id, model_buffer_id).await.unwrap();
+        resource.add_type_model(type_id, model_buf_id).await.unwrap();
 
         // create new devices with newly created type as its type 
         let gateway_id = 0x87AD915C32B89D09;
@@ -123,7 +123,7 @@ mod tests {
         assert_eq!(model.types, [F32T,F32T]);
         // read model configurations
         let model_configs = resource.list_model_config_by_model(model_id).await.unwrap();
-        let mut config_vec: Vec<rmcs_resource_db::ModelConfigSchema> = Vec::new();
+        let mut config_vec: Vec<ModelConfigSchema> = Vec::new();
         for cfg_vec in model.configs {
             for cfg in cfg_vec {
                 config_vec.push(cfg);
@@ -159,12 +159,12 @@ mod tests {
         assert_eq!(group.category, "APPLICATION");
 
         // update model
-        resource.update_model(model_buffer_id, None, None, Some("buffer 10 bytes"), Some("Model for store 10 bytes temporary data")).await.unwrap();
-        resource.remove_model_type(model_buffer_id).await.unwrap();
-        resource.add_model_type(model_buffer_id, &[U8T,U8T,U8T,U8T,U8T,U8T,U8T,U8T,U8T,U8T]).await.unwrap();
-        let model = resource.read_model(model_buffer_id).await.unwrap();
-        assert_eq!(model.name, "buffer 10 bytes");
-        assert_eq!(model.types, [U8T,U8T,U8T,U8T,U8T,U8T,U8T,U8T,U8T,U8T]);
+        resource.update_model(model_buf_id, None, None, Some("buffer 2 integer"), Some("Model for store 2 i32 temporary data")).await.unwrap();
+        resource.remove_model_type(model_buf_id).await.unwrap();
+        resource.add_model_type(model_buf_id, &[I32T,I32T]).await.unwrap();
+        let model = resource.read_model(model_buf_id).await.unwrap();
+        assert_eq!(model.name, "buffer 2 integer");
+        assert_eq!(model.types, [I32T,I32T]);
         // update model configurations
         resource.update_model_config(model_cfg_id, None, Some(Int(238)), None).await.unwrap();
         let config = resource.read_model_config(model_cfg_id).await.unwrap();
@@ -192,6 +192,54 @@ mod tests {
         resource.update_group_device(group_device_id, None, None, Some("Sensor devices")).await.unwrap();
         let group = resource.read_group_device(group_device_id).await.unwrap();
         assert_eq!(group.description, "Sensor devices");
+
+        // generate raw data and create buffers
+        let timestamp = DateTime::from_str("2023-05-07T07:08:48Z").unwrap();
+        let raw_1 = vec![I32(1231),I32(890)];
+        let raw_2 = vec![I32(1452),I32(-341)];
+        resource.create_buffer(device_id1, model_buf_id, timestamp, None, raw_1.clone(), "CONVERT").await.unwrap();
+        resource.create_buffer(device_id2, model_buf_id, timestamp, None, raw_2.clone(), "CONVERT").await.unwrap();
+
+        // read buffer
+        let buffers = resource.list_buffer_first(100, None, None, None).await.unwrap();
+        assert_eq!(buffers[0].data, raw_1);
+        assert_eq!(buffers[1].data, raw_2);
+
+        // get model config value then convert buffer data
+        let conf_val = |model_configs: Vec<DeviceConfigSchema>, name: &str| -> ConfigValue {
+            model_configs.iter().filter(|&cfg| cfg.name == name.to_owned())
+                .next().unwrap().value.clone()
+        };
+        let convert = |raw: i32, coef0: i64, coef1: f64| -> f64 {
+            (raw as f64 - coef0 as f64) * coef1
+        };
+        let coef0 = conf_val(device_configs.clone(), "coef_0").try_into().unwrap();
+        let coef1 = conf_val(device_configs.clone(), "coef_1").try_into().unwrap();
+        let speed = convert(raw_1[0].clone().try_into().unwrap(), coef0, coef1) as f32;
+        let direction = convert(raw_1[1].clone().try_into().unwrap(), coef0, coef1) as f32;
+        // create data
+        resource.create_data(device_id1, model_id, timestamp, None, vec![F32(speed), F32(direction)]).await.unwrap();
+
+        // read data
+        let datas = resource.list_data_by_number_before(device_id1, model_id, timestamp, 100).await.unwrap();
+        let data = datas.into_iter().next().unwrap();
+        assert_eq!(vec![F32(speed), F32(direction)], data.data);
+
+        // delete data
+        resource.delete_data(device_id1, model_id, timestamp, None).await.unwrap();
+        let result = resource.read_data(device_id1, model_id, timestamp, None).await;
+        assert!(result.is_err());
+
+        // update buffer status
+        resource.update_buffer(buffers[0].id, None, Some("DELETE")).await.unwrap();
+        let buffer = resource.read_buffer(buffers[0].id).await.unwrap();
+        assert_eq!(buffer.status, "DELETE");
+
+        // delete buffer data
+        resource.delete_buffer(buffers[0].id).await.unwrap();
+        resource.delete_buffer(buffers[1].id).await.unwrap();
+        let result = resource.read_buffer(buffers[0].id).await;
+        assert!(result.is_err());
 
         // delete model config
         let config_id = model_configs.iter().next().map(|el| el.id).unwrap();
