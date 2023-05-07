@@ -1,10 +1,3 @@
-CREATE TABLE `data_index` (
-  `device_id` bigint(20) UNSIGNED NOT NULL,
-  `model_id` int(10) UNSIGNED NOT NULL,
-  `index` int(10) UNSIGNED NOT NULL,
-  `data` varbinary(255) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
-
 CREATE TABLE `data_timestamp` (
   `device_id` bigint(20) UNSIGNED NOT NULL,
   `model_id` int(10) UNSIGNED NOT NULL,
@@ -27,11 +20,6 @@ CREATE TABLE `data_timestamp_micros` (
   `data` varbinary(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
-ALTER TABLE `data_index`
-  ADD PRIMARY KEY (`index`,`model_id`,`device_id`),
-  ADD KEY `data_index_device_id` (`device_id`),
-  ADD KEY `data_index_model_id` (`model_id`);
-
 ALTER TABLE `data_timestamp`
   ADD PRIMARY KEY (`timestamp`,`model_id`,`device_id`),
   ADD KEY `data_timestamp_device_id` (`device_id`),
@@ -46,10 +34,6 @@ ALTER TABLE `data_timestamp_micros`
   ADD PRIMARY KEY (`timestamp`,`model_id`,`device_id`),
   ADD KEY `data_timestamp_micros_device_id` (`device_id`),
   ADD KEY `data_timestamp_micros_model_id` (`model_id`);
-
-ALTER TABLE `data_index`
-  ADD CONSTRAINT `data_index_device_id` FOREIGN KEY (`device_id`) REFERENCES `device` (`device_id`),
-  ADD CONSTRAINT `data_index_model_id` FOREIGN KEY (`model_id`) REFERENCES `model` (`model_id`);
 
 ALTER TABLE `data_timestamp`
   ADD CONSTRAINT `data_timestamp_device_id` FOREIGN KEY (`device_id`) REFERENCES `device` (`device_id`),

@@ -7,7 +7,7 @@ use sea_query_binder::SqlxBinder;
 use crate::schema::value::{DataIndexing, DataType, DataValue, ArrayDataValue};
 use crate::schema::model::{Model, ModelType};
 use crate::schema::data::DataModel;
-use crate::schema::buffer::{Buffer, BufferBytesSchema, BufferSchema};
+use crate::schema::buffer::{BufferData, BufferBytesSchema, BufferSchema};
 use crate::operation::data;
 
 enum BufferSelector {
@@ -32,32 +32,32 @@ async fn select_buffer_bytes(pool: &Pool<MySql>,
     let mut stmt = Query::select().to_owned();
     stmt = stmt
         .columns([
-            Buffer::Id,
-            Buffer::DeviceId,
-            Buffer::ModelId,
-            Buffer::Timestamp,
-            Buffer::Data,
-            Buffer::Status,
-            Buffer::Index
+            BufferData::Id,
+            BufferData::DeviceId,
+            BufferData::ModelId,
+            BufferData::Timestamp,
+            BufferData::Data,
+            BufferData::Status,
+            BufferData::Index
         ])
-        .from(Buffer::Table)
+        .from(BufferData::Table)
         .to_owned();
     if let BufferSelector::Id(id) = selector {
-        stmt = stmt.and_where(Expr::col(Buffer::Id).eq(id)).to_owned();
+        stmt = stmt.and_where(Expr::col(BufferData::Id).eq(id)).to_owned();
     } else {
         stmt = stmt
-            .order_by(Buffer::Id, order)
+            .order_by(BufferData::Id, order)
             .limit(number.into())
             .to_owned();
     }
     if let Some(id) = device_id {
-        stmt = stmt.and_where(Expr::col(Buffer::DeviceId).eq(id)).to_owned();
+        stmt = stmt.and_where(Expr::col(BufferData::DeviceId).eq(id)).to_owned();
     }
     if let Some(id) = model_id {
-        stmt = stmt.and_where(Expr::col(Buffer::ModelId).eq(id)).to_owned();
+        stmt = stmt.and_where(Expr::col(BufferData::ModelId).eq(id)).to_owned();
     }
     if let Some(stat) = status {
-        stmt = stmt.and_where(Expr::col(Buffer::Status).eq(stat)).to_owned();
+        stmt = stmt.and_where(Expr::col(BufferData::Status).eq(stat)).to_owned();
     }
     let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
 
@@ -206,14 +206,14 @@ pub(crate) async fn insert_buffer(pool: &Pool<MySql>,
     let bytes = ArrayDataValue::from_vec(&data).to_bytes();
 
     let (sql, values) = Query::insert()
-        .into_table(Buffer::Table)
+        .into_table(BufferData::Table)
         .columns([
-            Buffer::DeviceId,
-            Buffer::ModelId,
-            Buffer::Timestamp,
-            Buffer::Index,
-            Buffer::Data,
-            Buffer::Status
+            BufferData::DeviceId,
+            BufferData::ModelId,
+            BufferData::Timestamp,
+            BufferData::Index,
+            BufferData::Data,
+            BufferData::Status
         ])
         .values([
             device_id.into(),
@@ -231,8 +231,8 @@ pub(crate) async fn insert_buffer(pool: &Pool<MySql>,
         .await?;
 
     let sql = Query::select()
-        .expr(Func::max(Expr::col(Buffer::Id)))
-        .from(Buffer::Table)
+        .expr(Func::max(Expr::col(BufferData::Id)))
+        .from(BufferData::Table)
         .to_string(MysqlQueryBuilder);
     let id: u32 = sqlx::query(&sql)
         .map(|row: MySqlRow| row.get(0))
@@ -249,23 +249,20 @@ pub(crate) async fn update_buffer(pool: &Pool<MySql>,
 ) -> Result<(), Error>
 {
     let mut stmt = Query::update()
-        .table(Buffer::Table)
+        .table(BufferData::Table)
         .to_owned();
 
     if let Some(value) = data {
         let bytes = ArrayDataValue::from_vec(&value).to_bytes();
-        stmt = stmt.value(Buffer::Data, bytes).to_owned();
+        stmt = stmt.value(BufferData::Data, bytes).to_owned();
     }
     if let Some(value) = status {
-        stmt = stmt.value(Buffer::Status, value).to_owned();
+        stmt = stmt.value(BufferData::Status, value).to_owned();
     }
 
     let (sql, values) = stmt
-        .and_where(Expr::col(Buffer::Id).eq(id))
+        .and_where(Expr::col(BufferData::Id).eq(id))
         .build_sqlx(MysqlQueryBuilder);
-
-    println!("{}", &sql);
-    println!("{:?}", values);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -279,8 +276,8 @@ pub(crate) async fn delete_buffer(pool: &Pool<MySql>,
 ) -> Result<(), Error>
 {
     let (sql, values) = Query::delete()
-        .from_table(Buffer::Table)
-        .and_where(Expr::col(Buffer::Id).eq(id))
+        .from_table(BufferData::Table)
+        .and_where(Expr::col(BufferData::Id).eq(id))
         .build_sqlx(MysqlQueryBuilder);
 
     sqlx::query_with(&sql, values)

@@ -29,8 +29,7 @@ mod tests {
 
         Ok(tables == vec![
             String::from("_sqlx_migrations"),
-            String::from("buffer"),
-            String::from("data_index"),
+            String::from("buffer_data"),
             String::from("data_timestamp"),
             String::from("data_timestamp_index"),
             String::from("data_timestamp_micros"),
@@ -42,15 +41,11 @@ mod tests {
             String::from("group_device_map"),
             String::from("group_model"),
             String::from("group_model_map"),
-            String::from("log_device"),
-            String::from("log_server"),
             String::from("model"),
             String::from("model_config"),
             String::from("model_type"),
-            String::from("slice_index"),
-            String::from("slice_timestamp"),
-            String::from("slice_timestamp_index"),
-            String::from("slice_timestamp_micros")
+            String::from("slice_data"),
+            String::from("system_log")
         ])
     }
 

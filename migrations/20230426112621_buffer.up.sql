@@ -1,4 +1,4 @@
-CREATE TABLE `buffer` (
+CREATE TABLE `buffer_data` (
   `id` int(10) UNSIGNED NOT NULL,
   `device_id` bigint(20) UNSIGNED NOT NULL,
   `model_id` int(10) UNSIGNED NOT NULL,
@@ -8,14 +8,14 @@ CREATE TABLE `buffer` (
   `status` enum('DEFAULT','CONVERT','ANALYZE_GATEWAY','ANALYZE_SERVER','TRANSFER_GATEWAY','TRANSFER_SERVER','BACKUP','DELETE','ERROR') NOT NULL DEFAULT 'DEFAULT'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
-ALTER TABLE `buffer`
+ALTER TABLE `buffer_data`
   ADD PRIMARY KEY (`id`),
   ADD KEY `buffer_device_id` (`device_id`),
   ADD KEY `buffer_model_id` (`model_id`);
 
-ALTER TABLE `buffer`
+ALTER TABLE `buffer_data`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
 
-ALTER TABLE `buffer`
+ALTER TABLE `buffer_data`
   ADD CONSTRAINT `buffer_device_id` FOREIGN KEY (`device_id`) REFERENCES `device` (`device_id`),
   ADD CONSTRAINT `buffer_model_id` FOREIGN KEY (`model_id`) REFERENCES `model` (`model_id`);

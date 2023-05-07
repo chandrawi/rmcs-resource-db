@@ -1,27 +1,10 @@
-CREATE TABLE `log_device` (
-  `id` int(10) UNSIGNED NOT NULL,
-  `device_id` bigint(20) UNSIGNED NOT NULL DEFAULT 0,
-  `time` timestamp NOT NULL DEFAULT current_timestamp(),
+CREATE TABLE `system_log` (
+  `device_id` bigint(20) UNSIGNED NOT NULL,
+  `timestamp` timestamp NOT NULL DEFAULT current_timestamp(),
   `status` enum('DEFAULT','SUCCESS','ERROR_RAW','ERROR_MISSING','ERROR_CONVERSION','ERROR_ANALYZE','ERROR_NETWORK','FAIL_READ','FAIL_CREATE','FAIL_UPDATE','FAIL_DELETE','INVALID_TOKEN','INVALID_REQUEST','NOT_FOUND','METHOD_NOT_ALLOWED','UNKNOWN_ERROR','UNKNOWN_STATUS') NOT NULL DEFAULT 'DEFAULT',
-  `data` varbinary(255) NOT NULL
+  `value` varbinary(255) NOT NULL,
+  `type` enum('int','float','str') NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
-CREATE TABLE `log_server` (
-  `id` int(10) UNSIGNED NOT NULL,
-  `device_id` bigint(20) UNSIGNED NOT NULL DEFAULT 0,
-  `time` timestamp NOT NULL DEFAULT current_timestamp(),
-  `status` enum('DEFAULT','SUCCESS','ERROR_RAW','ERROR_MISSING','ERROR_CONVERSION','ERROR_ANALYZE','ERROR_NETWORK','FAIL_READ','FAIL_CREATE','FAIL_UPDATE','FAIL_DELETE','INVALID_TOKEN','INVALID_REQUEST','NOT_FOUND','METHOD_NOT_ALLOWED','UNKNOWN_ERROR','UNKNOWN_STATUS') NOT NULL DEFAULT 'DEFAULT',
-  `data` varbinary(255) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
-
-ALTER TABLE `log_device`
-  ADD PRIMARY KEY (`id`);
-
-ALTER TABLE `log_server`
-  ADD PRIMARY KEY (`id`);
-
-ALTER TABLE `log_device`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
-
-ALTER TABLE `log_server`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+ALTER TABLE `system_log`
+  ADD PRIMARY KEY (`device_id`,`timestamp`);

@@ -4,7 +4,7 @@ use crate::schema::value::{DataType, DataValue, ArrayDataValue};
 
 #[allow(unused)]
 #[derive(Iden)]
-pub(crate) enum Buffer {
+pub(crate) enum BufferData {
     Table,
     Id,
     DeviceId,

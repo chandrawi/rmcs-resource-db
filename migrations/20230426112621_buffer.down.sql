@@ -1,1 +1,1 @@
-DROP TABLE `buffer`;
+DROP TABLE `buffer_data`;
