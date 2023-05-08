@@ -13,6 +13,8 @@ pub use schema::group::{GroupModelSchema, GroupDeviceSchema, GroupGatewaySchema}
 use schema::group::GroupKind;
 pub use schema::data::{DataSchema, DataModel};
 pub use schema::buffer::BufferSchema;
+pub use schema::slice::SliceSchema;
+pub use schema::log::LogSchema;
 use operation::model;
 use operation::device;
 use operation::types;
