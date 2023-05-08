@@ -1,5 +1,5 @@
 pub mod schema;
-pub mod operation;
+pub(crate) mod operation;
 
 use sqlx::{Pool, Error};
 use sqlx::mysql::{MySql, MySqlPoolOptions};
@@ -21,6 +21,8 @@ use operation::types;
 use operation::group;
 use operation::data;
 use operation::buffer;
+use operation::slice;
+use operation::log;
 
 pub struct Resource {
     pub pool: Pool<MySql>,
@@ -853,6 +855,100 @@ impl Resource {
         -> Result<(), Error>
     {
         buffer::delete_buffer(&self.pool, id).await
+    }
+
+    pub async fn read_slice(&self, id: u32)
+        -> Result<SliceSchema, Error>
+    {
+        slice::select_slice_by_id(&self.pool, id).await
+    }
+
+    pub async fn list_slice_by_name(&self, name: &str)
+        -> Result<Vec<SliceSchema>, Error>
+    {
+        slice::select_slice_by_name(&self.pool, name).await
+    }
+
+    pub async fn list_slice_by_device(&self, device_id: u64)
+        -> Result<Vec<SliceSchema>, Error>
+    {
+        slice::select_slice_by_device(&self.pool, device_id).await
+    }
+
+    pub async fn list_slice_by_model(&self, model_id: u32)
+        -> Result<Vec<SliceSchema>, Error>
+    {
+        slice::select_slice_by_model(&self.pool, model_id).await
+    }
+
+    pub async fn list_slice_by_device_model(&self, device_id: u64, model_id: u32)
+        -> Result<Vec<SliceSchema>, Error>
+    {
+        slice::select_slice_by_device_model(&self.pool, device_id, model_id).await
+    }
+
+    pub async fn create_slice(&self, device_id: u64, model_id: u32, timestamp_begin: DateTime<Utc>, timestamp_end: DateTime<Utc>, index_begin: Option<u16>, index_end: Option<u16>, name: &str, description: Option<&str>)
+        -> Result<u32, Error>
+    {
+        slice::insert_slice(&self.pool, device_id, model_id, timestamp_begin, timestamp_end, index_begin, index_end, name, description)
+        .await
+    }
+
+    pub async fn update_slice(&self, id: u32, timestamp_begin: Option<DateTime<Utc>>, timestamp_end: Option<DateTime<Utc>>, index_begin: Option<u16>, index_end: Option<u16>, name: Option<&str>, description: Option<&str>)
+        -> Result<(), Error>
+    {
+        slice::update_slice(&self.pool, id, timestamp_begin, timestamp_end, index_begin, index_end, name, description)
+        .await
+    }
+
+    pub async fn delete_slice(&self, id: u32)
+        -> Result<(), Error>
+    {
+        slice::delete_slice(&self.pool, id).await
+    }
+
+    pub async fn read_log(&self, timestamp: DateTime<Utc>, device_id: u64)
+        -> Result<LogSchema, Error>
+    {
+        log::select_log_by_id(&self.pool, timestamp, device_id).await
+    }
+
+    pub async fn list_log_by_time(&self, timestamp: DateTime<Utc>, device_id: Option<u64>, status: Option<&str>)
+        -> Result<Vec<LogSchema>, Error>
+    {
+        log::select_log_by_time(&self.pool, timestamp, device_id, status).await
+    }
+
+    pub async fn list_log_by_last_time(&self, last: DateTime<Utc>, device_id: Option<u64>, status: Option<&str>)
+        -> Result<Vec<LogSchema>, Error>
+    {
+        log::select_log_by_last_time(&self.pool, last, device_id, status).await
+    }
+
+    pub async fn list_log_by_range_time(&self, begin: DateTime<Utc>, end: DateTime<Utc>, device_id: Option<u64>, status: Option<&str>)
+        -> Result<Vec<LogSchema>, Error>
+    {
+        log::select_log_by_range_time(&self.pool, begin, end, device_id, status).await
+    }
+
+    pub async fn create_log(&self, timestamp: DateTime<Utc>, device_id: u64, status: &str, value: ConfigValue)
+        -> Result<(), Error>
+    {
+        log::insert_log(&self.pool, timestamp, device_id, status, value)
+        .await
+    }
+
+    pub async fn update_log(&self, timestamp: DateTime<Utc>, device_id: u64, status: Option<&str>, value: Option<ConfigValue>)
+        -> Result<(), Error>
+    {
+        log::update_log(&self.pool, timestamp, device_id, status, value)
+        .await
+    }
+
+    pub async fn delete_log(&self, timestamp: DateTime<Utc>, device_id: u64)
+        -> Result<(), Error>
+    {
+        log::delete_log(&self.pool, timestamp, device_id).await
     }
 
 }
