@@ -68,7 +68,7 @@ async fn select_buffer_bytes(pool: &Pool<MySql>,
                 device_id: row.get(1),
                 model_id: row.get(2),
                 timestamp: row.get(3),
-                index: row.try_get(6).ok(),
+                index: row.try_get(6).unwrap_or_default(),
                 bytes: row.get(4),
                 status: row.get(5)
             }

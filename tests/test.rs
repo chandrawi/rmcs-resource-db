@@ -2,10 +2,9 @@
 mod tests {
     use std::vec;
     use std::str::FromStr;
-
     use sqlx::{Pool, Row, Error};
     use sqlx::mysql::{MySql, MySqlRow, MySqlPoolOptions};
-    use sqlx::types::chrono::DateTime;
+    use sqlx::types::chrono::{DateTime, Utc};
     use rmcs_resource_db::{ModelConfigSchema, DeviceConfigSchema};
     use rmcs_resource_db::{Resource, ConfigValue::{*, self}, DataIndexing::*, DataType::*, DataValue::*};
 
@@ -234,6 +233,41 @@ mod tests {
         resource.delete_buffer(buffers[0].id).await.unwrap();
         resource.delete_buffer(buffers[1].id).await.unwrap();
         let result = resource.read_buffer(buffers[0].id).await;
+        assert!(result.is_err());
+
+        // create data slice
+        let slice_id = resource.create_slice(device_id1, model_id, timestamp, timestamp, Some(0), Some(0), "Speed and compass slice", None).await.unwrap();
+        // read data
+        let slices = resource.list_slice_by_name("slice").await.unwrap();
+        let slice = slices.into_iter().next().unwrap();
+        assert_eq!(slice.timestamp_begin, timestamp);
+        assert_eq!(slice.name, "Speed and compass slice");
+
+        // update data slice
+        resource.update_slice(slice_id, None, None, None, None, None, Some("Speed and compass sensor 1 at '2023-05-07 07:08:48'")).await.unwrap();
+        let slice = resource.read_slice(slice_id).await.unwrap();
+        assert_eq!(slice.description, "Speed and compass sensor 1 at '2023-05-07 07:08:48'");
+
+        // delete data slice
+        resource.delete_slice(slice_id).await.unwrap();
+        let result = resource.read_slice(slice_id).await;
+        assert!(result.is_err());
+
+        // create system log
+        resource.create_log(timestamp, device_id1, "UNKNOWN_ERROR", Str("testing success".to_owned())).await.unwrap();
+        // read log
+        let logs = resource.list_log_by_range_time(timestamp, Utc::now(), None, None).await.unwrap();
+        let log = logs.into_iter().next().unwrap();
+        assert_eq!(log.value, Str("testing success".to_owned()));
+
+        // update system log
+        resource.update_log(timestamp, device_id1, Some("SUCCESS"), None).await.unwrap();
+        let log = resource.read_log(timestamp, device_id1).await.unwrap();
+        assert_eq!(log.status, "SUCCESS");
+
+        // delete system log
+        resource.delete_log(timestamp, device_id1).await.unwrap();
+        let result = resource.read_log(timestamp, device_id1).await;
         assert!(result.is_err());
 
         // delete model config

@@ -161,7 +161,7 @@ async fn select_data_bytes(pool: &Pool<MySql>,
                 device_id: row.get(0),
                 model_id: row.get(1),
                 timestamp: row.get(2),
-                index: row.try_get(4).ok(),
+                index: row.try_get(4).unwrap_or_default(),
                 bytes: row.get(3)
             }
         })

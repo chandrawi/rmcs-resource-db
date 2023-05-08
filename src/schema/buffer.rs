@@ -21,7 +21,7 @@ pub struct BufferSchema {
     pub device_id: u64,
     pub model_id: u32,
     pub timestamp: DateTime<Utc>,
-    pub index: Option<u16>,
+    pub index: u16,
     pub data: Vec<DataValue>,
     pub status: String
 }
@@ -32,7 +32,7 @@ pub(crate) struct BufferBytesSchema {
     pub(crate) device_id: u64,
     pub(crate) model_id: u32,
     pub(crate) timestamp: DateTime<Utc>,
-    pub(crate) index: Option<u16>,
+    pub(crate) index: u16,
     pub(crate) bytes: Vec<u8>,
     pub(crate) status: String
 }
