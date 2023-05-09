@@ -42,32 +42,32 @@ async fn select_device_type(pool: &Pool<MySql>,
         .order_by((DeviceType::Table, DeviceType::TypeId), Order::Asc)
         .build_sqlx(MysqlQueryBuilder);
 
-    let mut id_vec: Vec<u32> = Vec::new();
-    let mut type_schema: TypeSchema = TypeSchema::default();
+    let mut last_id: Option<u32> = None;
     let mut type_schema_vec: Vec<TypeSchema> = Vec::new();
 
     sqlx::query_with(&sql, values)
         .map(|row: MySqlRow| {
+            // get last type_schema in type_schema_vec or default
+            let mut type_schema = type_schema_vec.pop().unwrap_or_default();
+            // on every new type_id found insert type_schema to type_schema_vec
             let type_id: u32 = row.get(0);
-            let name: String = row.get(1);
-            let description: String = row.get(2);
-            let model_id: Result<u32, Error> = row.try_get(3);
-
-            // on every new type_id found add id_vec and update type_schema scalar member
-            if id_vec.iter().filter(|el| **el == type_id).count() == 0 {
-                id_vec.push(type_id);
-                type_schema.id = type_id;
-                type_schema.name = name;
-                type_schema.description = description;
-                // insert new type_schema to type_schema_vec
-                type_schema_vec.push(type_schema.clone());
+            if let Some(value) = last_id {
+                if value != type_id {
+                    // insert new type_schema to type_schema_vec
+                    type_schema_vec.push(type_schema.clone());
+                    type_schema = TypeSchema::default();
+                }
             }
+            last_id = Some(type_id);
+            type_schema.id = type_id;
+            type_schema.name = row.get(1);
+            type_schema.description = row.get(2);
             // update type_schema if non empty model_id found
+            let model_id: Result<u32, Error> = row.try_get(3);
             if let Ok(value) = model_id {
                 type_schema.models.push(value);
             }
             // update type_schema_vec with updated type_schema
-            type_schema_vec.pop();
             type_schema_vec.push(type_schema.clone());
         })
         .fetch_all(pool)

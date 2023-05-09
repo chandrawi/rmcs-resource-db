@@ -93,29 +93,29 @@ async fn select_group(pool: &Pool<MySql>,
     }
     let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
 
-    let mut id_vec: Vec<u32> = Vec::new();
-    let mut group_schema: GroupSchema = GroupSchema::default();
+    let mut last_id: Option<u32> = None;
     let mut group_schema_vec: Vec<GroupSchema> = Vec::new();
 
     sqlx::query_with(&sql, values)
         .map(|row: MySqlRow| {
-            let group_id: u32 = row.get(0);
-            let name: String = row.get(1);
-            let category: String = row.get(2);
-            let description: String = row.get(3);
-            let member_id: Result<u64, Error> = row.try_get(4);
-
+            // get last group_schema in group_schema_vec or default
+            let mut group_schema = group_schema_vec.pop().unwrap_or_default();
             // on every new group_id found add id_vec and update group_schema scalar member
-            if id_vec.iter().filter(|el| **el == group_id).count() == 0 {
-                id_vec.push(group_id);
-                group_schema.id = group_id;
-                group_schema.name = name;
-                group_schema.category = category;
-                group_schema.description = description;
-                // insert new group_schema to group_schema_vec
-                group_schema_vec.push(group_schema.clone());
+            let group_id: u32 = row.get(0);
+            if let Some(value) = last_id {
+                if value != group_id {
+                    // insert new type_schema to group_schema_vec
+                    group_schema_vec.push(group_schema.clone());
+                    group_schema = GroupSchema::default();
+                }
             }
+            last_id = Some(group_id);
+            group_schema.id = group_id;
+            group_schema.name = row.get(1);
+            group_schema.category = row.get(2);
+            group_schema.description = row.get(3);
             // update group_schema if non empty member_id found
+            let member_id: Result<u64, Error> = row.try_get(4);
             if let Ok(value) = member_id {
                 group_schema.members.push(value);
             }

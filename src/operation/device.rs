@@ -6,7 +6,7 @@ use sea_query_binder::SqlxBinder;
 use crate::schema::value::{ConfigValue, ConfigType};
 use crate::schema::device::{
     Device, DeviceType, DeviceTypeModel, DeviceConfig, DeviceKind,
-    DeviceSchema, TypeSchema, DeviceConfigSchema
+    DeviceSchema, DeviceConfigSchema
 };
 
 enum DeviceSelector {
@@ -106,68 +106,53 @@ async fn select_join_device(pool: &Pool<MySql>,
         .order_by((DeviceConfig::Table, DeviceConfig::Id), Order::Asc)
         .build_sqlx(MysqlQueryBuilder);
 
-    let mut id_vec: Vec<u64> = Vec::new();
-    let mut model_vec: Vec<u32> = Vec::new();
-    let mut device_schema: DeviceSchema = DeviceSchema::default();
+    let mut last_id: Option<u64> = None;
+    let mut last_model: Option<u32> = None;
     let mut device_schema_vec: Vec<DeviceSchema> = Vec::new();
 
     sqlx::query_with(&sql, values)
         .map(|row: MySqlRow| {
+            // get last device_schema in device_schema_vec or default
+            let mut device_schema = device_schema_vec.pop().unwrap_or_default();
+            // on every new id found insert device_schema to device_schema_vec and reset last_model
             let id: u64 = row.get(0);
-            let gateway_id: u64 = row.get(1);
-            let type_id: u32 = row.get(2);
-            let serial_number: String = row.get(3);
-            let name: String = row.get(4);
-            let description: String = row.get(5);
-            let type_name: String = row.get(6);
-            let type_description: String = row.get(7);
-            let type_model: Result<u32, Error> = row.try_get(8);
-            let config_id: Result<u32, Error> = row.try_get(9);
-            let config_name: Result<String, Error> = row.try_get(10);
-            let config_value: Result<Vec<u8>, Error> = row.try_get(11);
-            let config_type: Result<String, Error> = row.try_get(12);
-            let config_category: Result<String, Error> = row.try_get(13);
-
-            // on every new id found add id_vec, clear model_vec, and update device_schema scalar member
-            if id_vec.iter().filter(|el| **el == id).count() == 0 {
-                id_vec.push(id);
-                model_vec.clear();
-                device_schema.id = id;
-                device_schema.gateway_id = gateway_id;
-                device_schema.serial_number = serial_number;
-                device_schema.name = name;
-                device_schema.description = description;
-                device_schema.types = TypeSchema::default();
-                device_schema.configs = Vec::new();
-                // insert new device_schema to device_schema_vec
-                device_schema_vec.push(device_schema.clone());
+            if let Some(value) = last_id {
+                if value != id {
+                    device_schema_vec.push(device_schema.clone());
+                    device_schema = DeviceSchema::default();
+                    last_model = None;
+                }
             }
+            last_id = Some(id);
+            device_schema.id = id;
+            device_schema.gateway_id = row.get(1);
+            device_schema.serial_number = row.get(3);
+            device_schema.name = row.get(4);
+            device_schema.description = row.get(5);
+            device_schema.types.id = row.get(2);
+            device_schema.types.name = row.get(6);
+            device_schema.types.description = row.get(7);
             // on every new model_id found add model_vec and update device_schema types
-            let model_id = type_model.unwrap_or(0);
-            if model_vec.iter().filter(|el| **el == model_id).count() == 0 && model_id != 0 {
-                model_vec.push(model_id);
-                device_schema.types = TypeSchema {
-                    id: type_id,
-                    name: type_name,
-                    description: type_description,
-                    models: model_vec.clone()
-                };
+            let model_id = row.try_get(8).unwrap_or(0);
+            if last_model == None || last_model != Some(model_id) {
+                device_schema.types.models.push(model_id);
                 device_schema.configs = Vec::new();
             }
+            last_model = Some(model_id);
             // update device_schema configs if non empty config found
+            let config_id: Result<u32, Error> = row.try_get(9);
             if let Ok(cfg_id) = config_id {
-                let bytes = config_value.unwrap_or_default();
-                let type_string = ConfigType::from_str(&config_type.unwrap_or_default());
+                let bytes: Vec<u8> = row.try_get(11).unwrap_or_default();
+                let type_string = ConfigType::from_str(row.try_get(12).unwrap_or_default());
                 device_schema.configs.push(DeviceConfigSchema {
                     id: cfg_id,
                     device_id: id,
-                    name: config_name.unwrap_or_default(),
+                    name: row.try_get(10).unwrap_or_default(),
                     value: ConfigValue::from_bytes(bytes.as_slice(), type_string),
-                    category: config_category.unwrap_or_default()
+                    category: row.try_get(13).unwrap_or_default()
                 });
             }
             // update device_schema_vec with updated device_schema
-            device_schema_vec.pop();
             device_schema_vec.push(device_schema.clone());
         })
         .fetch_all(pool)

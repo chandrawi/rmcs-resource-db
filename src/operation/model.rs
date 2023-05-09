@@ -80,65 +80,55 @@ async fn select_join_model(pool: &Pool<MySql>,
         .order_by((ModelConfig::Table, ModelConfig::Id), Order::Asc)
         .build_sqlx(MysqlQueryBuilder);
 
-    let mut id_vec: Vec<u32> = Vec::new();
-    let mut index_vec: Vec<u32> = Vec::new();
+    let mut last_id: Option<u32> = None;
+    let mut last_index: Option<u32> = None;
     let mut config_schema_vec: Vec<ModelConfigSchema> = Vec::new();
-    let mut model_schema: ModelSchema = ModelSchema::default();
     let mut model_schema_vec: Vec<ModelSchema> = Vec::new();
 
     sqlx::query_with(&sql, values)
         .map(|row: MySqlRow| {
+            // get last model_schema in model_schema_vec or default
+            let mut model_schema = model_schema_vec.pop().unwrap_or_default();
+            // on every new id found insert model_schema to model_schema_vec and reset last_index
             let id: u32 = row.get(0);
-            let indexing: String = row.get(1);
-            let category: String = row.get(2);
-            let name: String = row.get(3);
-            let description: String = row.get(4);
-            let type_index: u32 = row.get(5);
-            let type_string: String = row.get(6);
-            let config_id: Option<u32> = row.try_get(7).ok();
-            let config_name: Option<String> = row.try_get(8).ok();
-            let config_value: Option<Vec<u8>> = row.try_get(9).ok();
-            let config_type: Option<String> = row.try_get(10).ok();
-            let config_category: Option<String> = row.try_get(11).ok();
-
-            // on every new id found add id_vec, clear index_vec, and update model_schema scalar member
-            if id_vec.iter().filter(|el| **el == id).count() == 0 {
-                id_vec.push(id);
-                index_vec.clear();
-                model_schema.id = id;
-                model_schema.indexing = DataIndexing::from_str(&indexing);
-                model_schema.category = category;
-                model_schema.name = name;
-                model_schema.description = description;
-                model_schema.types = Vec::new();
-                model_schema.configs = Vec::new();
-                // insert new model_schema to model_schema_vec
-                model_schema_vec.push(model_schema.clone());
+            if let Some(value) = last_id {
+                if value != id {
+                    model_schema_vec.push(model_schema.clone());
+                    model_schema = ModelSchema::default();
+                    last_index = None;
+                }
             }
-            // on every new index found add index_vec, update model_schema types, and clear config_schema_vec
-            if index_vec.iter().filter(|el| **el == type_index).count() == 0 {
-                index_vec.push(type_index);
-                model_schema.types.push(DataType::from_str(&type_string));
+            last_id = Some(id);
+            model_schema.id = id;
+            model_schema.indexing = DataIndexing::from_str(row.get(1));
+            model_schema.category = row.get(2);
+            model_schema.name = row.get(3);
+            model_schema.description = row.get(4);
+            // on every new index found update model_schema types and clear config_schema_vec
+            let type_index: u32 = row.get(5);
+            if last_index == None || last_index != Some(type_index) {
+                model_schema.types.push(DataType::from_str(row.get(6)));
                 model_schema.configs.push(Vec::new());
                 config_schema_vec.clear();
             }
+            last_index = Some(type_index);
             // update model_schema configs if non empty config found
+            let config_id: Option<u32> = row.try_get(7).ok();
             if let Some(cfg_id) = config_id {
-                let bytes = config_value.unwrap_or_default();
-                let type_string = ConfigType::from_str(&config_type.unwrap_or_default());
+                let bytes: Vec<u8> = row.try_get(9).unwrap_or_default();
+                let type_string = ConfigType::from_str(row.try_get(10).unwrap_or_default());
                 config_schema_vec.push(ModelConfigSchema {
                     id: cfg_id,
                     model_id: id,
                     index: type_index,
-                    name: config_name.unwrap_or_default(),
+                    name: row.try_get(8).unwrap_or_default(),
                     value: ConfigValue::from_bytes(bytes.as_slice(), type_string),
-                    category: config_category.unwrap_or_default()
+                    category: row.try_get(11).unwrap_or_default()
                 });
                 model_schema.configs.pop();
                 model_schema.configs.push(config_schema_vec.clone());
             }
             // update model_schema_vec with updated model_schema
-            model_schema_vec.pop();
             model_schema_vec.push(model_schema.clone());
         })
         .fetch_all(pool)
