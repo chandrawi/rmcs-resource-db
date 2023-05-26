@@ -1,5 +1,6 @@
 use sea_query::Iden;
-use crate::schema::value::ConfigValue;
+use crate::schema::value::{ConfigValue, ConfigType};
+use rmcs_resource_api::{common, device};
 
 #[derive(Iden)]
 pub(crate) enum Device {
@@ -50,7 +51,7 @@ pub struct DeviceSchema {
     pub serial_number: String,
     pub name: String,
     pub description: String,
-    pub types: TypeSchema,
+    pub type_: TypeSchema,
     pub configs: Vec<DeviceConfigSchema>
 }
 
@@ -60,7 +61,7 @@ pub struct GatewaySchema {
     pub serial_number: String,
     pub name: String,
     pub description: String,
-    pub types: TypeSchema,
+    pub type_: TypeSchema,
     pub configs: Vec<GatewayConfigSchema>
 }
 
@@ -72,7 +73,7 @@ impl DeviceSchema {
             serial_number: self.serial_number,
             name: self.name,
             description: self.description,
-            types: self.types,
+            type_: self.type_,
             configs: self.configs.into_iter().map(|el| el.into_gateway_config()).collect()
         }
     }
@@ -113,6 +114,138 @@ impl DeviceConfigSchema {
             name: self.name,
             value: self.value,
             category: self.category
+        }
+    }
+}
+
+impl From<device::DeviceSchema> for DeviceSchema {
+    fn from(value: device::DeviceSchema) -> Self {
+        Self {
+            id: value.id,
+            gateway_id: value.gateway_id,
+            serial_number: value.serial_number,
+            name: value.name,
+            description: value.description,
+            type_: value.device_type.map(|s| s.into()).unwrap_or_default(),
+            configs: value.configs.into_iter().map(|e| e.into()).collect()
+        }
+    }
+}
+
+impl Into<device::DeviceSchema> for DeviceSchema {
+    fn into(self) -> device::DeviceSchema {
+        device::DeviceSchema {
+            id: self.id,
+            gateway_id: self.gateway_id,
+            serial_number: self.serial_number,
+            name: self.name,
+            description: self.description,
+            device_type: Some(self.type_.into()),
+            configs: self.configs.into_iter().map(|e| e.into()).collect()
+        }
+    }
+}
+
+impl From<device::GatewaySchema> for GatewaySchema {
+    fn from(value: device::GatewaySchema) -> Self {
+        Self {
+            id: value.id,
+            serial_number: value.serial_number,
+            name: value.name,
+            description: value.description,
+            type_:  value.gateway_type.map(|s| s.into()).unwrap_or_default(),
+            configs: value.configs.into_iter().map(|e| e.into()).collect()
+        }
+    }
+}
+
+impl Into<device::GatewaySchema> for GatewaySchema {
+    fn into(self) -> device::GatewaySchema {
+        device::GatewaySchema {
+            id: self.id,
+            serial_number: self.serial_number,
+            name: self.name,
+            description: self.description,
+            gateway_type: Some(self.type_.into()),
+            configs: self.configs.into_iter().map(|e| e.into()).collect()
+        }
+    }
+}
+
+impl From<device::ConfigSchema> for DeviceConfigSchema {
+    fn from(value: device::ConfigSchema) -> Self {
+        Self {
+            id: value.id,
+            device_id: value.device_id,
+            name: value.name,
+            value: ConfigValue::from_bytes(
+                &value.config_bytes,
+                ConfigType::from(common::ConfigType::from_i32(value.config_type).unwrap_or_default())
+            ),
+            category: value.category
+        }
+    }
+}
+
+impl Into<device::ConfigSchema> for DeviceConfigSchema {
+    fn into(self) -> device::ConfigSchema {
+        device::ConfigSchema {
+            id: self.id,
+            device_id: self.device_id,
+            name: self.name,
+            config_bytes: self.value.to_bytes(),
+            config_type: Into::<common::ConfigType>::into(self.value.get_type()).into(),
+            category: self.category
+        }
+    }
+}
+
+impl From<device::ConfigSchema> for GatewayConfigSchema {
+    fn from(value: device::ConfigSchema) -> Self {
+        Self {
+            id: value.id,
+            gateway_id: value.device_id,
+            name: value.name,
+            value: ConfigValue::from_bytes(
+                &value.config_bytes,
+                ConfigType::from(common::ConfigType::from_i32(value.config_type).unwrap_or_default())
+            ),
+            category: value.category
+        }
+    }
+}
+
+impl Into<device::ConfigSchema> for GatewayConfigSchema {
+    fn into(self) -> device::ConfigSchema {
+        device::ConfigSchema {
+            id: self.id,
+            device_id: self.gateway_id,
+            name: self.name,
+            config_bytes: self.value.to_bytes(),
+            config_type: Into::<common::ConfigType>::into(self.value.get_type()).into(),
+            category: self.category
+        }
+    }
+}
+
+impl From<device::TypeSchema> for TypeSchema {
+    fn from(value: device::TypeSchema) -> Self {
+        Self {
+            id: value.id,
+            name: value.name,
+            description: value.description,
+            models: value.models
+        }
+    }
+}
+
+impl Into<device::TypeSchema> for TypeSchema {
+    fn into(self) -> device::TypeSchema {
+        device::TypeSchema {
+            id: self.id,
+            name: self.name,
+            description: self.description,
+            models: self.models
         }
     }
 }

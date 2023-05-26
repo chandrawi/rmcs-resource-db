@@ -2,6 +2,7 @@ use ConfigValue::{Int, Float, Str};
 use DataValue::{I8, I16, I32, I64, U8, U16, U32, U64, F32, F64, Char, Bool};
 use ConfigType::{IntT, FloatT, StrT};
 use DataType::{I8T, I16T, I32T, I64T, U8T, U16T, U32T, U64T, F32T, F64T, CharT, BoolT};
+use rmcs_resource_api::common;
 
 #[derive(Debug)]
 pub enum ConfigType {
@@ -26,6 +27,28 @@ impl ConfigType {
             FloatT => String::from("float"),
             StrT => String::from("str"),
             Self::NullT => String::new()
+        }
+    }
+}
+
+impl From<common::ConfigType> for ConfigType {
+    fn from(value: common::ConfigType) -> Self {
+        match value {
+            common::ConfigType::Nullc => Self::NullT,
+            common::ConfigType::Int => Self::IntT,
+            common::ConfigType::Float => Self::FloatT,
+            common::ConfigType::Str => Self::StrT
+        }
+    }
+}
+
+impl Into<common::ConfigType> for ConfigType {
+    fn into(self) -> common::ConfigType {
+        match self {
+            Self::NullT => common::ConfigType::Nullc,
+            Self::IntT => common::ConfigType::Int,
+            Self::FloatT => common::ConfigType::Float,
+            Self::StrT => common::ConfigType::Str
         }
     }
 }
@@ -66,6 +89,7 @@ impl ConfigValue {
     }
 }
 
+pub type LogType = ConfigType;
 pub type LogValue = ConfigValue;
 
 #[derive(Debug, Default, PartialEq, Clone)]
@@ -89,6 +113,26 @@ impl DataIndexing {
             Self::Timestamp => String::from("timestamp"),
             Self::TimestampIndex => String::from("timestamp_index"),
             Self::TimestampMicros => String::from("timestamp_micros")
+        }
+    }
+}
+
+impl From<common::DataIndexing> for DataIndexing {
+    fn from(value: common::DataIndexing) -> Self {
+        match value {
+            common::DataIndexing::Timestamp => Self::Timestamp,
+            common::DataIndexing::TimestampIndex => Self::TimestampIndex,
+            common::DataIndexing::TimestampMicros => Self::TimestampMicros
+        }
+    }
+}
+
+impl Into<common::DataIndexing> for DataIndexing {
+    fn into(self) -> common::DataIndexing {
+        match self {
+            Self::Timestamp => common::DataIndexing::Timestamp,
+            Self::TimestampIndex => common::DataIndexing::TimestampIndex,
+            Self::TimestampMicros => common::DataIndexing::TimestampMicros
         }
     }
 }
@@ -143,6 +187,46 @@ impl DataType {
             CharT => String::from("char"),
             BoolT => String::from("bool"),
             Self::NullT => String::new()
+        }
+    }
+}
+
+impl From<common::DataType> for DataType {
+    fn from(value: common::DataType) -> Self {
+        match value {
+            common::DataType::Nulld => Self::NullT,
+            common::DataType::I8 => Self::I8T,
+            common::DataType::I16 => Self::I16T,
+            common::DataType::I32 => Self::I32T,
+            common::DataType::I64 => Self::I64T,
+            common::DataType::U8 => Self::U8T,
+            common::DataType::U16 => Self::U16T,
+            common::DataType::U32 => Self::U32T,
+            common::DataType::U64 => Self::U64T,
+            common::DataType::F32 => Self::F32T,
+            common::DataType::F64 => Self::F64T,
+            common::DataType::Char => Self::CharT,
+            common::DataType::Bool => Self::BoolT
+        }
+    }
+}
+
+impl Into<common::DataType> for DataType {
+    fn into(self) -> common::DataType {
+        match self {
+            Self::I8T => common::DataType::I8,
+            Self::I16T => common::DataType::I16,
+            Self::I32T => common::DataType::I32,
+            Self::I64T => common::DataType::I64,
+            Self::U8T => common::DataType::U8,
+            Self::U16T => common::DataType::U16,
+            Self::U32T => common::DataType::U32,
+            Self::U64T => common::DataType::U64,
+            Self::F32T => common::DataType::F32,
+            Self::F64T => common::DataType::F64,
+            Self::CharT => common::DataType::Char,
+            Self::BoolT => common::DataType::Bool,
+            Self::NullT => common::DataType::Nulld
         }
     }
 }
@@ -262,6 +346,13 @@ impl ArrayDataValue {
             bytes.append(&mut value.to_bytes());
         }
         bytes
+    }
+    pub fn get_types(&self) -> Vec<DataType> {
+        let mut types = Vec::new();
+        for value in &self.0 {
+            types.push(value.get_type());
+        }
+        types
     }
     pub fn from_vec(data_vec: &[DataValue]) -> Self {
         Self(data_vec.to_vec())
@@ -426,7 +517,7 @@ mod tests {
         assert_eq!(value, data.try_into().unwrap());
         let value: u16 = 256;
         let data = DataValue::from(value);
-        assert_eq!(value, data.try_into().unwrap());
+        assert_eq!(value, TryInto::<u16>::try_into(data).unwrap());
         let value: u32 = 65536;
         let data = DataValue::from(value);
         assert_eq!(value, data.try_into().unwrap());

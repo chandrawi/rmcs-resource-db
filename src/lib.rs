@@ -5,7 +5,7 @@ use sqlx::{Pool, Error};
 use sqlx::mysql::{MySql, MySqlPoolOptions};
 use sqlx::types::chrono::{DateTime, Utc};
 
-pub use schema::value::{ConfigType, ConfigValue, DataIndexing, DataType, DataValue, ArrayDataValue};
+pub use schema::value::{ConfigType, ConfigValue, LogType, LogValue, DataIndexing, DataType, DataValue, ArrayDataValue};
 pub use schema::model::{ModelSchema, ModelConfigSchema};
 pub use schema::device::{DeviceSchema, GatewaySchema, TypeSchema, DeviceConfigSchema, GatewayConfigSchema};
 use schema::device::DeviceKind;
@@ -24,19 +24,20 @@ use operation::buffer;
 use operation::slice;
 use operation::log;
 
+#[derive(Debug, Clone)]
 pub struct Resource {
     pub pool: Pool<MySql>,
     options: ResourceOptions
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ResourceOptions {
     limit: u32,
     with_description: bool,
     order: Vec<OrderOption>
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum OrderOption {
     IdAsc,
     IdDesc,

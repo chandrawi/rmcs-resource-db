@@ -1,4 +1,5 @@
 use sea_query::Iden;
+use rmcs_resource_api::group;
 
 #[derive(Iden)]
 pub enum GroupModel {
@@ -116,4 +117,52 @@ pub struct GroupGatewaySchema {
     pub category: String,
     pub description: String,
     pub gateways: Vec<u64>
+}
+
+impl From<group::GroupModelSchema> for GroupModelSchema {
+    fn from(value: group::GroupModelSchema) -> Self {
+        Self {
+            id: value.id,
+            name: value.name,
+            category: value.category,
+            description: value.description,
+            models: value.models
+        }
+    }
+}
+
+impl Into<group::GroupModelSchema> for GroupModelSchema {
+    fn into(self) -> group::GroupModelSchema {
+        group::GroupModelSchema {
+            id: self.id,
+            name: self.name,
+            category: self.category,
+            description: self.description,
+            models: self.models
+        }
+    }
+}
+
+impl From<group::GroupDeviceSchema> for GroupDeviceSchema {
+    fn from(value: group::GroupDeviceSchema) -> Self {
+        Self {
+            id: value.id,
+            name: value.name,
+            category: value.category,
+            description: value.description,
+            devices: value.devices
+        }
+    }
+}
+
+impl Into<group::GroupDeviceSchema> for GroupDeviceSchema {
+    fn into(self) -> group::GroupDeviceSchema {
+        group::GroupDeviceSchema {
+            id: self.id,
+            name: self.name,
+            category: self.category,
+            description: self.description,
+            devices: self.devices
+        }
+    }
 }

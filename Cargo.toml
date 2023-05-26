@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+rmcs-resource-api = { path = "../rmcs-resource-api/rust" }
 sea-query = "0.28.4"
 sea-query-binder = { version = "0.3.0", features = ["sqlx-mysql", "with-chrono"] }
 sqlx = { version = "0.6.3", features = ["runtime-tokio-rustls", "mysql", "migrate"] }

@@ -1,6 +1,7 @@
 use sea_query::Iden;
-use sqlx::types::chrono::{DateTime, Utc};
+use sqlx::types::chrono::{DateTime, Utc, TimeZone};
 use crate::schema::value::{DataType, DataValue, ArrayDataValue};
+use rmcs_resource_api::{common, buffer};
 
 #[allow(unused)]
 #[derive(Iden)]
@@ -48,6 +49,44 @@ impl BufferBytesSchema {
             index: self.index,
             data: ArrayDataValue::from_bytes(&self.bytes, types).to_vec(),
             status: self.status
+        }
+    }
+}
+
+impl From<buffer::BufferSchema> for BufferSchema {
+    fn from(value: buffer::BufferSchema) -> Self {
+        Self {
+            id: value.id,
+            device_id: value.device_id,
+            model_id: value.model_id,
+            timestamp: Utc.timestamp_nanos(value.timestamp),
+            index: value.index as u16,
+            data: ArrayDataValue::from_bytes(
+                    &value.data_bytes,
+                    value.data_type.into_iter().map(|e| {
+                        DataType::from(common::DataType::from_i32(e).unwrap_or_default())
+                    })
+                    .collect::<Vec<DataType>>()
+                    .as_slice()
+                ).to_vec(),
+            status: buffer::BufferStatus::from_i32(value.status).unwrap_or_default().as_str_name().to_owned()
+        }
+    }
+}
+
+impl Into<buffer::BufferSchema> for BufferSchema {
+    fn into(self) -> buffer::BufferSchema {
+        buffer::BufferSchema {
+            id: self.id,
+            device_id: self.device_id,
+            model_id: self.model_id,
+            timestamp: self.timestamp.timestamp_nanos(),
+            index: self.index as u32,
+            data_bytes: ArrayDataValue::from_vec(&self.data).to_bytes(),
+            data_type: self.data.into_iter().map(|e| {
+                    Into::<common::DataType>::into(e.get_type()).into()
+                }).collect(),
+            status: buffer::BufferStatus::from_str_name(&self.status).unwrap_or_default().into()
         }
     }
 }

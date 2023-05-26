@@ -134,7 +134,7 @@ mod tests {
         assert_eq!(device1.name, "Speedometer Compass 1");
         // read type
         let types = resource.list_type_by_name("Speedometer").await.unwrap();
-        assert_eq!(device1.types, types.into_iter().next().unwrap());
+        assert_eq!(device1.type_, types.into_iter().next().unwrap());
         // read device configurations
         let device_configs = resource.list_device_config_by_device(device_id1).await.unwrap();
         assert_eq!(device1.configs, device_configs);

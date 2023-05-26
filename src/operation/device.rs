@@ -129,13 +129,13 @@ async fn select_join_device(pool: &Pool<MySql>,
             device_schema.serial_number = row.get(3);
             device_schema.name = row.get(4);
             device_schema.description = row.get(5);
-            device_schema.types.id = row.get(2);
-            device_schema.types.name = row.get(6);
-            device_schema.types.description = row.get(7);
-            // on every new model_id found add model_vec and update device_schema types
+            device_schema.type_.id = row.get(2);
+            device_schema.type_.name = row.get(6);
+            device_schema.type_.description = row.get(7);
+            // on every new model_id found add model_vec and update device_schema type
             let model_id = row.try_get(8).unwrap_or(0);
             if last_model == None || last_model != Some(model_id) {
-                device_schema.types.models.push(model_id);
+                device_schema.type_.models.push(model_id);
                 device_schema.configs = Vec::new();
             }
             last_model = Some(model_id);
