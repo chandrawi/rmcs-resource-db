@@ -664,17 +664,17 @@ impl Resource {
         .await
     }
 
-    pub async fn add_group_gateway_member(&self, id: u32, device_id: u64)
+    pub async fn add_group_gateway_member(&self, id: u32, gateway_id: u64)
         -> Result<(), Error>
     {
-        group::insert_group_map(&self.pool, GroupKind::Gateway, id, device_id)
+        group::insert_group_map(&self.pool, GroupKind::Gateway, id, gateway_id)
         .await
     }
 
-    pub async fn remove_group_gateway_member(&self, id: u32, device_id: u64)
+    pub async fn remove_group_gateway_member(&self, id: u32, gateway_id: u64)
         -> Result<(), Error>
     {
-        group::delete_group_map(&self.pool, GroupKind::Gateway, id, device_id)
+        group::delete_group_map(&self.pool, GroupKind::Gateway, id, gateway_id)
         .await
     }
 

@@ -166,3 +166,27 @@ impl Into<group::GroupDeviceSchema> for GroupDeviceSchema {
         }
     }
 }
+
+impl From<group::GroupDeviceSchema> for GroupGatewaySchema {
+    fn from(value: group::GroupDeviceSchema) -> Self {
+        Self {
+            id: value.id,
+            name: value.name,
+            category: value.category,
+            description: value.description,
+            gateways: value.devices
+        }
+    }
+}
+
+impl Into<group::GroupDeviceSchema> for GroupGatewaySchema {
+    fn into(self) -> group::GroupDeviceSchema {
+        group::GroupDeviceSchema {
+            id: self.id,
+            name: self.name,
+            category: self.category,
+            description: self.description,
+            devices: self.gateways
+        }
+    }
+}
