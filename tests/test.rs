@@ -11,7 +11,7 @@ mod tests {
     async fn get_connection_pool() -> Result<Pool<MySql>, Error>
     {
         dotenvy::dotenv().ok();
-        let url = std::env::var("TEST_DATABASE_URL").unwrap();
+        let url = std::env::var("DATABASE_RESOURCE_TEST_URL").unwrap();
         MySqlPoolOptions::new()
             .max_connections(100)
             .connect(&url)
