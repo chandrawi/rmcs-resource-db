@@ -2,50 +2,29 @@
 mod tests {
     use std::vec;
     use std::str::FromStr;
-    use sqlx::{Pool, Row, Error};
-    use sqlx::mysql::{MySql, MySqlRow, MySqlPoolOptions};
+    use sqlx::{Pool, Error};
+    use sqlx::postgres::{Postgres, PgPoolOptions};
     use sqlx::types::chrono::{DateTime, Utc};
     use rmcs_resource_db::{ModelConfigSchema, DeviceConfigSchema};
     use rmcs_resource_db::{Resource, ConfigValue::{*, self}, DataIndexing::*, DataType::*, DataValue::*};
 
-    async fn get_connection_pool() -> Result<Pool<MySql>, Error>
+    async fn get_connection_pool() -> Result<Pool<Postgres>, Error>
     {
         dotenvy::dotenv().ok();
         let url = std::env::var("DATABASE_RESOURCE_TEST_URL").unwrap();
-        MySqlPoolOptions::new()
+        PgPoolOptions::new()
             .max_connections(100)
             .connect(&url)
             .await
     }
 
-    async fn check_tables_exist(pool: &Pool<MySql>) -> Result<bool, Error>
+    async fn truncate_tables(pool: &Pool<Postgres>) -> Result<(), Error>
     {
-        let sql = "SHOW TABLES;";
-        let tables: Vec<String> = sqlx::query(sql)
-            .map(|row: MySqlRow| row.get(0))
-            .fetch_all(pool)
+        let sql = "TRUNCATE TABLE \"system_log\", \"slice_data\", \"buffer_data\", \"data_timestamp\", \"data_timestamp_index\", \"data_timestamp_micros\", \"group_model_map\", \"group_device_map\", \"group_model\", \"group_device\", \"device_config\", \"device\", \"device_type_model\", \"device_type\", \"model_config\", \"model_type\", \"model\";";
+        sqlx::query(sql)
+            .execute(pool)
             .await?;
-
-        Ok(tables == vec![
-            String::from("_sqlx_migrations"),
-            String::from("buffer_data"),
-            String::from("data_timestamp"),
-            String::from("data_timestamp_index"),
-            String::from("data_timestamp_micros"),
-            String::from("device"),
-            String::from("device_config"),
-            String::from("device_type"),
-            String::from("device_type_model"),
-            String::from("group_device"),
-            String::from("group_device_map"),
-            String::from("group_model"),
-            String::from("group_model_map"),
-            String::from("model"),
-            String::from("model_config"),
-            String::from("model_type"),
-            String::from("slice_data"),
-            String::from("system_log")
-        ])
+        Ok(())
     }
 
     #[sqlx::test]
@@ -56,16 +35,8 @@ mod tests {
         let pool = get_connection_pool().await.unwrap();
         let resource = Resource::new_with_pool(pool);
 
-        // drop tables from previous test if exist
-        if check_tables_exist(&resource.pool).await.unwrap() {
-            sqlx::migrate!().undo(&resource.pool, 2).await.unwrap();
-        }
-        // create tables for testing
-        sqlx::migrate!().run(&resource.pool).await.unwrap();
-        // check if all tables successfully created
-        if !check_tables_exist(&resource.pool).await.unwrap() {
-            panic!("Database migration failed!");
-        }
+        // truncate all resource database tables before test
+        truncate_tables(&resource.pool).await.unwrap();
 
         // create new data model and add data types
         let model_id = resource.create_model(Timestamp, "UPLINK", "speed and direction", None).await.unwrap();
@@ -85,8 +56,8 @@ mod tests {
         resource.add_type_model(type_id, model_buf_id).await.unwrap();
 
         // create new devices with newly created type as its type 
-        let gateway_id = 0x87AD915C32B89D09;
-        let device_id1 = 0xA07C2589F301DB46;
+        let gateway_id = 0x47AD915C32B89D09;
+        let device_id1 = 0x507C2589F301DB46;
         let device_id2 = 0x2C8B82061E8F10A2;
         resource.create_device(device_id1, gateway_id, type_id, "TEST01", "Speedometer Compass 1", None).await.unwrap();
         resource.create_device(device_id2, gateway_id, type_id, "TEST02", "Speedometer Compass 2", None).await.unwrap();
@@ -141,16 +112,16 @@ mod tests {
 
         // read group model
         let groups = resource.list_group_model_by_category("APPLICATION").await.unwrap();
-        let group = groups.into_iter().next().unwrap();
-        assert_eq!(group.models, [model_id]);
-        assert_eq!(group.name, "data");
-        assert_eq!(group.category, "APPLICATION");
+        let group_model = groups.into_iter().next().unwrap();
+        assert_eq!(group_model.models, [model_id]);
+        assert_eq!(group_model.name, "data");
+        assert_eq!(group_model.category, "APPLICATION");
         // read group device
         let groups = resource.list_group_device_by_name("sensor").await.unwrap();
-        let group = groups.into_iter().next().unwrap();
-        assert_eq!(group.devices, [device_id2, device_id1]);
-        assert_eq!(group.name, "sensor");
-        assert_eq!(group.category, "APPLICATION");
+        let group_device = groups.into_iter().next().unwrap();
+        assert_eq!(group_device.devices, [device_id1, device_id2]);
+        assert_eq!(group_device.name, "sensor");
+        assert_eq!(group_device.category, "APPLICATION");
 
         // update model
         resource.update_model(model_buf_id, None, None, Some("buffer 2 integer"), Some("Model for store 2 i32 temporary data")).await.unwrap();
