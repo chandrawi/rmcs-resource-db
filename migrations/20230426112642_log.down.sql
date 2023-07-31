@@ -1,1 +1,1 @@
-DROP TABLE `system_log`;
+DROP TABLE "system_log";

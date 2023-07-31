@@ -1,10 +1,8 @@
-CREATE TABLE `system_log` (
-  `device_id` bigint(20) UNSIGNED NOT NULL,
-  `timestamp` timestamp NOT NULL DEFAULT current_timestamp(),
-  `status` enum('DEFAULT','SUCCESS','ERROR_RAW','ERROR_MISSING','ERROR_CONVERSION','ERROR_ANALYZE','ERROR_NETWORK','FAIL_READ','FAIL_CREATE','FAIL_UPDATE','FAIL_DELETE','INVALID_TOKEN','INVALID_REQUEST','NOT_FOUND','METHOD_NOT_ALLOWED','UNKNOWN_ERROR','UNKNOWN_STATUS') NOT NULL DEFAULT 'DEFAULT',
-  `value` varbinary(255) NOT NULL,
-  `type` enum('int','float','str') NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
-
-ALTER TABLE `system_log`
-  ADD PRIMARY KEY (`device_id`,`timestamp`);
+CREATE TABLE "system_log" (
+  "device_id" bigint NOT NULL,
+  "timestamp" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "status" smallint NOT NULL DEFAULT 0,
+  "value" bytea NOT NULL,
+  "type" smallint NOT NULL DEFAULT 0,
+  PRIMARY KEY ("device_id","timestamp")
+);
