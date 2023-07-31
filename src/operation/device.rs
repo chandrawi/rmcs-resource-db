@@ -1,6 +1,6 @@
 use sqlx::{Pool, Row, Error};
-use sqlx::mysql::{MySql, MySqlRow};
-use sea_query::{MysqlQueryBuilder, Query, Expr, Order, Func};
+use sqlx::postgres::{Postgres, PgRow};
+use sea_query::{PostgresQueryBuilder, Query, Expr, Order, Func};
 use sea_query_binder::SqlxBinder;
 
 use crate::schema::value::{ConfigValue, ConfigType};
@@ -10,21 +10,21 @@ use crate::schema::device::{
 };
 
 enum DeviceSelector {
-    Id(u64),
-    Gateway(u64),
-    Type(u32),
+    Id(i64),
+    Gateway(i64),
+    Type(i32),
     SN(String),
     Name(String),
-    GatewayType(u64, u32),
-    GatewayName(u64, String)
+    GatewayType(i64, i32),
+    GatewayName(i64, String)
 }
 
 enum ConfigSelector {
-    Id(u32),
-    Device(u64)
+    Id(i32),
+    Device(i64)
 }
 
-async fn select_join_device(pool: &Pool<MySql>, 
+async fn select_join_device(pool: &Pool<Postgres>, 
     kind: DeviceKind,
     selector: DeviceSelector
 ) -> Result<Vec<DeviceSchema>, Error>
@@ -104,18 +104,18 @@ async fn select_join_device(pool: &Pool<MySql>,
         .order_by((DeviceType::Table, DeviceType::TypeId), Order::Asc)
         .order_by((DeviceTypeModel::Table, DeviceTypeModel::ModelId), Order::Asc)
         .order_by((DeviceConfig::Table, DeviceConfig::Id), Order::Asc)
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
-    let mut last_id: Option<u64> = None;
-    let mut last_model: Option<u32> = None;
+    let mut last_id: Option<i64> = None;
+    let mut last_model: Option<i32> = None;
     let mut device_schema_vec: Vec<DeviceSchema> = Vec::new();
 
     sqlx::query_with(&sql, values)
-        .map(|row: MySqlRow| {
+        .map(|row: PgRow| {
             // get last device_schema in device_schema_vec or default
             let mut device_schema = device_schema_vec.pop().unwrap_or_default();
             // on every new id found insert device_schema to device_schema_vec and reset last_model
-            let id: u64 = row.get(0);
+            let id: i64 = row.get(0);
             if let Some(value) = last_id {
                 if value != id {
                     device_schema_vec.push(device_schema.clone());
@@ -140,10 +140,10 @@ async fn select_join_device(pool: &Pool<MySql>,
             }
             last_model = Some(model_id);
             // update device_schema configs if non empty config found
-            let config_id: Result<u32, Error> = row.try_get(9);
+            let config_id: Result<i32, Error> = row.try_get(9);
             if let Ok(cfg_id) = config_id {
                 let bytes: Vec<u8> = row.try_get(11).unwrap_or_default();
-                let type_string = ConfigType::from_str(row.try_get(12).unwrap_or_default());
+                let type_string = ConfigType::from(row.try_get::<i16,_>(12).unwrap_or_default());
                 device_schema.configs.push(DeviceConfigSchema {
                     id: cfg_id,
                     device_id: id,
@@ -161,9 +161,9 @@ async fn select_join_device(pool: &Pool<MySql>,
     Ok(device_schema_vec)
 }
 
-pub(crate) async fn select_device(pool: &Pool<MySql>,
+pub(crate) async fn select_device(pool: &Pool<Postgres>,
     kind: DeviceKind,
-    id: u64
+    id: i64
 ) -> Result<DeviceSchema, Error>
 {
     let results = select_join_device(pool, kind, DeviceSelector::Id(id)).await?;
@@ -173,7 +173,7 @@ pub(crate) async fn select_device(pool: &Pool<MySql>,
     }
 }
 
-pub(crate) async fn select_device_by_sn(pool: &Pool<MySql>,
+pub(crate) async fn select_device_by_sn(pool: &Pool<Postgres>,
     kind: DeviceKind,
     serial_number: &str
 ) -> Result<DeviceSchema, Error>
@@ -185,23 +185,23 @@ pub(crate) async fn select_device_by_sn(pool: &Pool<MySql>,
     }
 }
 
-pub(crate) async fn select_device_by_gateway(pool: &Pool<MySql>,
+pub(crate) async fn select_device_by_gateway(pool: &Pool<Postgres>,
     kind: DeviceKind,
-    gateway_id: u64
+    gateway_id: i64
 ) -> Result<Vec<DeviceSchema>, Error>
 {
     select_join_device(pool, kind, DeviceSelector::Gateway(gateway_id)).await
 }
 
-pub(crate) async fn select_device_by_type(pool: &Pool<MySql>,
+pub(crate) async fn select_device_by_type(pool: &Pool<Postgres>,
     kind: DeviceKind,
-    type_id: u32
+    type_id: i32
 ) -> Result<Vec<DeviceSchema>, Error>
 {
     select_join_device(pool, kind, DeviceSelector::Type(type_id)).await
 }
 
-pub(crate) async fn select_device_by_name(pool: &Pool<MySql>,
+pub(crate) async fn select_device_by_name(pool: &Pool<Postgres>,
     kind: DeviceKind,
     name: &str
 ) -> Result<Vec<DeviceSchema>, Error>
@@ -210,18 +210,18 @@ pub(crate) async fn select_device_by_name(pool: &Pool<MySql>,
     select_join_device(pool, kind, DeviceSelector::Name(String::from(name_like))).await
 }
 
-pub(crate) async fn select_device_by_gateway_type(pool: &Pool<MySql>,
+pub(crate) async fn select_device_by_gateway_type(pool: &Pool<Postgres>,
     kind: DeviceKind,
-    gateway_id: u64,
-    type_id: u32
+    gateway_id: i64,
+    type_id: i32
 ) -> Result<Vec<DeviceSchema>, Error>
 {
     select_join_device(pool, kind, DeviceSelector::GatewayType(gateway_id, type_id)).await
 }
 
-pub(crate) async fn select_device_by_gateway_name(pool: &Pool<MySql>,
+pub(crate) async fn select_device_by_gateway_name(pool: &Pool<Postgres>,
     kind: DeviceKind,
-    gateway_id: u64,
+    gateway_id: i64,
     name: &str
 ) -> Result<Vec<DeviceSchema>, Error>
 {
@@ -229,10 +229,10 @@ pub(crate) async fn select_device_by_gateway_name(pool: &Pool<MySql>,
     select_join_device(pool, kind, DeviceSelector::GatewayName(gateway_id, name_like)).await
 }
 
-pub(crate) async fn insert_device(pool: &Pool<MySql>,
-    id: u64,
-    gateway_id: u64,
-    type_id: u32,
+pub(crate) async fn insert_device(pool: &Pool<Postgres>,
+    id: i64,
+    gateway_id: i64,
+    type_id: i32,
     serial_number: &str,
     name: &str,
     description: Option<&str>
@@ -257,7 +257,7 @@ pub(crate) async fn insert_device(pool: &Pool<MySql>,
             description.unwrap_or_default().into()
         ])
         .unwrap_or(&mut sea_query::InsertStatement::default())
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -266,11 +266,11 @@ pub(crate) async fn insert_device(pool: &Pool<MySql>,
     Ok(())
 }
 
-pub(crate) async fn update_device(pool: &Pool<MySql>,
+pub(crate) async fn update_device(pool: &Pool<Postgres>,
     kind: DeviceKind,
-    id: u64,
-    gateway_id: Option<u64>,
-    type_id: Option<u32>,
+    id: i64,
+    gateway_id: Option<i64>,
+    type_id: Option<i32>,
     serial_number: Option<&str>,
     name: Option<&str>,
     description: Option<&str>
@@ -302,7 +302,7 @@ pub(crate) async fn update_device(pool: &Pool<MySql>,
 
     let (sql, values) = stmt
         .and_where(Expr::col(Device::DeviceId).eq(id))
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -311,9 +311,9 @@ pub(crate) async fn update_device(pool: &Pool<MySql>,
     Ok(())
 }
 
-pub(crate) async fn delete_device(pool: &Pool<MySql>, 
+pub(crate) async fn delete_device(pool: &Pool<Postgres>, 
     kind: DeviceKind,
-    id: u64
+    id: i64
 ) -> Result<(), Error> 
 {
     let mut stmt = Query::delete()
@@ -324,7 +324,7 @@ pub(crate) async fn delete_device(pool: &Pool<MySql>,
     if let DeviceKind::Gateway = kind {
         stmt = stmt.and_where(Expr::col(Device::GatewayId).eq(id)).to_owned();
     }
-    let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
+    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -333,7 +333,7 @@ pub(crate) async fn delete_device(pool: &Pool<MySql>,
     Ok(())
 }
 
-async fn select_device_config(pool: &Pool<MySql>,
+async fn select_device_config(pool: &Pool<Postgres>,
     kind: DeviceKind,
     selector: ConfigSelector
 ) -> Result<Vec<DeviceConfigSchema>, Error>
@@ -373,12 +373,12 @@ async fn select_device_config(pool: &Pool<MySql>,
     let (sql, values) = stmt
         .order_by((DeviceConfig::Table, DeviceConfig::DeviceId), Order::Asc)
         .order_by((DeviceConfig::Table, DeviceConfig::Id), Order::Asc)
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     let rows = sqlx::query_with(&sql, values)
-        .map(|row: MySqlRow| {
+        .map(|row: PgRow| {
             let bytes = row.get(3);
-            let type_string = ConfigType::from_str(row.get(4));
+            let type_string = ConfigType::from(row.get::<i16,_>(4));
             DeviceConfigSchema {
                 id: row.get(0),
                 device_id: row.get(1),
@@ -393,9 +393,9 @@ async fn select_device_config(pool: &Pool<MySql>,
     Ok(rows)
 }
 
-pub(crate) async fn select_device_config_by_id(pool: &Pool<MySql>,
+pub(crate) async fn select_device_config_by_id(pool: &Pool<Postgres>,
     kind: DeviceKind,
-    id: u32
+    id: i32
 ) -> Result<DeviceConfigSchema, Error>
 {
     let results = select_device_config(pool, kind, ConfigSelector::Id(id)).await?;
@@ -405,23 +405,23 @@ pub(crate) async fn select_device_config_by_id(pool: &Pool<MySql>,
     }
 }
 
-pub(crate) async fn select_device_config_by_device(pool: &Pool<MySql>,
+pub(crate) async fn select_device_config_by_device(pool: &Pool<Postgres>,
     kind: DeviceKind,
-    device_id: u64
+    device_id: i64
 ) -> Result<Vec<DeviceConfigSchema>, Error>
 {
     select_device_config(pool, kind, ConfigSelector::Device(device_id)).await
 }
 
-pub(crate) async fn insert_device_config(pool: &Pool<MySql>,
-    device_id: u64,
+pub(crate) async fn insert_device_config(pool: &Pool<Postgres>,
+    device_id: i64,
     name: &str,
     value: ConfigValue,
     category: &str
-) -> Result<u32, Error>
+) -> Result<i32, Error>
 {
     let config_value = value.to_bytes();
-    let config_type = value.get_type().to_string();
+    let config_type = i16::from(value.get_type());
     let (sql, values) = Query::insert()
         .into_table(DeviceConfig::Table)
         .columns([
@@ -439,7 +439,7 @@ pub(crate) async fn insert_device_config(pool: &Pool<MySql>,
             category.into()
         ])
         .unwrap_or(&mut sea_query::InsertStatement::default())
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -448,17 +448,17 @@ pub(crate) async fn insert_device_config(pool: &Pool<MySql>,
     let sql = Query::select()
         .expr(Func::max(Expr::col(DeviceConfig::Id)))
         .from(DeviceConfig::Table)
-        .to_string(MysqlQueryBuilder);
-    let id: u32 = sqlx::query(&sql)
-        .map(|row: MySqlRow| row.get(0))
+        .to_string(PostgresQueryBuilder);
+    let id: i32 = sqlx::query(&sql)
+        .map(|row: PgRow| row.get(0))
         .fetch_one(pool)
         .await?;
 
     Ok(id)
 }
 
-pub(crate) async fn update_device_config(pool: &Pool<MySql>,
-    id: u32,
+pub(crate) async fn update_device_config(pool: &Pool<Postgres>,
+    id: i32,
     name: Option<&str>,
     value: Option<ConfigValue>,
     category: Option<&str>
@@ -473,7 +473,7 @@ pub(crate) async fn update_device_config(pool: &Pool<MySql>,
     }
     if let Some(value) = value {
         let bytes = value.to_bytes();
-        let type_ = value.get_type().to_string();
+        let type_ = i16::from(value.get_type());
         stmt = stmt
             .value(DeviceConfig::Value, bytes)
             .value(DeviceConfig::Type, type_).to_owned();
@@ -484,7 +484,7 @@ pub(crate) async fn update_device_config(pool: &Pool<MySql>,
 
     let (sql, values) = stmt
         .and_where(Expr::col(DeviceConfig::Id).eq(id))
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -493,14 +493,14 @@ pub(crate) async fn update_device_config(pool: &Pool<MySql>,
     Ok(())
 }
 
-pub(crate) async fn delete_device_config(pool: &Pool<MySql>, 
-    id: u32
+pub(crate) async fn delete_device_config(pool: &Pool<Postgres>, 
+    id: i32
 ) -> Result<(), Error> 
 {
     let (sql, values) = Query::delete()
         .from_table(DeviceConfig::Table)
         .and_where(Expr::col(DeviceConfig::Id).eq(id))
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)

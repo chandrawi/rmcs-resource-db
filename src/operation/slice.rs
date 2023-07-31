@@ -1,20 +1,20 @@
 use sqlx::{Pool, Row, Error};
-use sqlx::mysql::{MySql, MySqlRow};
+use sqlx::postgres::{Postgres, PgRow};
 use sqlx::types::chrono::{DateTime, Utc};
-use sea_query::{MysqlQueryBuilder, Query, Expr, Func};
+use sea_query::{PostgresQueryBuilder, Query, Expr, Func};
 use sea_query_binder::SqlxBinder;
 
 use crate::schema::slice::{SliceData, SliceSchema};
 
 enum SliceSelector {
-    Id(u32),
+    Id(i32),
     Name(String),
-    Device(u64),
-    Model(u32),
-    DeviceModel(u64, u32)
+    Device(i64),
+    Model(i32),
+    DeviceModel(i64, i32)
 }
 
-async fn select_slice(pool: &Pool<MySql>,
+async fn select_slice(pool: &Pool<Postgres>,
     selector: SliceSelector
 ) -> Result<Vec<SliceSchema>, Error>
 {
@@ -52,10 +52,10 @@ async fn select_slice(pool: &Pool<MySql>,
                 .to_owned();
         }
     }
-    let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
+    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     let rows = sqlx::query_with(&sql, values)
-        .map(|row: MySqlRow| {
+        .map(|row: PgRow| {
             SliceSchema {
                 id: row.get(0),
                 device_id: row.get(1),
@@ -74,15 +74,15 @@ async fn select_slice(pool: &Pool<MySql>,
     Ok(rows)
 }
 
-pub(crate) async fn select_slice_by_id(pool: &Pool<MySql>,
-    id: u32
+pub(crate) async fn select_slice_by_id(pool: &Pool<Postgres>,
+    id: i32
 ) -> Result<SliceSchema, Error>
 {
     select_slice(pool, SliceSelector::Id(id)).await?.into_iter().next()
         .ok_or(Error::RowNotFound)
 }
 
-pub(crate) async fn select_slice_by_name(pool: &Pool<MySql>,
+pub(crate) async fn select_slice_by_name(pool: &Pool<Postgres>,
     name: &str
 ) -> Result<Vec<SliceSchema>, Error>
 {
@@ -90,38 +90,38 @@ pub(crate) async fn select_slice_by_name(pool: &Pool<MySql>,
     select_slice(pool, SliceSelector::Name(String::from(name_like))).await
 }
 
-pub(crate) async fn select_slice_by_device(pool: &Pool<MySql>,
-    device_id: u64
+pub(crate) async fn select_slice_by_device(pool: &Pool<Postgres>,
+    device_id: i64
 ) -> Result<Vec<SliceSchema>, Error>
 {
     select_slice(pool, SliceSelector::Device(device_id)).await
 }
 
-pub(crate) async fn select_slice_by_model(pool: &Pool<MySql>,
-    model_id: u32
+pub(crate) async fn select_slice_by_model(pool: &Pool<Postgres>,
+    model_id: i32
 ) -> Result<Vec<SliceSchema>, Error>
 {
     select_slice(pool, SliceSelector::Model(model_id)).await
 }
 
-pub(crate) async fn select_slice_by_device_model(pool: &Pool<MySql>,
-    device_id: u64,
-    model_id: u32
+pub(crate) async fn select_slice_by_device_model(pool: &Pool<Postgres>,
+    device_id: i64,
+    model_id: i32
 ) -> Result<Vec<SliceSchema>, Error>
 {
     select_slice(pool, SliceSelector::DeviceModel(device_id, model_id)).await
 }
 
-pub(crate) async fn insert_slice(pool: &Pool<MySql>,
-    device_id: u64,
-    model_id: u32,
+pub(crate) async fn insert_slice(pool: &Pool<Postgres>,
+    device_id: i64,
+    model_id: i32,
     timestamp_begin: DateTime<Utc>,
     timestamp_end: DateTime<Utc>,
-    index_begin: Option<u16>,
-    index_end: Option<u16>,
+    index_begin: Option<i16>,
+    index_end: Option<i16>,
     name: &str,
     description: Option<&str>
-) -> Result<u32, Error>
+) -> Result<i32, Error>
 {
     let (sql, values) = Query::insert()
         .into_table(SliceData::Table)
@@ -146,7 +146,7 @@ pub(crate) async fn insert_slice(pool: &Pool<MySql>,
             description.unwrap_or_default().into()
         ])
         .unwrap_or(&mut sea_query::InsertStatement::default())
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -155,21 +155,21 @@ pub(crate) async fn insert_slice(pool: &Pool<MySql>,
     let sql = Query::select()
         .expr(Func::max(Expr::col(SliceData::Id)))
         .from(SliceData::Table)
-        .to_string(MysqlQueryBuilder);
-    let id: u32 = sqlx::query(&sql)
-        .map(|row: MySqlRow| row.get(0))
+        .to_string(PostgresQueryBuilder);
+    let id: i32 = sqlx::query(&sql)
+        .map(|row: PgRow| row.get(0))
         .fetch_one(pool)
         .await?;
 
     Ok(id)
 }
 
-pub(crate) async fn update_slice(pool: &Pool<MySql>,
-    id: u32,
+pub(crate) async fn update_slice(pool: &Pool<Postgres>,
+    id: i32,
     timestamp_begin: Option<DateTime<Utc>>,
     timestamp_end: Option<DateTime<Utc>>,
-    index_begin: Option<u16>,
-    index_end: Option<u16>,
+    index_begin: Option<i16>,
+    index_end: Option<i16>,
     name: Option<&str>,
     description: Option<&str>
 ) -> Result<(), Error>
@@ -198,7 +198,7 @@ pub(crate) async fn update_slice(pool: &Pool<MySql>,
     }
     let (sql, values) = stmt
         .and_where(Expr::col(SliceData::Id).eq(id))
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -207,14 +207,14 @@ pub(crate) async fn update_slice(pool: &Pool<MySql>,
     Ok(())
 }
 
-pub(crate) async fn delete_slice(pool: &Pool<MySql>,
-    id: u32
+pub(crate) async fn delete_slice(pool: &Pool<Postgres>,
+    id: i32
 ) -> Result<(), Error>
 {
     let (sql, values) = Query::delete()
         .from_table(SliceData::Table)
         .and_where(Expr::col(SliceData::Id).eq(id))
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)

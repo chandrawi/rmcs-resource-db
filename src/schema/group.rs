@@ -33,30 +33,39 @@ pub enum GroupDeviceMap {
     GroupId,
     DeviceId
 }
-
+#[derive(Clone)]
 pub(crate) enum GroupKind {
     Model,
     Device,
     Gateway
 }
 
-impl std::string::ToString for GroupKind {
-    fn to_string(&self) -> String {
-        match &self {
-            GroupKind::Device => String::from("DEVICE"),
-            GroupKind::Gateway => String::from("GATEWAY"),
-            _ => String::from("")
+impl From<bool> for GroupKind {
+    fn from(value: bool) -> Self {
+        match value {
+            false => Self::Device,
+            true => Self::Gateway
+        }
+    }
+}
+
+impl From<GroupKind> for bool {
+    fn from(value: GroupKind) -> Self {
+        match value {
+            GroupKind::Model => false,
+            GroupKind::Device => false,
+            GroupKind::Gateway => true
         }
     }
 }
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub(crate) struct GroupSchema {
-    pub(crate) id: u32,
+    pub(crate) id: i32,
     pub(crate) name: String,
     pub(crate) category: String,
     pub(crate) description: String,
-    pub(crate) members: Vec<u64>
+    pub(crate) members: Vec<i64>
 }
 
 impl GroupSchema {
@@ -67,7 +76,7 @@ impl GroupSchema {
             name: self.name,
             category: self.category,
             description: self.description,
-            models: self.members.into_iter().map(|el| el as u32).collect()
+            models: self.members.into_iter().map(|el| el as i32).collect()
         }
     }
     pub(crate) fn into_group_device(self) -> GroupDeviceSchema
@@ -94,29 +103,29 @@ impl GroupSchema {
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct GroupModelSchema {
-    pub id: u32,
+    pub id: i32,
     pub name: String,
     pub category: String,
     pub description: String,
-    pub models: Vec<u32>
+    pub models: Vec<i32>
 }
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct GroupDeviceSchema {
-    pub id: u32,
+    pub id: i32,
     pub name: String,
     pub category: String,
     pub description: String,
-    pub devices: Vec<u64>
+    pub devices: Vec<i64>
 }
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct GroupGatewaySchema {
-    pub id: u32,
+    pub id: i32,
     pub name: String,
     pub category: String,
     pub description: String,
-    pub gateways: Vec<u64>
+    pub gateways: Vec<i64>
 }
 
 impl From<group::GroupModelSchema> for GroupModelSchema {

@@ -1,7 +1,7 @@
 use sqlx::{Pool, Row, Error};
-use sqlx::mysql::{MySql, MySqlRow};
+use sqlx::postgres::{Postgres, PgRow};
 use sqlx::types::chrono::{DateTime, Utc};
-use sea_query::{MysqlQueryBuilder, Query, Expr, Order};
+use sea_query::{PostgresQueryBuilder, Query, Expr, Order};
 use sea_query_binder::SqlxBinder;
 
 use crate::schema::value::{DataIndexing, DataType, DataValue, ArrayDataValue};
@@ -19,12 +19,12 @@ enum DataSelector {
     NumberAfter(DateTime<Utc>, u32)
 }
 
-async fn select_data_bytes(pool: &Pool<MySql>, 
+async fn select_data_bytes(pool: &Pool<Postgres>, 
     indexing: DataIndexing,
     selector: DataSelector,
-    device_id: u64,
-    model_id: u32,
-    index: Option<u16>
+    device_id: i64,
+    model_id: i32,
+    index: Option<i16>
 ) -> Result<Vec<DataBytesSchema>, Error>
 {
     let mut stmt = Query::select().to_owned();
@@ -153,10 +153,10 @@ async fn select_data_bytes(pool: &Pool<MySql>,
                 .to_owned();
         }
     }
-    let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
+    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     let rows = sqlx::query_with(&sql, values)
-        .map(|row: MySqlRow| {
+        .map(|row: PgRow| {
             DataBytesSchema {
                 device_id: row.get(0),
                 model_id: row.get(1),
@@ -171,8 +171,8 @@ async fn select_data_bytes(pool: &Pool<MySql>,
     Ok(rows)
 }
 
-pub(crate) async fn select_data_model(pool: &Pool<MySql>,
-    model_id: u32
+pub(crate) async fn select_data_model(pool: &Pool<Postgres>,
+    model_id: i32
 ) -> Result<DataModel, Error>
 {
     let (sql, values) = Query::select()
@@ -185,14 +185,14 @@ pub(crate) async fn select_data_model(pool: &Pool<MySql>,
         )
         .and_where(Expr::col((Model::Table, Model::ModelId)).eq(model_id))
         .order_by((ModelType::Table, ModelType::Index), Order::Asc)
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     let mut data_type = DataModel { id: model_id, indexing: DataIndexing::Timestamp, types: Vec::new() };
 
     sqlx::query_with(&sql, values)
-        .map(|row: MySqlRow| {
-            data_type.indexing = DataIndexing::from_str(row.get(0));
-            data_type.types.push(DataType::from_str(row.get(1)))
+        .map(|row: PgRow| {
+            data_type.indexing = DataIndexing::from(row.get::<i16,_>(0));
+            data_type.types.push(DataType::from(row.get::<i16,_>(1)))
         })
         .fetch_all(pool)
         .await?;
@@ -200,11 +200,11 @@ pub(crate) async fn select_data_model(pool: &Pool<MySql>,
     Ok(data_type)
 }
 
-pub(crate) async fn select_data_by_time(pool: &Pool<MySql>,
+pub(crate) async fn select_data_by_time(pool: &Pool<Postgres>,
     model: DataModel,
-    device_id: u64,
+    device_id: i64,
     timestamp: DateTime<Utc>,
-    index: Option<u16>
+    index: Option<i16>
 ) -> Result<Vec<DataSchema>, Error>
 {
     let selector = DataSelector::Time(timestamp);
@@ -214,9 +214,9 @@ pub(crate) async fn select_data_by_time(pool: &Pool<MySql>,
     )
 }
 
-pub(crate) async fn select_data_by_last_time(pool: &Pool<MySql>,
+pub(crate) async fn select_data_by_last_time(pool: &Pool<Postgres>,
     model: DataModel,
-    device_id: u64,
+    device_id: i64,
     last: DateTime<Utc>
 ) -> Result<Vec<DataSchema>, Error>
 {
@@ -227,9 +227,9 @@ pub(crate) async fn select_data_by_last_time(pool: &Pool<MySql>,
     )
 }
 
-pub(crate) async fn select_data_by_range_time(pool: &Pool<MySql>,
+pub(crate) async fn select_data_by_range_time(pool: &Pool<Postgres>,
     model: DataModel,
-    device_id: u64,
+    device_id: i64,
     begin: DateTime<Utc>,
     end: DateTime<Utc>
 ) -> Result<Vec<DataSchema>, Error>
@@ -241,9 +241,9 @@ pub(crate) async fn select_data_by_range_time(pool: &Pool<MySql>,
     )
 }
 
-pub(crate) async fn select_data_by_number_before(pool: &Pool<MySql>,
+pub(crate) async fn select_data_by_number_before(pool: &Pool<Postgres>,
     model: DataModel,
-    device_id: u64,
+    device_id: i64,
     before: DateTime<Utc>,
     number: u32
 ) -> Result<Vec<DataSchema>, Error>
@@ -255,9 +255,9 @@ pub(crate) async fn select_data_by_number_before(pool: &Pool<MySql>,
     )
 }
 
-pub(crate) async fn select_data_by_number_after(pool: &Pool<MySql>,
+pub(crate) async fn select_data_by_number_after(pool: &Pool<Postgres>,
     model: DataModel,
-    device_id: u64,
+    device_id: i64,
     after: DateTime<Utc>,
     number: u32
 ) -> Result<Vec<DataSchema>, Error>
@@ -269,11 +269,11 @@ pub(crate) async fn select_data_by_number_after(pool: &Pool<MySql>,
     )
 }
 
-pub(crate) async fn insert_data(pool: &Pool<MySql>,
+pub(crate) async fn insert_data(pool: &Pool<Postgres>,
     model: DataModel,
-    device_id: u64,
+    device_id: i64,
     timestamp: DateTime<Utc>,
-    index: Option<u16>,
+    index: Option<i16>,
     data: Vec<DataValue>
 ) -> Result<(), Error>
 {
@@ -338,7 +338,7 @@ pub(crate) async fn insert_data(pool: &Pool<MySql>,
                     .to_owned();
             }
         }
-        let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
+        let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -347,11 +347,11 @@ pub(crate) async fn insert_data(pool: &Pool<MySql>,
     Ok(())
 }
 
-pub(crate) async fn delete_data(pool: &Pool<MySql>,
+pub(crate) async fn delete_data(pool: &Pool<Postgres>,
     model: DataModel,
-    device_id: u64,
+    device_id: i64,
     timestamp: DateTime<Utc>,
-    index: Option<u16>,
+    index: Option<i16>,
 ) -> Result<(), Error>
 {
     let mut stmt = Query::delete().to_owned();
@@ -382,7 +382,7 @@ pub(crate) async fn delete_data(pool: &Pool<MySql>,
                 .to_owned();
         }
     }
-    let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
+    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)

@@ -1,25 +1,26 @@
+use std::str::FromStr;
 use sqlx::{Pool, Row, Error};
-use sqlx::mysql::{MySql, MySqlRow};
+use sqlx::postgres::{Postgres, PgRow};
 use sqlx::types::chrono::{DateTime, Utc};
-use sea_query::{MysqlQueryBuilder, Query, Expr, Order, Func};
+use sea_query::{PostgresQueryBuilder, Query, Expr, Order, Func};
 use sea_query_binder::SqlxBinder;
 
 use crate::schema::value::{DataIndexing, DataType, DataValue, ArrayDataValue};
 use crate::schema::model::{Model, ModelType};
 use crate::schema::data::DataModel;
-use crate::schema::buffer::{BufferData, BufferBytesSchema, BufferSchema};
+use crate::schema::buffer::{BufferData, BufferBytesSchema, BufferSchema, BufferStatus};
 use crate::operation::data;
 
 enum BufferSelector {
-    Id(u32),
+    Id(i32),
     First(u32),
     Last(u32)
 }
 
-async fn select_buffer_bytes(pool: &Pool<MySql>, 
+async fn select_buffer_bytes(pool: &Pool<Postgres>, 
     selector: BufferSelector,
-    device_id: Option<u64>,
-    model_id: Option<u32>,
+    device_id: Option<i64>,
+    model_id: Option<i32>,
     status: Option<&str>
 ) -> Result<Vec<BufferBytesSchema>, Error>
 {
@@ -57,12 +58,13 @@ async fn select_buffer_bytes(pool: &Pool<MySql>,
         stmt = stmt.and_where(Expr::col(BufferData::ModelId).eq(id)).to_owned();
     }
     if let Some(stat) = status {
-        stmt = stmt.and_where(Expr::col(BufferData::Status).eq(stat)).to_owned();
+        let status = i16::from(BufferStatus::from_str(stat).unwrap());
+        stmt = stmt.and_where(Expr::col(BufferData::Status).eq(status)).to_owned();
     }
-    let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
+    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     let rows = sqlx::query_with(&sql, values)
-        .map(|row: MySqlRow| {
+        .map(|row: PgRow| {
             BufferBytesSchema {
                 id: row.get(0),
                 device_id: row.get(1),
@@ -70,7 +72,7 @@ async fn select_buffer_bytes(pool: &Pool<MySql>,
                 timestamp: row.get(3),
                 index: row.try_get(6).unwrap_or_default(),
                 bytes: row.get(4),
-                status: row.get(5)
+                status: BufferStatus::from(row.get::<i16,_>(5)).to_string()
             }
         })
         .fetch_all(pool)
@@ -79,8 +81,8 @@ async fn select_buffer_bytes(pool: &Pool<MySql>,
     Ok(rows)
 }
 
-pub(crate) async fn select_model_buffer(pool: &Pool<MySql>,
-    model_id_vec: Vec<u32>
+pub(crate) async fn select_model_buffer(pool: &Pool<Postgres>,
+    model_id_vec: Vec<i32>
 ) -> Result<Vec<DataModel>, Error>
 {
     // get unique_id_vec from input model_id_vec
@@ -102,26 +104,26 @@ pub(crate) async fn select_model_buffer(pool: &Pool<MySql>,
         .and_where(Expr::col((Model::Table, Model::ModelId)).is_in(unique_id_vec))
         .order_by((ModelType::Table, ModelType::ModelId), Order::Asc)
         .order_by((ModelType::Table, ModelType::Index), Order::Asc)
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     unique_id_vec = Vec::new();
     let mut data_model = DataModel::default();
     let mut data_model_vec = Vec::new();
 
     sqlx::query_with(&sql, values)
-        .map(|row: MySqlRow| {
-            let model_id: u32 = row.get(0);
+        .map(|row: PgRow| {
+            let model_id: i32 = row.get(0);
             // on every new id found add unique_id_vec and update data_model indexing
             if unique_id_vec.iter().filter(|&&el| el == model_id).count() == 0 {
                 unique_id_vec.push(model_id);
                 data_model.id = model_id;
-                data_model.indexing = DataIndexing::from_str(row.get(1));
+                data_model.indexing = DataIndexing::from(row.get::<i16,_>(1));
                 data_model.types = Vec::new();
                 // insert new data_model to data_model_vec
                 data_model_vec.push(data_model.clone());
             }
             // add a type to data_model types
-            data_model.types.push(DataType::from_str(row.get(2)));
+            data_model.types.push(DataType::from(row.get::<i16,_>(2)));
             // update data_model_vec with updated data_model
             data_model_vec.pop();
             data_model_vec.push(data_model.clone());
@@ -147,8 +149,8 @@ pub(crate) async fn select_model_buffer(pool: &Pool<MySql>,
     Ok(data_model_map)
 }
 
-pub(crate) async fn select_buffer_by_id(pool: &Pool<MySql>, 
-    id: u32
+pub(crate) async fn select_buffer_by_id(pool: &Pool<Postgres>, 
+    id: i32
 ) -> Result<BufferSchema, Error>
 {
     let selector = BufferSelector::Id(id);
@@ -158,16 +160,16 @@ pub(crate) async fn select_buffer_by_id(pool: &Pool<MySql>,
     Ok(bytes.to_buffer_schema(&model.types))
 }
 
-pub(crate) async fn select_buffer_first(pool: &Pool<MySql>, 
+pub(crate) async fn select_buffer_first(pool: &Pool<Postgres>, 
     number: u32,
-    device_id: Option<u64>,
-    model_id: Option<u32>,
+    device_id: Option<i64>,
+    model_id: Option<i32>,
     status: Option<&str>
 ) -> Result<Vec<BufferSchema>, Error>
 {
     let selector = BufferSelector::First(number);
     let bytes = select_buffer_bytes(pool, selector, device_id, model_id, status).await?;
-    let model_id_vec: Vec<u32> = bytes.iter().map(|el| el.model_id).collect();
+    let model_id_vec: Vec<i32> = bytes.iter().map(|el| el.model_id).collect();
     let models = select_model_buffer(pool, model_id_vec).await?;
     Ok(
         bytes.into_iter().enumerate().map(|(i, buf)| {
@@ -176,16 +178,16 @@ pub(crate) async fn select_buffer_first(pool: &Pool<MySql>,
     )
 }
 
-pub(crate) async fn select_buffer_last(pool: &Pool<MySql>, 
+pub(crate) async fn select_buffer_last(pool: &Pool<Postgres>, 
     number: u32,
-    device_id: Option<u64>,
-    model_id: Option<u32>,
+    device_id: Option<i64>,
+    model_id: Option<i32>,
     status: Option<&str>
 ) -> Result<Vec<BufferSchema>, Error>
 {
     let selector = BufferSelector::Last(number);
     let bytes = select_buffer_bytes(pool, selector, device_id, model_id, status).await?;
-    let model_id_vec: Vec<u32> = bytes.iter().map(|el| el.model_id).collect();
+    let model_id_vec: Vec<i32> = bytes.iter().map(|el| el.model_id).collect();
     let models = select_model_buffer(pool, model_id_vec).await?;
     Ok(
         bytes.into_iter().enumerate().map(|(i, buf)| {
@@ -194,14 +196,14 @@ pub(crate) async fn select_buffer_last(pool: &Pool<MySql>,
     )
 }
 
-pub(crate) async fn insert_buffer(pool: &Pool<MySql>,
-    device_id: u64,
-    model_id: u32,
+pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
+    device_id: i64,
+    model_id: i32,
     timestamp: DateTime<Utc>,
-    index: Option<u16>,
+    index: Option<i16>,
     data: Vec<DataValue>,
     status: &str
-) -> Result<u32, Error>
+) -> Result<i32, Error>
 {
     let bytes = ArrayDataValue::from_vec(&data).to_bytes();
 
@@ -221,10 +223,10 @@ pub(crate) async fn insert_buffer(pool: &Pool<MySql>,
             timestamp.into(),
             index.unwrap_or_default().into(),
             bytes.into(),
-            status.into()
+            i16::from(BufferStatus::from_str(status).unwrap()).into()
         ])
         .unwrap_or(&mut sea_query::InsertStatement::default())
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -233,17 +235,17 @@ pub(crate) async fn insert_buffer(pool: &Pool<MySql>,
     let sql = Query::select()
         .expr(Func::max(Expr::col(BufferData::Id)))
         .from(BufferData::Table)
-        .to_string(MysqlQueryBuilder);
-    let id: u32 = sqlx::query(&sql)
-        .map(|row: MySqlRow| row.get(0))
+        .to_string(PostgresQueryBuilder);
+    let id: i32 = sqlx::query(&sql)
+        .map(|row: PgRow| row.get(0))
         .fetch_one(pool)
         .await?;
 
     Ok(id)
 }
 
-pub(crate) async fn update_buffer(pool: &Pool<MySql>,
-    id: u32,
+pub(crate) async fn update_buffer(pool: &Pool<Postgres>,
+    id: i32,
     data: Option<Vec<DataValue>>,
     status: Option<&str>
 ) -> Result<(), Error>
@@ -257,12 +259,12 @@ pub(crate) async fn update_buffer(pool: &Pool<MySql>,
         stmt = stmt.value(BufferData::Data, bytes).to_owned();
     }
     if let Some(value) = status {
-        stmt = stmt.value(BufferData::Status, value).to_owned();
+        stmt = stmt.value(BufferData::Status, i16::from(BufferStatus::from_str(value).unwrap())).to_owned();
     }
 
     let (sql, values) = stmt
         .and_where(Expr::col(BufferData::Id).eq(id))
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -271,14 +273,14 @@ pub(crate) async fn update_buffer(pool: &Pool<MySql>,
     Ok(())
 }
 
-pub(crate) async fn delete_buffer(pool: &Pool<MySql>,
-    id: u32
+pub(crate) async fn delete_buffer(pool: &Pool<Postgres>,
+    id: i32
 ) -> Result<(), Error>
 {
     let (sql, values) = Query::delete()
         .from_table(BufferData::Table)
         .and_where(Expr::col(BufferData::Id).eq(id))
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)

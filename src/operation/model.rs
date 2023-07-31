@@ -1,24 +1,24 @@
 use sqlx::{Pool, Row, Error};
-use sqlx::mysql::{MySql, MySqlRow};
-use sea_query::{MysqlQueryBuilder, Query, Expr, Cond, Order, Func};
+use sqlx::postgres::{Postgres, PgRow};
+use sea_query::{PostgresQueryBuilder, Query, Expr, Cond, Order, Func};
 use sea_query_binder::SqlxBinder;
 
 use crate::schema::value::{ConfigType, ConfigValue, DataIndexing, DataType};
 use crate::schema::model::{Model, ModelType, ModelConfig, ModelSchema, ModelConfigSchema};
 
 enum ModelSelector {
-    Id(u32),
+    Id(i32),
     Name(String),
     Category(String),
     NameCategory(String, String)
 }
 
 enum ConfigSelector {
-    Id(u32),
-    Model(u32)
+    Id(i32),
+    Model(i32)
 }
 
-async fn select_join_model(pool: &Pool<MySql>, 
+async fn select_join_model(pool: &Pool<Postgres>, 
     selector: ModelSelector
 ) -> Result<Vec<ModelSchema>, Error>
 {
@@ -78,19 +78,19 @@ async fn select_join_model(pool: &Pool<MySql>,
         .order_by((Model::Table, Model::ModelId), Order::Asc)
         .order_by((ModelType::Table, ModelType::Index), Order::Asc)
         .order_by((ModelConfig::Table, ModelConfig::Id), Order::Asc)
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
-    let mut last_id: Option<u32> = None;
-    let mut last_index: Option<u32> = None;
+    let mut last_id: Option<i32> = None;
+    let mut last_index: Option<i16> = None;
     let mut config_schema_vec: Vec<ModelConfigSchema> = Vec::new();
     let mut model_schema_vec: Vec<ModelSchema> = Vec::new();
 
     sqlx::query_with(&sql, values)
-        .map(|row: MySqlRow| {
+        .map(|row: PgRow| {
             // get last model_schema in model_schema_vec or default
             let mut model_schema = model_schema_vec.pop().unwrap_or_default();
             // on every new id found insert model_schema to model_schema_vec and reset last_index
-            let id: u32 = row.get(0);
+            let id: i32 = row.get(0);
             if let Some(value) = last_id {
                 if value != id {
                     model_schema_vec.push(model_schema.clone());
@@ -100,29 +100,29 @@ async fn select_join_model(pool: &Pool<MySql>,
             }
             last_id = Some(id);
             model_schema.id = id;
-            model_schema.indexing = DataIndexing::from_str(row.get(1));
+            model_schema.indexing = DataIndexing::from(row.get::<i16,_>(1));
             model_schema.category = row.get(2);
             model_schema.name = row.get(3);
             model_schema.description = row.get(4);
             // on every new index found update model_schema types and clear config_schema_vec
-            let type_index: u32 = row.get(5);
+            let type_index: i16 = row.get(5);
             if last_index == None || last_index != Some(type_index) {
-                model_schema.types.push(DataType::from_str(row.get(6)));
+                model_schema.types.push(DataType::from(row.get::<i16,_>(6)));
                 model_schema.configs.push(Vec::new());
                 config_schema_vec.clear();
             }
             last_index = Some(type_index);
             // update model_schema configs if non empty config found
-            let config_id: Option<u32> = row.try_get(7).ok();
+            let config_id: Option<i32> = row.try_get(7).ok();
             if let Some(cfg_id) = config_id {
                 let bytes: Vec<u8> = row.try_get(9).unwrap_or_default();
-                let type_string = ConfigType::from_str(row.try_get(10).unwrap_or_default());
+                let type_ = ConfigType::from(row.try_get::<i16,_>(10).unwrap_or_default());
                 config_schema_vec.push(ModelConfigSchema {
                     id: cfg_id,
                     model_id: id,
                     index: type_index,
                     name: row.try_get(8).unwrap_or_default(),
-                    value: ConfigValue::from_bytes(bytes.as_slice(), type_string),
+                    value: ConfigValue::from_bytes(bytes.as_slice(), type_),
                     category: row.try_get(11).unwrap_or_default()
                 });
                 model_schema.configs.pop();
@@ -137,8 +137,8 @@ async fn select_join_model(pool: &Pool<MySql>,
     Ok(model_schema_vec)
 }
 
-pub(crate) async fn select_join_model_by_id(pool: &Pool<MySql>, 
-    id: u32
+pub(crate) async fn select_join_model_by_id(pool: &Pool<Postgres>, 
+    id: i32
 ) -> Result<ModelSchema, Error>
 {
     let results = select_join_model(pool, ModelSelector::Id(id)).await?;
@@ -148,7 +148,7 @@ pub(crate) async fn select_join_model_by_id(pool: &Pool<MySql>,
     }
 }
 
-pub(crate) async fn select_join_model_by_name(pool: &Pool<MySql>, 
+pub(crate) async fn select_join_model_by_name(pool: &Pool<Postgres>, 
     name: &str
 ) -> Result<Vec<ModelSchema>, Error>
 {
@@ -156,14 +156,14 @@ pub(crate) async fn select_join_model_by_name(pool: &Pool<MySql>,
     select_join_model(pool, ModelSelector::Name(name_like)).await
 }
 
-pub(crate) async fn select_join_model_by_category(pool: &Pool<MySql>, 
+pub(crate) async fn select_join_model_by_category(pool: &Pool<Postgres>, 
     category: &str
 ) -> Result<Vec<ModelSchema>, Error>
 {
     select_join_model(pool, ModelSelector::Category(String::from(category))).await
 }
 
-pub(crate) async fn select_join_model_by_name_category(pool: &Pool<MySql>, 
+pub(crate) async fn select_join_model_by_name_category(pool: &Pool<Postgres>, 
     name: &str,
     category: &str
 ) -> Result<Vec<ModelSchema>, Error>
@@ -172,12 +172,12 @@ pub(crate) async fn select_join_model_by_name_category(pool: &Pool<MySql>,
     select_join_model(pool, ModelSelector::NameCategory(String::from(name_like), String::from(category))).await
 }
 
-pub(crate) async fn insert_model(pool: &Pool<MySql>,
+pub(crate) async fn insert_model(pool: &Pool<Postgres>,
     indexing: DataIndexing,
     category: &str,
     name: &str,
     description: Option<&str>,
-) -> Result<u32, Error>
+) -> Result<i32, Error>
 {
     let (sql, values) = Query::insert()
         .into_table(Model::Table)
@@ -188,13 +188,13 @@ pub(crate) async fn insert_model(pool: &Pool<MySql>,
             Model::Description
         ])
         .values([
-            indexing.to_string().into(),
+            i16::from(indexing).into(),
             category.into(),
             name.into(),
             description.unwrap_or_default().into()
         ])
         .unwrap_or(&mut sea_query::InsertStatement::default())
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -203,17 +203,17 @@ pub(crate) async fn insert_model(pool: &Pool<MySql>,
     let sql = Query::select()
         .expr(Func::max(Expr::col(Model::ModelId)))
         .from(Model::Table)
-        .to_string(MysqlQueryBuilder);
-    let id: u32 = sqlx::query(&sql)
-        .map(|row: MySqlRow| row.get(0))
+        .to_string(PostgresQueryBuilder);
+    let id: i32 = sqlx::query(&sql)
+        .map(|row: PgRow| row.get(0))
         .fetch_one(pool)
         .await?;
 
     Ok(id)
 }
 
-pub(crate) async fn update_model(pool: &Pool<MySql>,
-    id: u32,
+pub(crate) async fn update_model(pool: &Pool<Postgres>,
+    id: i32,
     indexing: Option<DataIndexing>,
     category: Option<&str>,
     name: Option<&str>,
@@ -225,7 +225,7 @@ pub(crate) async fn update_model(pool: &Pool<MySql>,
         .to_owned();
 
     if let Some(value) = indexing {
-        stmt = stmt.value(Model::Indexing, value.to_string()).to_owned();
+        stmt = stmt.value(Model::Indexing, i16::from(value)).to_owned();
     }
     if let Some(value) = category {
         stmt = stmt.value(Model::Category, value).to_owned();
@@ -239,7 +239,7 @@ pub(crate) async fn update_model(pool: &Pool<MySql>,
 
     let (sql, values) = stmt
         .and_where(Expr::col(Model::ModelId).eq(id))
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -248,14 +248,14 @@ pub(crate) async fn update_model(pool: &Pool<MySql>,
     Ok(())
 }
 
-pub(crate) async fn delete_model(pool: &Pool<MySql>, 
-    id: u32
+pub(crate) async fn delete_model(pool: &Pool<Postgres>, 
+    id: i32
 ) -> Result<(), Error> 
 {
     let (sql, values) = Query::delete()
         .from_table(Model::Table)
         .and_where(Expr::col(Model::ModelId).eq(id))
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -264,8 +264,8 @@ pub(crate) async fn delete_model(pool: &Pool<MySql>,
     Ok(())
 }
 
-pub(crate) async fn insert_model_types(pool: &Pool<MySql>,
-    id: u32,
+pub(crate) async fn insert_model_types(pool: &Pool<Postgres>,
+    id: i32,
     types: &[DataType]
 ) -> Result<(), Error>
 {
@@ -279,17 +279,17 @@ pub(crate) async fn insert_model_types(pool: &Pool<MySql>,
         .to_owned();
     let mut i = 0;
     for ty in types {
-        let t = ty.clone();
+        let t = i16::from(ty.clone());
         stmt = stmt.values([
                 id.into(),
                 i.into(),
-                t.to_string().into()
+                t.into()
             ])
             .unwrap_or(&mut sea_query::InsertStatement::default())
             .to_owned();
         i += 1;
     }
-    let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
+    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -298,14 +298,14 @@ pub(crate) async fn insert_model_types(pool: &Pool<MySql>,
     Ok(())
 }
 
-pub(crate) async fn delete_model_types(pool: &Pool<MySql>, 
-    id: u32
+pub(crate) async fn delete_model_types(pool: &Pool<Postgres>, 
+    id: i32
 ) -> Result<(), Error> 
 {
     let (sql, values) = Query::delete()
         .from_table(ModelType::Table)
         .and_where(Expr::col(ModelType::ModelId).eq(id))
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -314,7 +314,7 @@ pub(crate) async fn delete_model_types(pool: &Pool<MySql>,
     Ok(())
 }
 
-async fn select_model_config(pool: &Pool<MySql>,
+async fn select_model_config(pool: &Pool<Postgres>,
     selector: ConfigSelector
 ) -> Result<Vec<ModelConfigSchema>, Error>
 {
@@ -343,18 +343,18 @@ async fn select_model_config(pool: &Pool<MySql>,
         .order_by(ModelConfig::ModelId, Order::Asc)
         .order_by(ModelConfig::Index, Order::Asc)
         .order_by(ModelConfig::Id, Order::Asc)
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     let rows = sqlx::query_with(&sql, values)
-        .map(|row: MySqlRow| {
+        .map(|row: PgRow| {
             let bytes: &[u8] = row.get(4);
-            let type_string = ConfigType::from_str(row.get(5));
+            let type_ = ConfigType::from(row.get::<i16,_>(5));
             ModelConfigSchema {
                 id: row.get(0),
                 model_id: row.get(1),
                 index: row.get(2),
                 name: row.get(3),
-                value: ConfigValue::from_bytes(bytes, type_string),
+                value: ConfigValue::from_bytes(bytes, type_),
                 category: row.get(6)
             }
         })
@@ -364,8 +364,8 @@ async fn select_model_config(pool: &Pool<MySql>,
     Ok(rows)
 }
 
-pub(crate) async fn select_model_config_by_id(pool: &Pool<MySql>,
-    id: u32
+pub(crate) async fn select_model_config_by_id(pool: &Pool<Postgres>,
+    id: i32
 ) -> Result<ModelConfigSchema, Error>
 {
     let results = select_model_config(pool, ConfigSelector::Id(id)).await?;
@@ -375,23 +375,23 @@ pub(crate) async fn select_model_config_by_id(pool: &Pool<MySql>,
     }
 }
 
-pub(crate) async fn select_model_config_by_model(pool: &Pool<MySql>,
-    model_id: u32
+pub(crate) async fn select_model_config_by_model(pool: &Pool<Postgres>,
+    model_id: i32
 ) -> Result<Vec<ModelConfigSchema>, Error>
 {
     select_model_config(pool, ConfigSelector::Model(model_id)).await
 }
 
-pub(crate) async fn insert_model_config(pool: &Pool<MySql>,
-    model_id: u32,
-    index: u32,
+pub(crate) async fn insert_model_config(pool: &Pool<Postgres>,
+    model_id: i32,
+    index: i32,
     name: &str,
     value: ConfigValue,
     category: &str
-) -> Result<u32, Error>
+) -> Result<i32, Error>
 {
     let config_value = value.to_bytes();
-    let config_type = value.get_type().to_string();
+    let config_type = i16::from(value.get_type());
     let (sql, values) = Query::insert()
         .into_table(ModelConfig::Table)
         .columns([
@@ -411,7 +411,7 @@ pub(crate) async fn insert_model_config(pool: &Pool<MySql>,
             category.into()
         ])
         .unwrap_or(&mut sea_query::InsertStatement::default())
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -420,17 +420,17 @@ pub(crate) async fn insert_model_config(pool: &Pool<MySql>,
     let sql = Query::select()
         .expr(Func::max(Expr::col(ModelConfig::Id)))
         .from(ModelConfig::Table)
-        .to_string(MysqlQueryBuilder);
-    let id: u32 = sqlx::query(&sql)
-        .map(|row: MySqlRow| row.get(0))
+        .to_string(PostgresQueryBuilder);
+    let id: i32 = sqlx::query(&sql)
+        .map(|row: PgRow| row.get(0))
         .fetch_one(pool)
         .await?;
 
     Ok(id)
 }
 
-pub(crate) async fn update_model_config(pool: &Pool<MySql>,
-    id: u32,
+pub(crate) async fn update_model_config(pool: &Pool<Postgres>,
+    id: i32,
     name: Option<&str>,
     value: Option<ConfigValue>,
     category: Option<&str>
@@ -445,7 +445,7 @@ pub(crate) async fn update_model_config(pool: &Pool<MySql>,
     }
     if let Some(value) = value {
         let bytes = value.to_bytes();
-        let type_ = value.get_type().to_string();
+        let type_ = i16::from(value.get_type());
         stmt = stmt
             .value(ModelConfig::Value, bytes)
             .value(ModelConfig::Type, type_).to_owned();
@@ -456,7 +456,7 @@ pub(crate) async fn update_model_config(pool: &Pool<MySql>,
 
     let (sql, values) = stmt
         .and_where(Expr::col(ModelConfig::Id).eq(id))
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -465,14 +465,14 @@ pub(crate) async fn update_model_config(pool: &Pool<MySql>,
     Ok(())
 }
 
-pub(crate) async fn delete_model_config(pool: &Pool<MySql>, 
-    id: u32
+pub(crate) async fn delete_model_config(pool: &Pool<Postgres>, 
+    id: i32
 ) -> Result<(), Error> 
 {
     let (sql, values) = Query::delete()
         .from_table(ModelConfig::Table)
         .and_where(Expr::col(ModelConfig::Id).eq(id))
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)

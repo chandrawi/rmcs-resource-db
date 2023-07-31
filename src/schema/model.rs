@@ -34,7 +34,7 @@ pub(crate) enum ModelConfig {
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct ModelSchema {
-    pub id: u32,
+    pub id: i32,
     pub indexing: DataIndexing,
     pub category: String,
     pub name: String,
@@ -45,9 +45,9 @@ pub struct ModelSchema {
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct ModelConfigSchema {
-    pub id: u32,
-    pub model_id: u32,
-    pub index: u32,
+    pub id: i32,
+    pub model_id: i32,
+    pub index: i16,
     pub name: String,
     pub value: ConfigValue,
     pub category: String
@@ -95,7 +95,7 @@ impl From<model::ConfigSchema> for ModelConfigSchema {
         Self {
             id: value.id,
             model_id: value.model_id,
-            index: value.index,
+            index: value.index as i16,
             name: value.name,
             value: ConfigValue::from_bytes(
                 &value.config_bytes, 
@@ -111,7 +111,7 @@ impl Into<model::ConfigSchema> for ModelConfigSchema {
         model::ConfigSchema {
             id: self.id,
             model_id: self.model_id,
-            index: self.index,
+            index: self.index as i32,
             name: self.name,
             config_bytes: self.value.to_bytes(),
             config_type: Into::<common::ConfigType>::into(self.value.get_type()).into(),

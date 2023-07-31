@@ -12,21 +12,24 @@ pub enum ConfigType {
     NullT
 }
 
-impl ConfigType {
-    pub(crate) fn from_str(value: &str) -> Self {
+impl From<i16> for ConfigType {
+    fn from(value: i16) -> Self {
         match value {
-            "int" => IntT,
-            "float" => FloatT,
-            "str" => StrT,
+            1 => IntT,
+            2 => FloatT,
+            3 => StrT,
             _ => Self::NullT
         }
     }
-    pub(crate) fn to_string(self) -> String {
-        match self {
-            IntT => String::from("int"),
-            FloatT => String::from("float"),
-            StrT => String::from("str"),
-            Self::NullT => String::new()
+}
+
+impl From<ConfigType> for i16 {
+    fn from(value: ConfigType) -> Self {
+        match value {
+            IntT => 1,
+            FloatT => 2,
+            StrT => 3,
+            ConfigType::NullT => 0
         }
     }
 }
@@ -100,19 +103,22 @@ pub enum DataIndexing {
     TimestampMicros
 }
 
-impl DataIndexing {
-    pub fn from_str(value: &str) -> Self {
+impl From<i16> for DataIndexing {
+    fn from(value: i16) -> Self {
         match value {
-            "timestamp_index" => Self::TimestampIndex,
-            "timestamp_micros" => Self::TimestampMicros,
+            1 => Self::TimestampIndex,
+            2 => Self::TimestampMicros,
             _ => Self::Timestamp,
         }
     }
-    pub fn to_string(self) -> String {
-        match self {
-            Self::Timestamp => String::from("timestamp"),
-            Self::TimestampIndex => String::from("timestamp_index"),
-            Self::TimestampMicros => String::from("timestamp_micros")
+}
+
+impl From<DataIndexing> for i16 {
+    fn from(value: DataIndexing) -> Self {
+        match value {
+            DataIndexing::TimestampIndex => 1,
+            DataIndexing::TimestampMicros => 2,
+            DataIndexing::Timestamp => 0
         }
     }
 }
@@ -154,39 +160,42 @@ pub enum DataType {
     NullT
 }
 
-impl DataType {
-    pub(crate) fn from_str(value: &str) -> Self {
+impl From<i16> for DataType {
+    fn from(value: i16) -> Self {
         match value {
-            "i8" => I8T,
-            "i16" => I16T,
-            "i32" => I32T,
-            "i64" => I64T,
-            "u8" => U8T,
-            "u16" => U16T,
-            "u32" => U32T,
-            "u64" => U64T,
-            "f32" => F32T,
-            "f64" => F64T,
-            "char" => CharT,
-            "bool" => BoolT,
+            1 => I8T,
+            2 => I16T,
+            3 => I32T,
+            4 => I64T,
+            5 => U8T,
+            6 => U16T,
+            7 => U32T,
+            8 => U64T,
+            9 => F32T,
+            10 => F64T,
+            11 => CharT,
+            12 => BoolT,
             _ => Self::NullT
         }
     }
-    pub(crate) fn to_string(self) -> String {
-        match self {
-            I8T => String::from("i8"),
-            I16T => String::from("i16"),
-            I32T => String::from("i32"),
-            I64T => String::from("i64"),
-            U8T => String::from("u8"),
-            U16T => String::from("u16"),
-            U32T => String::from("u32"),
-            U64T => String::from("u64"),
-            F32T => String::from("f32"),
-            F64T => String::from("f64"),
-            CharT => String::from("char"),
-            BoolT => String::from("bool"),
-            Self::NullT => String::new()
+}
+
+impl From<DataType> for i16 {
+    fn from(value: DataType) -> Self {
+        match value {
+            I8T => 1,
+            I16T => 2,
+            I32T => 3,
+            I64T => 4,
+            U8T => 5,
+            U16T => 6,
+            U32T => 7,
+            U64T => 8,
+            F32T => 9,
+            F64T => 10,
+            CharT => 11,
+            BoolT => 12,
+            DataType::NullT => 0
         }
     }
 }
@@ -453,23 +462,23 @@ mod tests {
     {
         let value: u8 = 1;
         let conf = ConfigValue::from(value);
-        assert_eq!(value, conf.try_into().unwrap());
+        assert_eq!(value, TryInto::<u8>::try_into(conf).unwrap());
         let value: i16 = -256;
         let conf = ConfigValue::from(value);
-        assert_eq!(value, conf.try_into().unwrap());
+        assert_eq!(value, TryInto::<i16>::try_into(conf).unwrap());
         let value: u32 = 65536;
         let conf = ConfigValue::from(value);
-        assert_eq!(value, conf.try_into().unwrap());
+        assert_eq!(value, TryInto::<u32>::try_into(conf).unwrap());
         let value: i64 = -4294967296;
         let conf = ConfigValue::from(value);
-        assert_eq!(value, conf.try_into().unwrap());
+        assert_eq!(value, TryInto::<i64>::try_into(conf).unwrap());
 
         let value: f32 = 65536.65536;
         let conf = ConfigValue::from(value);
-        assert_eq!(value, conf.try_into().unwrap());
+        assert_eq!(value, TryInto::<f32>::try_into(conf).unwrap());
         let value: f64 = 4294967296.4294967296;
         let conf = ConfigValue::from(value);
-        assert_eq!(value, conf.try_into().unwrap());
+        assert_eq!(value, TryInto::<f64>::try_into(conf).unwrap());
 
         let value: &str = "slice_value";
         let conf = ConfigValue::from(value);
@@ -501,43 +510,43 @@ mod tests {
     {
         let value: i8 = -1;
         let data = DataValue::from(value);
-        assert_eq!(value, data.try_into().unwrap());
+        assert_eq!(value, TryInto::<i8>::try_into(data).unwrap());
         let value: i16 = -256;
         let data = DataValue::from(value);
-        assert_eq!(value, data.try_into().unwrap());
+        assert_eq!(value, TryInto::<i16>::try_into(data).unwrap());
         let value: i32 = -65536;
         let data = DataValue::from(value);
-        assert_eq!(value, data.try_into().unwrap());
+        assert_eq!(value, TryInto::<i32>::try_into(data).unwrap());
         let value: i64 = -4294967296;
         let data = DataValue::from(value);
-        assert_eq!(value, data.try_into().unwrap());
+        assert_eq!(value, TryInto::<i64>::try_into(data).unwrap());
 
         let value: u8 = 1;
         let data = DataValue::from(value);
-        assert_eq!(value, data.try_into().unwrap());
+        assert_eq!(value, TryInto::<u8>::try_into(data).unwrap());
         let value: u16 = 256;
         let data = DataValue::from(value);
         assert_eq!(value, TryInto::<u16>::try_into(data).unwrap());
         let value: u32 = 65536;
         let data = DataValue::from(value);
-        assert_eq!(value, data.try_into().unwrap());
+        assert_eq!(value, TryInto::<u32>::try_into(data).unwrap());
         let value: u64 = 4294967296;
         let data = DataValue::from(value);
-        assert_eq!(value, data.try_into().unwrap());
+        assert_eq!(value, TryInto::<u64>::try_into(data).unwrap());
 
         let value: f32 = 65536.65536;
         let data = DataValue::from(value);
-        assert_eq!(value, data.try_into().unwrap());
+        assert_eq!(value, TryInto::<f32>::try_into(data).unwrap());
         let value: f64 = 4294967296.4294967296;
         let data = DataValue::from(value);
-        assert_eq!(value, data.try_into().unwrap());
+        assert_eq!(value, TryInto::<f64>::try_into(data).unwrap());
 
         let value: bool = true;
         let data = DataValue::from(value);
-        assert_eq!(value, data.try_into().unwrap());
+        assert_eq!(value, TryInto::<bool>::try_into(data).unwrap());
         let value: char = 'a';
         let data = DataValue::from(value);
-        assert_eq!(value, data.try_into().unwrap());
+        assert_eq!(value, TryInto::<char>::try_into(data).unwrap());
     }
 
     #[test]

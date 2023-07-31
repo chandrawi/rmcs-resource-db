@@ -19,13 +19,13 @@ pub(crate) enum SliceData {
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct SliceSchema {
-    pub id: u32,
-    pub device_id: u64,
-    pub model_id: u32,
+    pub id: i32,
+    pub device_id: i64,
+    pub model_id: i32,
     pub timestamp_begin: DateTime<Utc>,
     pub timestamp_end: DateTime<Utc>,
-    pub index_begin: u16,
-    pub index_end: u16,
+    pub index_begin: i16,
+    pub index_end: i16,
     pub name: String,
     pub description: String
 }
@@ -38,8 +38,8 @@ impl From<slice::SliceSchema> for SliceSchema {
             model_id: value.model_id,
             timestamp_begin: Utc.timestamp_nanos(value.timestamp_begin),
             timestamp_end: Utc.timestamp_nanos(value.timestamp_end),
-            index_begin: value.index_begin as u16,
-            index_end: value.index_end as u16,
+            index_begin: value.index_begin as i16,
+            index_end: value.index_end as i16,
             name: value.name,
             description: value.description
         }
@@ -54,8 +54,8 @@ impl Into<slice::SliceSchema> for SliceSchema {
             model_id: self.model_id,
             timestamp_begin: self.timestamp_begin.timestamp_nanos(),
             timestamp_end: self.timestamp_end.timestamp_nanos(),
-            index_begin: self.index_begin as u32,
-            index_end: self.index_end as u32,
+            index_begin: self.index_begin as i32,
+            index_end: self.index_end as i32,
             name: self.name,
             description: self.description
         }

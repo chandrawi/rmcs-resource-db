@@ -1,16 +1,16 @@
 use sqlx::{Pool, Row, Error};
-use sqlx::mysql::{MySql, MySqlRow};
-use sea_query::{MysqlQueryBuilder, Query, Expr, Order, Func};
+use sqlx::postgres::{Postgres, PgRow};
+use sea_query::{PostgresQueryBuilder, Query, Expr, Order, Func};
 use sea_query_binder::SqlxBinder;
 
 use crate::schema::device::{DeviceType, DeviceTypeModel, TypeSchema};
 
 enum TypeSelector {
-    Id(u32),
+    Id(i32),
     Name(String)
 }
 
-async fn select_device_type(pool: &Pool<MySql>, 
+async fn select_device_type(pool: &Pool<Postgres>, 
     selector: TypeSelector
 ) -> Result<Vec<TypeSchema>, Error>
 {
@@ -40,17 +40,17 @@ async fn select_device_type(pool: &Pool<MySql>,
     }
     let (sql, values) = stmt
         .order_by((DeviceType::Table, DeviceType::TypeId), Order::Asc)
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
-    let mut last_id: Option<u32> = None;
+    let mut last_id: Option<i32> = None;
     let mut type_schema_vec: Vec<TypeSchema> = Vec::new();
 
     sqlx::query_with(&sql, values)
-        .map(|row: MySqlRow| {
+        .map(|row: PgRow| {
             // get last type_schema in type_schema_vec or default
             let mut type_schema = type_schema_vec.pop().unwrap_or_default();
             // on every new type_id found insert type_schema to type_schema_vec
-            let type_id: u32 = row.get(0);
+            let type_id: i32 = row.get(0);
             if let Some(value) = last_id {
                 if value != type_id {
                     // insert new type_schema to type_schema_vec
@@ -63,7 +63,7 @@ async fn select_device_type(pool: &Pool<MySql>,
             type_schema.name = row.get(1);
             type_schema.description = row.get(2);
             // update type_schema if non empty model_id found
-            let model_id: Result<u32, Error> = row.try_get(3);
+            let model_id: Result<i32, Error> = row.try_get(3);
             if let Ok(value) = model_id {
                 type_schema.models.push(value);
             }
@@ -76,8 +76,8 @@ async fn select_device_type(pool: &Pool<MySql>,
     Ok(type_schema_vec)
 }
 
-pub(crate) async fn select_device_type_by_id(pool: &Pool<MySql>, 
-    id: u32
+pub(crate) async fn select_device_type_by_id(pool: &Pool<Postgres>, 
+    id: i32
 ) -> Result<TypeSchema, Error>
 {
     let results = select_device_type(pool, TypeSelector::Id(id)).await?;
@@ -87,7 +87,7 @@ pub(crate) async fn select_device_type_by_id(pool: &Pool<MySql>,
     }
 }
 
-pub(crate) async fn select_device_type_by_name(pool: &Pool<MySql>, 
+pub(crate) async fn select_device_type_by_name(pool: &Pool<Postgres>, 
     name: &str
 ) -> Result<Vec<TypeSchema>, Error>
 {
@@ -95,10 +95,10 @@ pub(crate) async fn select_device_type_by_name(pool: &Pool<MySql>,
     select_device_type(pool, TypeSelector::Name(name_like)).await
 }
 
-pub(crate) async fn insert_device_type(pool: &Pool<MySql>,
+pub(crate) async fn insert_device_type(pool: &Pool<Postgres>,
     name: &str,
     description: Option<&str>
-) -> Result<u32, Error>
+) -> Result<i32, Error>
 {
     let (sql, values) = Query::insert()
         .into_table(DeviceType::Table)
@@ -111,7 +111,7 @@ pub(crate) async fn insert_device_type(pool: &Pool<MySql>,
             description.unwrap_or_default().into()
         ])
         .unwrap_or(&mut sea_query::InsertStatement::default())
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -120,17 +120,17 @@ pub(crate) async fn insert_device_type(pool: &Pool<MySql>,
     let sql = Query::select()
         .expr(Func::max(Expr::col(DeviceType::TypeId)))
         .from(DeviceType::Table)
-        .to_string(MysqlQueryBuilder);
-    let id: u32 = sqlx::query(&sql)
-        .map(|row: MySqlRow| row.get(0))
+        .to_string(PostgresQueryBuilder);
+    let id: i32 = sqlx::query(&sql)
+        .map(|row: PgRow| row.get(0))
         .fetch_one(pool)
         .await?;
 
     Ok(id)
 }
 
-pub(crate) async fn update_device_type(pool: &Pool<MySql>,
-    id: u32,
+pub(crate) async fn update_device_type(pool: &Pool<Postgres>,
+    id: i32,
     name: Option<&str>,
     description: Option<&str>
 ) -> Result<(), Error>
@@ -148,7 +148,7 @@ pub(crate) async fn update_device_type(pool: &Pool<MySql>,
 
     let (sql, values) = stmt
         .and_where(Expr::col(DeviceType::TypeId).eq(id))
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -157,14 +157,14 @@ pub(crate) async fn update_device_type(pool: &Pool<MySql>,
     Ok(())
 }
 
-pub(crate) async fn delete_device_type(pool: &Pool<MySql>, 
-    id: u32
+pub(crate) async fn delete_device_type(pool: &Pool<Postgres>, 
+    id: i32
 ) -> Result<(), Error> 
 {
     let (sql, values) = Query::delete()
         .from_table(DeviceType::Table)
         .and_where(Expr::col(DeviceType::TypeId).eq(id))
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -173,9 +173,9 @@ pub(crate) async fn delete_device_type(pool: &Pool<MySql>,
     Ok(())
 }
 
-pub(crate) async fn insert_device_type_model(pool: &Pool<MySql>,
-    id: u32,
-    model_id: u32
+pub(crate) async fn insert_device_type_model(pool: &Pool<Postgres>,
+    id: i32,
+    model_id: i32
 ) -> Result<(), Error>
 {
     let (sql, values) = Query::insert()
@@ -189,7 +189,7 @@ pub(crate) async fn insert_device_type_model(pool: &Pool<MySql>,
             model_id.into()
         ])
         .unwrap_or(&mut sea_query::InsertStatement::default())
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -198,16 +198,16 @@ pub(crate) async fn insert_device_type_model(pool: &Pool<MySql>,
     Ok(())
 }
 
-pub(crate) async fn delete_device_type_model(pool: &Pool<MySql>, 
-    id: u32,
-    model_id: u32
+pub(crate) async fn delete_device_type_model(pool: &Pool<Postgres>, 
+    id: i32,
+    model_id: i32
 ) -> Result<(), Error> 
 {
     let (sql, values) = Query::delete()
         .from_table(DeviceTypeModel::Table)
         .and_where(Expr::col(DeviceTypeModel::TypeId).eq(id))
         .and_where(Expr::col(DeviceTypeModel::ModelId).eq(model_id))
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)

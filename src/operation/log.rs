@@ -1,11 +1,12 @@
+use std::str::FromStr;
 use sqlx::{Pool, Row, Error};
-use sqlx::mysql::{MySql, MySqlRow};
+use sqlx::postgres::{Postgres, PgRow};
 use sqlx::types::chrono::{DateTime, Utc};
-use sea_query::{MysqlQueryBuilder, Query, Expr};
+use sea_query::{PostgresQueryBuilder, Query, Expr};
 use sea_query_binder::SqlxBinder;
 
 use crate::schema::value::{ConfigType, ConfigValue};
-use crate::schema::log::{SystemLog, LogSchema};
+use crate::schema::log::{SystemLog, LogSchema, LogStatus};
 
 enum LogSelector {
     Time(DateTime<Utc>),
@@ -13,9 +14,9 @@ enum LogSelector {
     Range(DateTime<Utc>, DateTime<Utc>)
 }
 
-async fn select_log(pool: &Pool<MySql>,
+async fn select_log(pool: &Pool<Postgres>,
     selector: LogSelector,
-    device_id: Option<u64>,
+    device_id: Option<i64>,
     status: Option<&str>
 ) -> Result<Vec<LogSchema>, Error>
 {
@@ -49,16 +50,16 @@ async fn select_log(pool: &Pool<MySql>,
     if let Some(status) = status {
         stmt = stmt.and_where(Expr::col(SystemLog::Status).eq(status)).to_owned();
     }
-    let (sql, values) = stmt.build_sqlx(MysqlQueryBuilder);
+    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     let rows = sqlx::query_with(&sql, values)
-        .map(|row: MySqlRow| {
+        .map(|row: PgRow| {
             let bytes: Vec<u8> = row.get(3);
-            let type_ = ConfigType::from_str(row.get(4));
+            let type_ = ConfigType::from(row.get::<i16,_>(4));
             LogSchema {
                 device_id: row.get(0),
                 timestamp: row.get(1),
-                status: row.get(2),
+                status: LogStatus::from(row.get::<i16,_>(2)).to_string(),
                 value: ConfigValue::from_bytes(&bytes, type_)
             }
         })
@@ -68,52 +69,52 @@ async fn select_log(pool: &Pool<MySql>,
     Ok(rows)
 }
 
-pub(crate) async fn select_log_by_id(pool: &Pool<MySql>,
+pub(crate) async fn select_log_by_id(pool: &Pool<Postgres>,
     timestamp: DateTime<Utc>,
-    device_id: u64
+    device_id: i64
 ) -> Result<LogSchema, Error>
 {
     select_log(pool, LogSelector::Time(timestamp), Some(device_id), None).await?.into_iter().next()
         .ok_or(Error::RowNotFound)
 }
 
-pub(crate) async fn select_log_by_time(pool: &Pool<MySql>,
+pub(crate) async fn select_log_by_time(pool: &Pool<Postgres>,
     timestamp: DateTime<Utc>,
-    device_id: Option<u64>,
+    device_id: Option<i64>,
     status: Option<&str>
 ) -> Result<Vec<LogSchema>, Error>
 {
     select_log(pool, LogSelector::Time(timestamp), device_id, status).await
 }
 
-pub(crate) async fn select_log_by_last_time(pool: &Pool<MySql>,
+pub(crate) async fn select_log_by_last_time(pool: &Pool<Postgres>,
     last: DateTime<Utc>,
-    device_id: Option<u64>,
+    device_id: Option<i64>,
     status: Option<&str>
 ) -> Result<Vec<LogSchema>, Error>
 {
     select_log(pool, LogSelector::Last(last), device_id, status).await
 }
 
-pub(crate) async fn select_log_by_range_time(pool: &Pool<MySql>,
+pub(crate) async fn select_log_by_range_time(pool: &Pool<Postgres>,
     begin: DateTime<Utc>,
     end: DateTime<Utc>,
-    device_id: Option<u64>,
+    device_id: Option<i64>,
     status: Option<&str>
 ) -> Result<Vec<LogSchema>, Error>
 {
     select_log(pool, LogSelector::Range(begin, end), device_id, status).await
 }
 
-pub(crate) async fn insert_log(pool: &Pool<MySql>,
+pub(crate) async fn insert_log(pool: &Pool<Postgres>,
     timestamp: DateTime<Utc>,
-    device_id: u64,
+    device_id: i64,
     status: &str,
     value: ConfigValue
 ) -> Result<(), Error>
 {
     let bytes = value.to_bytes();
-    let type_ = value.get_type().to_string();
+    let type_ = i16::from(value.get_type());
 
     let (sql, values) = Query::insert()
         .into_table(SystemLog::Table)
@@ -127,12 +128,12 @@ pub(crate) async fn insert_log(pool: &Pool<MySql>,
         .values([
             device_id.into(),
             timestamp.into(),
-            status.into(),
+            i16::from(LogStatus::from_str(status).unwrap()).into(),
             bytes.into(),
             type_.into()
         ])
         .unwrap_or(&mut sea_query::InsertStatement::default())
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -141,9 +142,9 @@ pub(crate) async fn insert_log(pool: &Pool<MySql>,
     Ok(())
 }
 
-pub(crate) async fn update_log(pool: &Pool<MySql>,
+pub(crate) async fn update_log(pool: &Pool<Postgres>,
     timestamp: DateTime<Utc>,
-    device_id: u64,
+    device_id: i64,
     status: Option<&str>,
     value: Option<ConfigValue>
 ) -> Result<(), Error>
@@ -152,12 +153,12 @@ pub(crate) async fn update_log(pool: &Pool<MySql>,
         .table(SystemLog::Table)
         .to_owned();
 
-    if let Some(status) = status {
-        stmt = stmt.value(SystemLog::Status, status).to_owned();
+    if let Some(value) = status {
+        stmt = stmt.value(SystemLog::Status, i16::from(LogStatus::from_str(value).unwrap())).to_owned();
     }
     if let Some(value) = value {
         let bytes = value.to_bytes();
-        let type_ = value.get_type().to_string();    
+        let type_ = i16::from(value.get_type());
         stmt = stmt
             .value(SystemLog::Value, bytes)
             .value(SystemLog::Type, type_)
@@ -166,7 +167,7 @@ pub(crate) async fn update_log(pool: &Pool<MySql>,
     let (sql, values) = stmt
         .and_where(Expr::col(SystemLog::DeviceId).eq(device_id))
         .and_where(Expr::col(SystemLog::Timestamp).eq(timestamp))
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -175,16 +176,16 @@ pub(crate) async fn update_log(pool: &Pool<MySql>,
     Ok(())
 }
 
-pub(crate) async fn delete_log(pool: &Pool<MySql>,
+pub(crate) async fn delete_log(pool: &Pool<Postgres>,
     timestamp: DateTime<Utc>,
-    device_id: u64
+    device_id: i64
 ) -> Result<(), Error>
 {
     let (sql, values) = Query::delete()
         .from_table(SystemLog::Table)
         .and_where(Expr::col(SystemLog::DeviceId).eq(device_id))
         .and_where(Expr::col(SystemLog::Timestamp).eq(timestamp))
-        .build_sqlx(MysqlQueryBuilder);
+        .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
