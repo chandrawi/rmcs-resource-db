@@ -8,7 +8,7 @@ use sea_query_binder::SqlxBinder;
 use crate::schema::value::{DataIndexing, DataType, DataValue, ArrayDataValue};
 use crate::schema::model::{Model, ModelType};
 use crate::schema::data::DataModel;
-use crate::schema::buffer::{BufferData, BufferBytesSchema, BufferSchema, BufferStatus};
+use crate::schema::buffer::{DataBuffer, BufferBytesSchema, BufferSchema, BufferStatus};
 use crate::operation::data;
 
 enum BufferSelector {
@@ -33,33 +33,33 @@ async fn select_buffer_bytes(pool: &Pool<Postgres>,
     let mut stmt = Query::select().to_owned();
     stmt = stmt
         .columns([
-            BufferData::Id,
-            BufferData::DeviceId,
-            BufferData::ModelId,
-            BufferData::Timestamp,
-            BufferData::Data,
-            BufferData::Status,
-            BufferData::Index
+            DataBuffer::Id,
+            DataBuffer::DeviceId,
+            DataBuffer::ModelId,
+            DataBuffer::Timestamp,
+            DataBuffer::Data,
+            DataBuffer::Status,
+            DataBuffer::Index
         ])
-        .from(BufferData::Table)
+        .from(DataBuffer::Table)
         .to_owned();
     if let BufferSelector::Id(id) = selector {
-        stmt = stmt.and_where(Expr::col(BufferData::Id).eq(id)).to_owned();
+        stmt = stmt.and_where(Expr::col(DataBuffer::Id).eq(id)).to_owned();
     } else {
         stmt = stmt
-            .order_by(BufferData::Id, order)
+            .order_by(DataBuffer::Id, order)
             .limit(number.into())
             .to_owned();
     }
     if let Some(id) = device_id {
-        stmt = stmt.and_where(Expr::col(BufferData::DeviceId).eq(id)).to_owned();
+        stmt = stmt.and_where(Expr::col(DataBuffer::DeviceId).eq(id)).to_owned();
     }
     if let Some(id) = model_id {
-        stmt = stmt.and_where(Expr::col(BufferData::ModelId).eq(id)).to_owned();
+        stmt = stmt.and_where(Expr::col(DataBuffer::ModelId).eq(id)).to_owned();
     }
     if let Some(stat) = status {
         let status = i16::from(BufferStatus::from_str(stat).unwrap());
-        stmt = stmt.and_where(Expr::col(BufferData::Status).eq(status)).to_owned();
+        stmt = stmt.and_where(Expr::col(DataBuffer::Status).eq(status)).to_owned();
     }
     let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
@@ -200,7 +200,7 @@ pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
     device_id: i64,
     model_id: i32,
     timestamp: DateTime<Utc>,
-    index: Option<i16>,
+    index: Option<i32>,
     data: Vec<DataValue>,
     status: &str
 ) -> Result<i32, Error>
@@ -208,14 +208,14 @@ pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
     let bytes = ArrayDataValue::from_vec(&data).to_bytes();
 
     let (sql, values) = Query::insert()
-        .into_table(BufferData::Table)
+        .into_table(DataBuffer::Table)
         .columns([
-            BufferData::DeviceId,
-            BufferData::ModelId,
-            BufferData::Timestamp,
-            BufferData::Index,
-            BufferData::Data,
-            BufferData::Status
+            DataBuffer::DeviceId,
+            DataBuffer::ModelId,
+            DataBuffer::Timestamp,
+            DataBuffer::Index,
+            DataBuffer::Data,
+            DataBuffer::Status
         ])
         .values([
             device_id.into(),
@@ -233,8 +233,8 @@ pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
         .await?;
 
     let sql = Query::select()
-        .expr(Func::max(Expr::col(BufferData::Id)))
-        .from(BufferData::Table)
+        .expr(Func::max(Expr::col(DataBuffer::Id)))
+        .from(DataBuffer::Table)
         .to_string(PostgresQueryBuilder);
     let id: i32 = sqlx::query(&sql)
         .map(|row: PgRow| row.get(0))
@@ -251,19 +251,19 @@ pub(crate) async fn update_buffer(pool: &Pool<Postgres>,
 ) -> Result<(), Error>
 {
     let mut stmt = Query::update()
-        .table(BufferData::Table)
+        .table(DataBuffer::Table)
         .to_owned();
 
     if let Some(value) = data {
         let bytes = ArrayDataValue::from_vec(&value).to_bytes();
-        stmt = stmt.value(BufferData::Data, bytes).to_owned();
+        stmt = stmt.value(DataBuffer::Data, bytes).to_owned();
     }
     if let Some(value) = status {
-        stmt = stmt.value(BufferData::Status, i16::from(BufferStatus::from_str(value).unwrap())).to_owned();
+        stmt = stmt.value(DataBuffer::Status, i16::from(BufferStatus::from_str(value).unwrap())).to_owned();
     }
 
     let (sql, values) = stmt
-        .and_where(Expr::col(BufferData::Id).eq(id))
+        .and_where(Expr::col(DataBuffer::Id).eq(id))
         .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
@@ -278,8 +278,8 @@ pub(crate) async fn delete_buffer(pool: &Pool<Postgres>,
 ) -> Result<(), Error>
 {
     let (sql, values) = Query::delete()
-        .from_table(BufferData::Table)
-        .and_where(Expr::col(BufferData::Id).eq(id))
+        .from_table(DataBuffer::Table)
+        .and_where(Expr::col(DataBuffer::Id).eq(id))
         .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)

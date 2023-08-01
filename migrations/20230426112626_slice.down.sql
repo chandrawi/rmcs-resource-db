@@ -1,1 +1,1 @@
-DROP TABLE "slice_data";
+DROP TABLE "data_slice";

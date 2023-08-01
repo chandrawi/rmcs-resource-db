@@ -99,15 +99,15 @@ pub type LogValue = ConfigValue;
 pub enum DataIndexing {
     #[default]
     Timestamp,
-    TimestampIndex,
-    TimestampMicros
+    Index,
+    TimestampIndex
 }
 
 impl From<i16> for DataIndexing {
     fn from(value: i16) -> Self {
         match value {
-            1 => Self::TimestampIndex,
-            2 => Self::TimestampMicros,
+            1 => Self::Index,
+            2 => Self::TimestampIndex,
             _ => Self::Timestamp,
         }
     }
@@ -116,8 +116,8 @@ impl From<i16> for DataIndexing {
 impl From<DataIndexing> for i16 {
     fn from(value: DataIndexing) -> Self {
         match value {
-            DataIndexing::TimestampIndex => 1,
-            DataIndexing::TimestampMicros => 2,
+            DataIndexing::Index => 1,
+            DataIndexing::TimestampIndex => 2,
             DataIndexing::Timestamp => 0
         }
     }
@@ -127,8 +127,8 @@ impl From<common::DataIndexing> for DataIndexing {
     fn from(value: common::DataIndexing) -> Self {
         match value {
             common::DataIndexing::Timestamp => Self::Timestamp,
-            common::DataIndexing::TimestampIndex => Self::TimestampIndex,
-            common::DataIndexing::TimestampMicros => Self::TimestampMicros
+            common::DataIndexing::Index => Self::Index,
+            common::DataIndexing::TimestampIndex => Self::TimestampIndex
         }
     }
 }
@@ -137,8 +137,8 @@ impl Into<common::DataIndexing> for DataIndexing {
     fn into(self) -> common::DataIndexing {
         match self {
             Self::Timestamp => common::DataIndexing::Timestamp,
-            Self::TimestampIndex => common::DataIndexing::TimestampIndex,
-            Self::TimestampMicros => common::DataIndexing::TimestampMicros
+            Self::Index => common::DataIndexing::Index,
+            Self::TimestampIndex => common::DataIndexing::TimestampIndex
         }
     }
 }

@@ -6,32 +6,12 @@ use rmcs_resource_api::{common, data};
 
 #[allow(unused)]
 #[derive(Iden)]
-pub(crate) enum DataTimestamp {
-    Table,
-    DeviceId,
-    ModelId,
-    Timestamp,
-    Data
-}
-
-#[allow(unused)]
-#[derive(Iden)]
-pub(crate) enum DataTimestampIndex {
+pub(crate) enum Data {
     Table,
     DeviceId,
     ModelId,
     Timestamp,
     Index,
-    Data
-}
-
-#[allow(unused)]
-#[derive(Iden)]
-pub(crate) enum DataTimestampMicros {
-    Table,
-    DeviceId,
-    ModelId,
-    Timestamp,
     Data
 }
 
@@ -57,7 +37,7 @@ pub struct DataSchema {
     pub device_id: i64,
     pub model_id: i32,
     pub timestamp: DateTime<Utc>,
-    pub index: i16,
+    pub index: i32,
     pub data: Vec<DataValue>
 }
 
@@ -66,7 +46,7 @@ pub(crate) struct DataBytesSchema {
     pub(crate) device_id: i64,
     pub(crate) model_id: i32,
     pub(crate) timestamp: DateTime<Utc>,
-    pub(crate) index: i16,
+    pub(crate) index: i32,
     pub(crate) bytes: Vec<u8>
 }
 
@@ -113,7 +93,7 @@ impl From<data::DataSchema> for DataSchema {
             device_id: value.device_id,
             model_id: value.model_id,
             timestamp: Utc.timestamp_nanos(value.timestamp),
-            index: value.index as i16,
+            index: value.index,
             data: ArrayDataValue::from_bytes(
                     &value.data_bytes,
                     value.data_type.into_iter().map(|e| {

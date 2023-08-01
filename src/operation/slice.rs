@@ -4,7 +4,7 @@ use sqlx::types::chrono::{DateTime, Utc};
 use sea_query::{PostgresQueryBuilder, Query, Expr, Func};
 use sea_query_binder::SqlxBinder;
 
-use crate::schema::slice::{SliceData, SliceSchema};
+use crate::schema::slice::{DataSlice, SliceSchema};
 
 enum SliceSelector {
     Id(i32),
@@ -20,35 +20,35 @@ async fn select_slice(pool: &Pool<Postgres>,
 {
     let mut stmt = Query::select()
         .columns([
-            SliceData::Id,
-            SliceData::DeviceId,
-            SliceData::ModelId,
-            SliceData::TimestampBegin,
-            SliceData::TimestampEnd,
-            SliceData::IndexBegin,
-            SliceData::IndexEnd,
-            SliceData::Name,
-            SliceData::Description
+            DataSlice::Id,
+            DataSlice::DeviceId,
+            DataSlice::ModelId,
+            DataSlice::TimestampBegin,
+            DataSlice::TimestampEnd,
+            DataSlice::IndexBegin,
+            DataSlice::IndexEnd,
+            DataSlice::Name,
+            DataSlice::Description
         ])
-        .from(SliceData::Table)
+        .from(DataSlice::Table)
         .to_owned();
     match selector {
         SliceSelector::Id(id) => {
-            stmt = stmt.and_where(Expr::col(SliceData::Id).eq(id)).to_owned();
+            stmt = stmt.and_where(Expr::col(DataSlice::Id).eq(id)).to_owned();
         },
         SliceSelector::Name(name) => {
-            stmt = stmt.and_where(Expr::col(SliceData::Name).like(name)).to_owned();
+            stmt = stmt.and_where(Expr::col(DataSlice::Name).like(name)).to_owned();
         },
         SliceSelector::Device(id) => {
-            stmt = stmt.and_where(Expr::col(SliceData::DeviceId).eq(id)).to_owned();
+            stmt = stmt.and_where(Expr::col(DataSlice::DeviceId).eq(id)).to_owned();
         },
         SliceSelector::Model(id) => {
-            stmt = stmt.and_where(Expr::col(SliceData::ModelId).eq(id)).to_owned();
+            stmt = stmt.and_where(Expr::col(DataSlice::ModelId).eq(id)).to_owned();
         },
         SliceSelector::DeviceModel(device, model) => {
             stmt = stmt
-                .and_where(Expr::col(SliceData::DeviceId).eq(device))
-                .and_where(Expr::col(SliceData::ModelId).eq(model))
+                .and_where(Expr::col(DataSlice::DeviceId).eq(device))
+                .and_where(Expr::col(DataSlice::ModelId).eq(model))
                 .to_owned();
         }
     }
@@ -117,23 +117,23 @@ pub(crate) async fn insert_slice(pool: &Pool<Postgres>,
     model_id: i32,
     timestamp_begin: DateTime<Utc>,
     timestamp_end: DateTime<Utc>,
-    index_begin: Option<i16>,
-    index_end: Option<i16>,
+    index_begin: Option<i32>,
+    index_end: Option<i32>,
     name: &str,
     description: Option<&str>
 ) -> Result<i32, Error>
 {
     let (sql, values) = Query::insert()
-        .into_table(SliceData::Table)
+        .into_table(DataSlice::Table)
         .columns([
-            SliceData::DeviceId,
-            SliceData::ModelId,
-            SliceData::TimestampBegin,
-            SliceData::TimestampEnd,
-            SliceData::IndexBegin,
-            SliceData::IndexEnd,
-            SliceData::Name,
-            SliceData::Description
+            DataSlice::DeviceId,
+            DataSlice::ModelId,
+            DataSlice::TimestampBegin,
+            DataSlice::TimestampEnd,
+            DataSlice::IndexBegin,
+            DataSlice::IndexEnd,
+            DataSlice::Name,
+            DataSlice::Description
         ])
         .values([
             device_id.into(),
@@ -153,8 +153,8 @@ pub(crate) async fn insert_slice(pool: &Pool<Postgres>,
         .await?;
 
     let sql = Query::select()
-        .expr(Func::max(Expr::col(SliceData::Id)))
-        .from(SliceData::Table)
+        .expr(Func::max(Expr::col(DataSlice::Id)))
+        .from(DataSlice::Table)
         .to_string(PostgresQueryBuilder);
     let id: i32 = sqlx::query(&sql)
         .map(|row: PgRow| row.get(0))
@@ -168,36 +168,36 @@ pub(crate) async fn update_slice(pool: &Pool<Postgres>,
     id: i32,
     timestamp_begin: Option<DateTime<Utc>>,
     timestamp_end: Option<DateTime<Utc>>,
-    index_begin: Option<i16>,
-    index_end: Option<i16>,
+    index_begin: Option<i32>,
+    index_end: Option<i32>,
     name: Option<&str>,
     description: Option<&str>
 ) -> Result<(), Error>
 {
     let mut stmt = Query::update()
-        .table(SliceData::Table)
+        .table(DataSlice::Table)
         .to_owned();
 
     if let Some(timestamp) = timestamp_begin {
-        stmt = stmt.value(SliceData::TimestampBegin, timestamp).to_owned();
+        stmt = stmt.value(DataSlice::TimestampBegin, timestamp).to_owned();
     }
     if let Some(timestamp) = timestamp_end {
-        stmt = stmt.value(SliceData::TimestampEnd, timestamp).to_owned();
+        stmt = stmt.value(DataSlice::TimestampEnd, timestamp).to_owned();
     }
     if let Some(index) = index_begin {
-        stmt = stmt.value(SliceData::IndexBegin, index).to_owned();
+        stmt = stmt.value(DataSlice::IndexBegin, index).to_owned();
     }
     if let Some(index) = index_end {
-        stmt = stmt.value(SliceData::IndexEnd, index).to_owned();
+        stmt = stmt.value(DataSlice::IndexEnd, index).to_owned();
     }
     if let Some(name) = name {
-        stmt = stmt.value(SliceData::Name, name).to_owned();
+        stmt = stmt.value(DataSlice::Name, name).to_owned();
     }
     if let Some(description) = description {
-        stmt = stmt.value(SliceData::Description, description).to_owned();
+        stmt = stmt.value(DataSlice::Description, description).to_owned();
     }
     let (sql, values) = stmt
-        .and_where(Expr::col(SliceData::Id).eq(id))
+        .and_where(Expr::col(DataSlice::Id).eq(id))
         .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
@@ -212,8 +212,8 @@ pub(crate) async fn delete_slice(pool: &Pool<Postgres>,
 ) -> Result<(), Error>
 {
     let (sql, values) = Query::delete()
-        .from_table(SliceData::Table)
-        .and_where(Expr::col(SliceData::Id).eq(id))
+        .from_table(DataSlice::Table)
+        .and_where(Expr::col(DataSlice::Id).eq(id))
         .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)

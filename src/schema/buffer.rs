@@ -7,7 +7,7 @@ use rmcs_resource_api::{common, buffer};
 
 #[allow(unused)]
 #[derive(Iden)]
-pub(crate) enum BufferData {
+pub(crate) enum DataBuffer {
     Table,
     Id,
     DeviceId,
@@ -24,7 +24,7 @@ pub struct BufferSchema {
     pub device_id: i64,
     pub model_id: i32,
     pub timestamp: DateTime<Utc>,
-    pub index: i16,
+    pub index: i32,
     pub data: Vec<DataValue>,
     pub status: String
 }
@@ -35,7 +35,7 @@ pub(crate) struct BufferBytesSchema {
     pub(crate) device_id: i64,
     pub(crate) model_id: i32,
     pub(crate) timestamp: DateTime<Utc>,
-    pub(crate) index: i16,
+    pub(crate) index: i32,
     pub(crate) bytes: Vec<u8>,
     pub(crate) status: String
 }
@@ -62,7 +62,7 @@ impl From<buffer::BufferSchema> for BufferSchema {
             device_id: value.device_id,
             model_id: value.model_id,
             timestamp: Utc.timestamp_nanos(value.timestamp),
-            index: value.index as i16,
+            index: value.index,
             data: ArrayDataValue::from_bytes(
                     &value.data_bytes,
                     value.data_type.into_iter().map(|e| {
