@@ -1,6 +1,6 @@
 use sqlx::{Pool, Row, Error};
 use sqlx::postgres::{Postgres, PgRow};
-use sqlx::types::chrono::{DateTime, Utc};
+use sqlx::types::chrono::NaiveDateTime;
 use sea_query::{PostgresQueryBuilder, Query, Expr, Func};
 use sea_query_binder::SqlxBinder;
 
@@ -115,8 +115,8 @@ pub(crate) async fn select_slice_by_device_model(pool: &Pool<Postgres>,
 pub(crate) async fn insert_slice(pool: &Pool<Postgres>,
     device_id: i64,
     model_id: i32,
-    timestamp_begin: DateTime<Utc>,
-    timestamp_end: DateTime<Utc>,
+    timestamp_begin: NaiveDateTime,
+    timestamp_end: NaiveDateTime,
     index_begin: Option<i32>,
     index_end: Option<i32>,
     name: &str,
@@ -166,8 +166,8 @@ pub(crate) async fn insert_slice(pool: &Pool<Postgres>,
 
 pub(crate) async fn update_slice(pool: &Pool<Postgres>,
     id: i32,
-    timestamp_begin: Option<DateTime<Utc>>,
-    timestamp_end: Option<DateTime<Utc>>,
+    timestamp_begin: Option<NaiveDateTime>,
+    timestamp_end: Option<NaiveDateTime>,
     index_begin: Option<i32>,
     index_end: Option<i32>,
     name: Option<&str>,

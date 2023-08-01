@@ -1,6 +1,6 @@
 CREATE TABLE "system_log" (
   "device_id" bigint NOT NULL,
-  "timestamp" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "timestamp" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "status" smallint NOT NULL DEFAULT 0,
   "value" bytea NOT NULL,
   "type" smallint NOT NULL DEFAULT 0,

@@ -1,7 +1,7 @@
 CREATE TABLE "data" (
   "device_id" bigint NOT NULL,
   "model_id" int NOT NULL,
-  "timestamp" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "timestamp" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "index" int NOT NULL DEFAULT 0,
   "data" bytea NOT NULL,
   PRIMARY KEY ("index","timestamp","model_id","device_id"),

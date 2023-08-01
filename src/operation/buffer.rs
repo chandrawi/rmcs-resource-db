@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use sqlx::{Pool, Row, Error};
 use sqlx::postgres::{Postgres, PgRow};
-use sqlx::types::chrono::{DateTime, Utc};
+use sqlx::types::chrono::NaiveDateTime;
 use sea_query::{PostgresQueryBuilder, Query, Expr, Order, Func};
 use sea_query_binder::SqlxBinder;
 
@@ -199,7 +199,7 @@ pub(crate) async fn select_buffer_last(pool: &Pool<Postgres>,
 pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
     device_id: i64,
     model_id: i32,
-    timestamp: DateTime<Utc>,
+    timestamp: NaiveDateTime,
     index: Option<i32>,
     data: Vec<DataValue>,
     status: &str

@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use sqlx::{Pool, Row, Error};
 use sqlx::postgres::{Postgres, PgRow};
-use sqlx::types::chrono::{DateTime, Utc};
+use sqlx::types::chrono::NaiveDateTime;
 use sea_query::{PostgresQueryBuilder, Query, Expr};
 use sea_query_binder::SqlxBinder;
 
@@ -9,9 +9,9 @@ use crate::schema::value::{ConfigType, ConfigValue};
 use crate::schema::log::{SystemLog, LogSchema, LogStatus};
 
 enum LogSelector {
-    Time(DateTime<Utc>),
-    Last(DateTime<Utc>),
-    Range(DateTime<Utc>, DateTime<Utc>)
+    Time(NaiveDateTime),
+    Last(NaiveDateTime),
+    Range(NaiveDateTime, NaiveDateTime)
 }
 
 async fn select_log(pool: &Pool<Postgres>,
@@ -70,7 +70,7 @@ async fn select_log(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn select_log_by_id(pool: &Pool<Postgres>,
-    timestamp: DateTime<Utc>,
+    timestamp: NaiveDateTime,
     device_id: i64
 ) -> Result<LogSchema, Error>
 {
@@ -79,7 +79,7 @@ pub(crate) async fn select_log_by_id(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn select_log_by_time(pool: &Pool<Postgres>,
-    timestamp: DateTime<Utc>,
+    timestamp: NaiveDateTime,
     device_id: Option<i64>,
     status: Option<&str>
 ) -> Result<Vec<LogSchema>, Error>
@@ -88,7 +88,7 @@ pub(crate) async fn select_log_by_time(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn select_log_by_last_time(pool: &Pool<Postgres>,
-    last: DateTime<Utc>,
+    last: NaiveDateTime,
     device_id: Option<i64>,
     status: Option<&str>
 ) -> Result<Vec<LogSchema>, Error>
@@ -97,8 +97,8 @@ pub(crate) async fn select_log_by_last_time(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn select_log_by_range_time(pool: &Pool<Postgres>,
-    begin: DateTime<Utc>,
-    end: DateTime<Utc>,
+    begin: NaiveDateTime,
+    end: NaiveDateTime,
     device_id: Option<i64>,
     status: Option<&str>
 ) -> Result<Vec<LogSchema>, Error>
@@ -107,7 +107,7 @@ pub(crate) async fn select_log_by_range_time(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn insert_log(pool: &Pool<Postgres>,
-    timestamp: DateTime<Utc>,
+    timestamp: NaiveDateTime,
     device_id: i64,
     status: &str,
     value: ConfigValue
@@ -143,7 +143,7 @@ pub(crate) async fn insert_log(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn update_log(pool: &Pool<Postgres>,
-    timestamp: DateTime<Utc>,
+    timestamp: NaiveDateTime,
     device_id: i64,
     status: Option<&str>,
     value: Option<ConfigValue>
@@ -177,7 +177,7 @@ pub(crate) async fn update_log(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn delete_log(pool: &Pool<Postgres>,
-    timestamp: DateTime<Utc>,
+    timestamp: NaiveDateTime,
     device_id: i64
 ) -> Result<(), Error>
 {

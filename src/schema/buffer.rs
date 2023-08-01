@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use sea_query::Iden;
-use sqlx::types::chrono::{DateTime, Utc, TimeZone};
+use sqlx::types::chrono::NaiveDateTime;
 use crate::schema::value::{DataType, DataValue, ArrayDataValue};
 use rmcs_resource_api::{common, buffer};
 
@@ -23,7 +23,7 @@ pub struct BufferSchema {
     pub id: i32,
     pub device_id: i64,
     pub model_id: i32,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: NaiveDateTime,
     pub index: i32,
     pub data: Vec<DataValue>,
     pub status: String
@@ -34,7 +34,7 @@ pub(crate) struct BufferBytesSchema {
     pub(crate) id: i32,
     pub(crate) device_id: i64,
     pub(crate) model_id: i32,
-    pub(crate) timestamp: DateTime<Utc>,
+    pub(crate) timestamp: NaiveDateTime,
     pub(crate) index: i32,
     pub(crate) bytes: Vec<u8>,
     pub(crate) status: String
@@ -61,7 +61,7 @@ impl From<buffer::BufferSchema> for BufferSchema {
             id: value.id,
             device_id: value.device_id,
             model_id: value.model_id,
-            timestamp: Utc.timestamp_nanos(value.timestamp),
+            timestamp: NaiveDateTime::from_timestamp_micros(value.timestamp).unwrap_or_default(),
             index: value.index,
             data: ArrayDataValue::from_bytes(
                     &value.data_bytes,
