@@ -82,7 +82,7 @@ impl Into<buffer::BufferSchema> for BufferSchema {
             id: self.id,
             device_id: self.device_id,
             model_id: self.model_id,
-            timestamp: self.timestamp.timestamp_nanos(),
+            timestamp: self.timestamp.timestamp_micros(),
             index: self.index as i32,
             data_bytes: ArrayDataValue::from_vec(&self.data).to_bytes(),
             data_type: self.data.into_iter().map(|e| {

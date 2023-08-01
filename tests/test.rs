@@ -188,6 +188,7 @@ mod tests {
         let datas = resource.list_data_by_number_before(device_id1, model_id, timestamp, 100).await.unwrap();
         let data = datas.into_iter().next().unwrap();
         assert_eq!(vec![F32(speed), F32(direction)], data.data);
+        assert_eq!(timestamp, data.timestamp);
 
         // update buffer status
         resource.update_buffer(buffers[0].id, None, Some("DELETE")).await.unwrap();

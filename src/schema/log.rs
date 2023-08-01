@@ -41,7 +41,7 @@ impl From<log::LogSchema> for LogSchema {
 impl Into<log::LogSchema> for LogSchema {
     fn into(self) -> log::LogSchema {
         log::LogSchema {
-            timestamp: self.timestamp.timestamp_nanos(),
+            timestamp: self.timestamp.timestamp_micros(),
             device_id: self.device_id,
             status: log::LogStatus::from_str_name(&self.status).unwrap_or_default().into(),
             log_bytes: self.value.to_bytes(),
