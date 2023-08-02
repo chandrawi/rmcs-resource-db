@@ -1,5 +1,5 @@
 CREATE TABLE "model" (
-  "model_id" serial NOT NULL,
+  "model_id" uuid NOT NULL,
   "name" varchar(64) NOT NULL,
   "indexing" smallint NOT NULL DEFAULT 0,
   "category" varchar(64) NOT NULL,
@@ -8,7 +8,7 @@ CREATE TABLE "model" (
 );
 
 CREATE TABLE "model_type" (
-  "model_id" int NOT NULL,
+  "model_id" uuid NOT NULL,
   "index" smallint NOT NULL,
   "type" smallint NOT NULL DEFAULT 0,
   PRIMARY KEY ("model_id","index"),
@@ -18,7 +18,7 @@ CREATE TABLE "model_type" (
 
 CREATE TABLE "model_config" (
   "id" serial NOT NULL,
-  "model_id" int NOT NULL,
+  "model_id" uuid NOT NULL,
   "index" smallint NOT NULL,
   "name" varchar(64) NOT NULL,
   "value" bytea NOT NULL,

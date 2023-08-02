@@ -1,5 +1,6 @@
 use sea_query::Iden;
 use sqlx::types::chrono::NaiveDateTime;
+use uuid::Uuid;
 use rmcs_resource_api::slice;
 
 #[allow(unused)]
@@ -20,8 +21,8 @@ pub(crate) enum DataSlice {
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct SliceSchema {
     pub id: i32,
-    pub device_id: i64,
-    pub model_id: i32,
+    pub device_id: Uuid,
+    pub model_id: Uuid,
     pub timestamp_begin: NaiveDateTime,
     pub timestamp_end: NaiveDateTime,
     pub index_begin: i32,
@@ -34,8 +35,8 @@ impl From<slice::SliceSchema> for SliceSchema {
     fn from(value: slice::SliceSchema) -> Self {
         Self {
             id: value.id,
-            device_id: value.device_id,
-            model_id: value.model_id,
+            device_id: Uuid::from_slice(&value.device_id).unwrap_or_default(),
+            model_id: Uuid::from_slice(&value.model_id).unwrap_or_default(),
             timestamp_begin: NaiveDateTime::from_timestamp_micros(value.timestamp_begin).unwrap_or_default(),
             timestamp_end: NaiveDateTime::from_timestamp_micros(value.timestamp_end).unwrap_or_default(),
             index_begin: value.index_begin as i32,
@@ -50,8 +51,8 @@ impl Into<slice::SliceSchema> for SliceSchema {
     fn into(self) -> slice::SliceSchema {
         slice::SliceSchema {
             id: self.id,
-            device_id: self.device_id,
-            model_id: self.model_id,
+            device_id: self.device_id.as_bytes().to_vec(),
+            model_id: self.model_id.as_bytes().to_vec(),
             timestamp_begin: self.timestamp_begin.timestamp_micros(),
             timestamp_end: self.timestamp_end.timestamp_micros(),
             index_begin: self.index_begin as i32,

@@ -1,12 +1,13 @@
 use sqlx::{Pool, Row, Error};
 use sqlx::postgres::{Postgres, PgRow};
-use sea_query::{PostgresQueryBuilder, Query, Expr, Order, Func};
+use sea_query::{PostgresQueryBuilder, Query, Expr, Order};
 use sea_query_binder::SqlxBinder;
+use uuid::Uuid;
 
 use crate::schema::device::{DeviceType, DeviceTypeModel, TypeSchema};
 
 enum TypeSelector {
-    Id(i32),
+    Id(Uuid),
     Name(String)
 }
 
@@ -40,9 +41,10 @@ async fn select_device_type(pool: &Pool<Postgres>,
     }
     let (sql, values) = stmt
         .order_by((DeviceType::Table, DeviceType::TypeId), Order::Asc)
+        .order_by((DeviceTypeModel::Table, DeviceTypeModel::ModelId), Order::Asc)
         .build_sqlx(PostgresQueryBuilder);
 
-    let mut last_id: Option<i32> = None;
+    let mut last_id: Option<Uuid> = None;
     let mut type_schema_vec: Vec<TypeSchema> = Vec::new();
 
     sqlx::query_with(&sql, values)
@@ -50,7 +52,7 @@ async fn select_device_type(pool: &Pool<Postgres>,
             // get last type_schema in type_schema_vec or default
             let mut type_schema = type_schema_vec.pop().unwrap_or_default();
             // on every new type_id found insert type_schema to type_schema_vec
-            let type_id: i32 = row.get(0);
+            let type_id: Uuid = row.get(0);
             if let Some(value) = last_id {
                 if value != type_id {
                     // insert new type_schema to type_schema_vec
@@ -63,7 +65,7 @@ async fn select_device_type(pool: &Pool<Postgres>,
             type_schema.name = row.get(1);
             type_schema.description = row.get(2);
             // update type_schema if non empty model_id found
-            let model_id: Result<i32, Error> = row.try_get(3);
+            let model_id: Result<Uuid, Error> = row.try_get(3);
             if let Ok(value) = model_id {
                 type_schema.models.push(value);
             }
@@ -77,7 +79,7 @@ async fn select_device_type(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn select_device_type_by_id(pool: &Pool<Postgres>, 
-    id: i32
+    id: Uuid
 ) -> Result<TypeSchema, Error>
 {
     let results = select_device_type(pool, TypeSelector::Id(id)).await?;
@@ -98,15 +100,19 @@ pub(crate) async fn select_device_type_by_name(pool: &Pool<Postgres>,
 pub(crate) async fn insert_device_type(pool: &Pool<Postgres>,
     name: &str,
     description: Option<&str>
-) -> Result<i32, Error>
+) -> Result<Uuid, Error>
 {
+    let type_id = Uuid::new_v4();
+
     let (sql, values) = Query::insert()
         .into_table(DeviceType::Table)
         .columns([
+            DeviceType::TypeId,
             DeviceType::Name,
             DeviceType::Description
         ])
         .values([
+            type_id.into(),
             name.into(),
             description.unwrap_or_default().into()
         ])
@@ -117,20 +123,11 @@ pub(crate) async fn insert_device_type(pool: &Pool<Postgres>,
         .execute(pool)
         .await?;
 
-    let sql = Query::select()
-        .expr(Func::max(Expr::col(DeviceType::TypeId)))
-        .from(DeviceType::Table)
-        .to_string(PostgresQueryBuilder);
-    let id: i32 = sqlx::query(&sql)
-        .map(|row: PgRow| row.get(0))
-        .fetch_one(pool)
-        .await?;
-
-    Ok(id)
+    Ok(type_id)
 }
 
 pub(crate) async fn update_device_type(pool: &Pool<Postgres>,
-    id: i32,
+    id: Uuid,
     name: Option<&str>,
     description: Option<&str>
 ) -> Result<(), Error>
@@ -158,7 +155,7 @@ pub(crate) async fn update_device_type(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn delete_device_type(pool: &Pool<Postgres>, 
-    id: i32
+    id: Uuid
 ) -> Result<(), Error> 
 {
     let (sql, values) = Query::delete()
@@ -174,8 +171,8 @@ pub(crate) async fn delete_device_type(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn insert_device_type_model(pool: &Pool<Postgres>,
-    id: i32,
-    model_id: i32
+    id: Uuid,
+    model_id: Uuid
 ) -> Result<(), Error>
 {
     let (sql, values) = Query::insert()
@@ -199,8 +196,8 @@ pub(crate) async fn insert_device_type_model(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn delete_device_type_model(pool: &Pool<Postgres>, 
-    id: i32,
-    model_id: i32
+    id: Uuid,
+    model_id: Uuid
 ) -> Result<(), Error> 
 {
     let (sql, values) = Query::delete()

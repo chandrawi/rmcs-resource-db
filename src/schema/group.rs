@@ -1,4 +1,5 @@
 use sea_query::Iden;
+use uuid::Uuid;
 use rmcs_resource_api::group;
 
 #[derive(Iden)]
@@ -61,11 +62,11 @@ impl From<GroupKind> for bool {
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub(crate) struct GroupSchema {
-    pub(crate) id: i32,
+    pub(crate) id: Uuid,
     pub(crate) name: String,
     pub(crate) category: String,
     pub(crate) description: String,
-    pub(crate) members: Vec<i64>
+    pub(crate) members: Vec<Uuid>
 }
 
 impl GroupSchema {
@@ -76,7 +77,7 @@ impl GroupSchema {
             name: self.name,
             category: self.category,
             description: self.description,
-            models: self.members.into_iter().map(|el| el as i32).collect()
+            models: self.members.into_iter().map(|el| el).collect()
         }
     }
     pub(crate) fn into_group_device(self) -> GroupDeviceSchema
@@ -103,39 +104,39 @@ impl GroupSchema {
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct GroupModelSchema {
-    pub id: i32,
+    pub id: Uuid,
     pub name: String,
     pub category: String,
     pub description: String,
-    pub models: Vec<i32>
+    pub models: Vec<Uuid>
 }
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct GroupDeviceSchema {
-    pub id: i32,
+    pub id: Uuid,
     pub name: String,
     pub category: String,
     pub description: String,
-    pub devices: Vec<i64>
+    pub devices: Vec<Uuid>
 }
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct GroupGatewaySchema {
-    pub id: i32,
+    pub id: Uuid,
     pub name: String,
     pub category: String,
     pub description: String,
-    pub gateways: Vec<i64>
+    pub gateways: Vec<Uuid>
 }
 
 impl From<group::GroupModelSchema> for GroupModelSchema {
     fn from(value: group::GroupModelSchema) -> Self {
         Self {
-            id: value.id,
+            id: Uuid::from_slice(&value.id).unwrap_or_default(),
             name: value.name,
             category: value.category,
             description: value.description,
-            models: value.models
+            models: value.models.into_iter().map(|u| Uuid::from_slice(&u).unwrap_or_default()).collect()
         }
     }
 }
@@ -143,11 +144,11 @@ impl From<group::GroupModelSchema> for GroupModelSchema {
 impl Into<group::GroupModelSchema> for GroupModelSchema {
     fn into(self) -> group::GroupModelSchema {
         group::GroupModelSchema {
-            id: self.id,
+            id: self.id.as_bytes().to_vec(),
             name: self.name,
             category: self.category,
             description: self.description,
-            models: self.models
+            models: self.models.into_iter().map(|u| u.as_bytes().to_vec()).collect()
         }
     }
 }
@@ -155,11 +156,11 @@ impl Into<group::GroupModelSchema> for GroupModelSchema {
 impl From<group::GroupDeviceSchema> for GroupDeviceSchema {
     fn from(value: group::GroupDeviceSchema) -> Self {
         Self {
-            id: value.id,
+            id: Uuid::from_slice(&value.id).unwrap_or_default(),
             name: value.name,
             category: value.category,
             description: value.description,
-            devices: value.devices
+            devices: value.devices.into_iter().map(|u| Uuid::from_slice(&u).unwrap_or_default()).collect()
         }
     }
 }
@@ -167,11 +168,11 @@ impl From<group::GroupDeviceSchema> for GroupDeviceSchema {
 impl Into<group::GroupDeviceSchema> for GroupDeviceSchema {
     fn into(self) -> group::GroupDeviceSchema {
         group::GroupDeviceSchema {
-            id: self.id,
+            id: self.id.as_bytes().to_vec(),
             name: self.name,
             category: self.category,
             description: self.description,
-            devices: self.devices
+            devices: self.devices.into_iter().map(|u| u.as_bytes().to_vec()).collect()
         }
     }
 }
@@ -179,11 +180,11 @@ impl Into<group::GroupDeviceSchema> for GroupDeviceSchema {
 impl From<group::GroupDeviceSchema> for GroupGatewaySchema {
     fn from(value: group::GroupDeviceSchema) -> Self {
         Self {
-            id: value.id,
+            id: Uuid::from_slice(&value.id).unwrap_or_default(),
             name: value.name,
             category: value.category,
             description: value.description,
-            gateways: value.devices
+            gateways: value.devices.into_iter().map(|u| Uuid::from_slice(&u).unwrap_or_default()).collect()
         }
     }
 }
@@ -191,11 +192,11 @@ impl From<group::GroupDeviceSchema> for GroupGatewaySchema {
 impl Into<group::GroupDeviceSchema> for GroupGatewaySchema {
     fn into(self) -> group::GroupDeviceSchema {
         group::GroupDeviceSchema {
-            id: self.id,
+            id: self.id.as_bytes().to_vec(),
             name: self.name,
             category: self.category,
             description: self.description,
-            devices: self.gateways
+            devices: self.gateways.into_iter().map(|u| u.as_bytes().to_vec()).collect()
         }
     }
 }

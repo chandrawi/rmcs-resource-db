@@ -2,12 +2,13 @@ use sqlx::{Pool, Row, Error};
 use sqlx::postgres::{Postgres, PgRow};
 use sea_query::{PostgresQueryBuilder, Query, Expr, Cond, Order, Func};
 use sea_query_binder::SqlxBinder;
+use uuid::Uuid;
 
 use crate::schema::value::{ConfigType, ConfigValue, DataIndexing, DataType};
 use crate::schema::model::{Model, ModelType, ModelConfig, ModelSchema, ModelConfigSchema};
 
 enum ModelSelector {
-    Id(i32),
+    Id(Uuid),
     Name(String),
     Category(String),
     NameCategory(String, String)
@@ -15,7 +16,7 @@ enum ModelSelector {
 
 enum ConfigSelector {
     Id(i32),
-    Model(i32)
+    Model(Uuid)
 }
 
 async fn select_join_model(pool: &Pool<Postgres>, 
@@ -80,7 +81,7 @@ async fn select_join_model(pool: &Pool<Postgres>,
         .order_by((ModelConfig::Table, ModelConfig::Id), Order::Asc)
         .build_sqlx(PostgresQueryBuilder);
 
-    let mut last_id: Option<i32> = None;
+    let mut last_id: Option<Uuid> = None;
     let mut last_index: Option<i16> = None;
     let mut config_schema_vec: Vec<ModelConfigSchema> = Vec::new();
     let mut model_schema_vec: Vec<ModelSchema> = Vec::new();
@@ -90,7 +91,7 @@ async fn select_join_model(pool: &Pool<Postgres>,
             // get last model_schema in model_schema_vec or default
             let mut model_schema = model_schema_vec.pop().unwrap_or_default();
             // on every new id found insert model_schema to model_schema_vec and reset last_index
-            let id: i32 = row.get(0);
+            let id: Uuid = row.get(0);
             if let Some(value) = last_id {
                 if value != id {
                     model_schema_vec.push(model_schema.clone());
@@ -138,7 +139,7 @@ async fn select_join_model(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn select_join_model_by_id(pool: &Pool<Postgres>, 
-    id: i32
+    id: Uuid
 ) -> Result<ModelSchema, Error>
 {
     let results = select_join_model(pool, ModelSelector::Id(id)).await?;
@@ -177,17 +178,21 @@ pub(crate) async fn insert_model(pool: &Pool<Postgres>,
     category: &str,
     name: &str,
     description: Option<&str>,
-) -> Result<i32, Error>
+) -> Result<Uuid, Error>
 {
+    let model_id = Uuid::new_v4();
+
     let (sql, values) = Query::insert()
         .into_table(Model::Table)
         .columns([
+            Model::ModelId,
             Model::Indexing,
             Model::Category,
             Model::Name,
             Model::Description
         ])
         .values([
+            model_id.into(),
             i16::from(indexing).into(),
             category.into(),
             name.into(),
@@ -200,20 +205,11 @@ pub(crate) async fn insert_model(pool: &Pool<Postgres>,
         .execute(pool)
         .await?;
 
-    let sql = Query::select()
-        .expr(Func::max(Expr::col(Model::ModelId)))
-        .from(Model::Table)
-        .to_string(PostgresQueryBuilder);
-    let id: i32 = sqlx::query(&sql)
-        .map(|row: PgRow| row.get(0))
-        .fetch_one(pool)
-        .await?;
-
-    Ok(id)
+    Ok(model_id)
 }
 
 pub(crate) async fn update_model(pool: &Pool<Postgres>,
-    id: i32,
+    id: Uuid,
     indexing: Option<DataIndexing>,
     category: Option<&str>,
     name: Option<&str>,
@@ -249,7 +245,7 @@ pub(crate) async fn update_model(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn delete_model(pool: &Pool<Postgres>, 
-    id: i32
+    id: Uuid
 ) -> Result<(), Error> 
 {
     let (sql, values) = Query::delete()
@@ -265,7 +261,7 @@ pub(crate) async fn delete_model(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn insert_model_types(pool: &Pool<Postgres>,
-    id: i32,
+    id: Uuid,
     types: &[DataType]
 ) -> Result<(), Error>
 {
@@ -299,7 +295,7 @@ pub(crate) async fn insert_model_types(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn delete_model_types(pool: &Pool<Postgres>, 
-    id: i32
+    id: Uuid
 ) -> Result<(), Error> 
 {
     let (sql, values) = Query::delete()
@@ -376,14 +372,14 @@ pub(crate) async fn select_model_config_by_id(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn select_model_config_by_model(pool: &Pool<Postgres>,
-    model_id: i32
+    model_id: Uuid
 ) -> Result<Vec<ModelConfigSchema>, Error>
 {
     select_model_config(pool, ConfigSelector::Model(model_id)).await
 }
 
 pub(crate) async fn insert_model_config(pool: &Pool<Postgres>,
-    model_id: i32,
+    model_id: Uuid,
     index: i32,
     name: &str,
     value: ConfigValue,

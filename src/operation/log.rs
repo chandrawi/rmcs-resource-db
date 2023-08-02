@@ -2,8 +2,9 @@ use std::str::FromStr;
 use sqlx::{Pool, Row, Error};
 use sqlx::postgres::{Postgres, PgRow};
 use sqlx::types::chrono::NaiveDateTime;
-use sea_query::{PostgresQueryBuilder, Query, Expr};
+use sea_query::{PostgresQueryBuilder, Query, Expr, Order};
 use sea_query_binder::SqlxBinder;
+use uuid::Uuid;
 
 use crate::schema::value::{ConfigType, ConfigValue};
 use crate::schema::log::{SystemLog, LogSchema, LogStatus};
@@ -16,7 +17,7 @@ enum LogSelector {
 
 async fn select_log(pool: &Pool<Postgres>,
     selector: LogSelector,
-    device_id: Option<i64>,
+    device_id: Option<Uuid>,
     status: Option<&str>
 ) -> Result<Vec<LogSchema>, Error>
 {
@@ -50,7 +51,10 @@ async fn select_log(pool: &Pool<Postgres>,
     if let Some(status) = status {
         stmt = stmt.and_where(Expr::col(SystemLog::Status).eq(status)).to_owned();
     }
-    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
+    let (sql, values) = stmt
+        .order_by(SystemLog::Timestamp, Order::Desc)
+        .order_by(SystemLog::DeviceId, Order::Asc)
+        .build_sqlx(PostgresQueryBuilder);
 
     let rows = sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
@@ -71,7 +75,7 @@ async fn select_log(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_log_by_id(pool: &Pool<Postgres>,
     timestamp: NaiveDateTime,
-    device_id: i64
+    device_id: Uuid
 ) -> Result<LogSchema, Error>
 {
     select_log(pool, LogSelector::Time(timestamp), Some(device_id), None).await?.into_iter().next()
@@ -80,7 +84,7 @@ pub(crate) async fn select_log_by_id(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_log_by_time(pool: &Pool<Postgres>,
     timestamp: NaiveDateTime,
-    device_id: Option<i64>,
+    device_id: Option<Uuid>,
     status: Option<&str>
 ) -> Result<Vec<LogSchema>, Error>
 {
@@ -89,7 +93,7 @@ pub(crate) async fn select_log_by_time(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_log_by_last_time(pool: &Pool<Postgres>,
     last: NaiveDateTime,
-    device_id: Option<i64>,
+    device_id: Option<Uuid>,
     status: Option<&str>
 ) -> Result<Vec<LogSchema>, Error>
 {
@@ -99,7 +103,7 @@ pub(crate) async fn select_log_by_last_time(pool: &Pool<Postgres>,
 pub(crate) async fn select_log_by_range_time(pool: &Pool<Postgres>,
     begin: NaiveDateTime,
     end: NaiveDateTime,
-    device_id: Option<i64>,
+    device_id: Option<Uuid>,
     status: Option<&str>
 ) -> Result<Vec<LogSchema>, Error>
 {
@@ -108,7 +112,7 @@ pub(crate) async fn select_log_by_range_time(pool: &Pool<Postgres>,
 
 pub(crate) async fn insert_log(pool: &Pool<Postgres>,
     timestamp: NaiveDateTime,
-    device_id: i64,
+    device_id: Uuid,
     status: &str,
     value: ConfigValue
 ) -> Result<(), Error>
@@ -144,7 +148,7 @@ pub(crate) async fn insert_log(pool: &Pool<Postgres>,
 
 pub(crate) async fn update_log(pool: &Pool<Postgres>,
     timestamp: NaiveDateTime,
-    device_id: i64,
+    device_id: Uuid,
     status: Option<&str>,
     value: Option<ConfigValue>
 ) -> Result<(), Error>
@@ -178,7 +182,7 @@ pub(crate) async fn update_log(pool: &Pool<Postgres>,
 
 pub(crate) async fn delete_log(pool: &Pool<Postgres>,
     timestamp: NaiveDateTime,
-    device_id: i64
+    device_id: Uuid
 ) -> Result<(), Error>
 {
     let (sql, values) = Query::delete()

@@ -1,17 +1,18 @@
 use sqlx::{Pool, Row, Error};
 use sqlx::postgres::{Postgres, PgRow};
 use sqlx::types::chrono::NaiveDateTime;
-use sea_query::{PostgresQueryBuilder, Query, Expr, Func};
+use sea_query::{PostgresQueryBuilder, Query, Expr, Func, Order};
 use sea_query_binder::SqlxBinder;
+use uuid::Uuid;
 
 use crate::schema::slice::{DataSlice, SliceSchema};
 
 enum SliceSelector {
     Id(i32),
     Name(String),
-    Device(i64),
-    Model(i32),
-    DeviceModel(i64, i32)
+    Device(Uuid),
+    Model(Uuid),
+    DeviceModel(Uuid, Uuid)
 }
 
 async fn select_slice(pool: &Pool<Postgres>,
@@ -52,7 +53,9 @@ async fn select_slice(pool: &Pool<Postgres>,
                 .to_owned();
         }
     }
-    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
+    let (sql, values) = stmt
+        .order_by(DataSlice::Id, Order::Asc)
+        .build_sqlx(PostgresQueryBuilder);
 
     let rows = sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
@@ -91,30 +94,30 @@ pub(crate) async fn select_slice_by_name(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn select_slice_by_device(pool: &Pool<Postgres>,
-    device_id: i64
+    device_id: Uuid
 ) -> Result<Vec<SliceSchema>, Error>
 {
     select_slice(pool, SliceSelector::Device(device_id)).await
 }
 
 pub(crate) async fn select_slice_by_model(pool: &Pool<Postgres>,
-    model_id: i32
+    model_id: Uuid
 ) -> Result<Vec<SliceSchema>, Error>
 {
     select_slice(pool, SliceSelector::Model(model_id)).await
 }
 
 pub(crate) async fn select_slice_by_device_model(pool: &Pool<Postgres>,
-    device_id: i64,
-    model_id: i32
+    device_id: Uuid,
+    model_id: Uuid
 ) -> Result<Vec<SliceSchema>, Error>
 {
     select_slice(pool, SliceSelector::DeviceModel(device_id, model_id)).await
 }
 
 pub(crate) async fn insert_slice(pool: &Pool<Postgres>,
-    device_id: i64,
-    model_id: i32,
+    device_id: Uuid,
+    model_id: Uuid,
     timestamp_begin: NaiveDateTime,
     timestamp_end: NaiveDateTime,
     index_begin: Option<i32>,

@@ -1,12 +1,13 @@
 use sqlx::{Pool, Row, Error};
 use sqlx::postgres::{Postgres, PgRow};
-use sea_query::{PostgresQueryBuilder, Query, Expr, Order, Func};
+use sea_query::{PostgresQueryBuilder, Query, Expr, Order};
 use sea_query_binder::SqlxBinder;
+use uuid::Uuid;
 
 use crate::schema::group::{GroupModel, GroupModelMap, GroupDevice, GroupDeviceMap, GroupKind, GroupSchema};
 
 enum GroupSelector {
-    Id(i32),
+    Id(Uuid),
     Name(String),
     Category(String),
     NameCategory(String, String)
@@ -97,7 +98,7 @@ async fn select_group(pool: &Pool<Postgres>,
     }
     let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
-    let mut last_id: Option<i32> = None;
+    let mut last_id: Option<Uuid> = None;
     let mut group_schema_vec: Vec<GroupSchema> = Vec::new();
 
     sqlx::query_with(&sql, values)
@@ -105,7 +106,7 @@ async fn select_group(pool: &Pool<Postgres>,
             // get last group_schema in group_schema_vec or default
             let mut group_schema = group_schema_vec.pop().unwrap_or_default();
             // on every new group_id found add id_vec and update group_schema scalar member
-            let group_id: i32 = row.get(0);
+            let group_id: Uuid = row.get(0);
             if let Some(value) = last_id {
                 if value != group_id {
                     // insert new type_schema to group_schema_vec
@@ -119,13 +120,9 @@ async fn select_group(pool: &Pool<Postgres>,
             group_schema.category = row.get(2);
             group_schema.description = row.get(3);
             // update group_schema if non empty member_id found
-            let member_id: Result<i64, Error> = row.try_get(4);
+            let member_id: Result<Uuid, Error> = row.try_get(4);
             if let Ok(value) = member_id {
                 group_schema.members.push(value);
-            }
-            let member_id: Result<i32, Error> = row.try_get(4);
-            if let Ok(value) = member_id {
-                group_schema.members.push(value as i64);
             }
             // update group_schema_vec with updated group_schema
             group_schema_vec.pop();
@@ -139,7 +136,7 @@ async fn select_group(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_group_by_id(pool: &Pool<Postgres>,
     kind: GroupKind,
-    id: i32
+    id: Uuid
 ) -> Result<GroupSchema, Error>
 {
     let results = select_group(pool, kind, GroupSelector::Id(id)).await?;
@@ -181,19 +178,23 @@ pub(crate) async fn insert_group(pool: &Pool<Postgres>,
     name: &str,
     category: &str,
     description: Option<&str>
-) -> Result<i32, Error>
+) -> Result<Uuid, Error>
 {
+    let group_id = Uuid::new_v4();
+
     let mut stmt = Query::insert().to_owned();
     match &kind {
         GroupKind::Model => {
             stmt = stmt
                 .into_table(GroupModel::Table)
                 .columns([
+                    GroupModel::GroupId,
                     GroupModel::Name,
                     GroupModel::Category,
                     GroupModel::Description
                 ])
                 .values([
+                    group_id.into(),
                     name.into(),
                     category.into(),
                     description.unwrap_or_default().into()
@@ -205,12 +206,14 @@ pub(crate) async fn insert_group(pool: &Pool<Postgres>,
             stmt = stmt
                 .into_table(GroupDevice::Table)
                 .columns([
+                    GroupDevice::GroupId,
                     GroupDevice::Name,
                     GroupDevice::Kind,
                     GroupDevice::Category,
                     GroupDevice::Description
                 ])
                 .values([
+                    group_id.into(),
                     name.into(),
                     bool::from(kind.clone()).into(),
                     category.into(),
@@ -226,33 +229,12 @@ pub(crate) async fn insert_group(pool: &Pool<Postgres>,
         .execute(pool)
         .await?;
 
-    let mut stmt = Query::select().to_owned();
-    match &kind {
-        GroupKind::Model => {
-            stmt = stmt
-                .expr(Func::max(Expr::col(GroupModel::GroupId)))
-                .from(GroupModel::Table)
-                .to_owned();
-        },
-        GroupKind::Device | GroupKind::Gateway => {
-            stmt = stmt
-                .expr(Func::max(Expr::col(GroupDevice::GroupId)))
-                .from(GroupDevice::Table)
-                .to_owned();
-        }
-    }
-    let sql = stmt.to_string(PostgresQueryBuilder);
-    let id: i32 = sqlx::query(&sql)
-        .map(|row: PgRow| row.get(0))
-        .fetch_one(pool)
-        .await?;
-
-    Ok(id)
+    Ok(group_id)
 }
 
 pub(crate) async fn update_group(pool: &Pool<Postgres>,
     kind: GroupKind,
-    id: i32,
+    id: Uuid,
     name: Option<&str>,
     category: Option<&str>,
     description: Option<&str>
@@ -298,7 +280,7 @@ pub(crate) async fn update_group(pool: &Pool<Postgres>,
 
 pub(crate) async fn delete_group(pool: &Pool<Postgres>, 
     kind: GroupKind,
-    id: i32
+    id: Uuid
 ) -> Result<(), Error> 
 {
     let mut stmt = Query::delete().to_owned();
@@ -327,8 +309,8 @@ pub(crate) async fn delete_group(pool: &Pool<Postgres>,
 
 pub(crate) async fn insert_group_map(pool: &Pool<Postgres>,
     kind: GroupKind,
-    id: i32,
-    member_id: i64
+    id: Uuid,
+    member_id: Uuid
 ) -> Result<(), Error>
 {
     let mut stmt = Query::insert().to_owned();
@@ -342,7 +324,7 @@ pub(crate) async fn insert_group_map(pool: &Pool<Postgres>,
                 ])
                 .values([
                     id.into(),
-                    i32::from(member_id as i32).into()
+                    member_id.into()
                 ])
                 .unwrap_or(&mut sea_query::InsertStatement::default())
                 .to_owned();
@@ -373,8 +355,8 @@ pub(crate) async fn insert_group_map(pool: &Pool<Postgres>,
 
 pub(crate) async fn delete_group_map(pool: &Pool<Postgres>, 
     kind: GroupKind,
-    id: i32,
-    member_id: i64
+    id: Uuid,
+    member_id: Uuid
 ) -> Result<(), Error> 
 {
     let mut stmt = Query::delete().to_owned();
@@ -383,7 +365,7 @@ pub(crate) async fn delete_group_map(pool: &Pool<Postgres>,
             stmt = stmt
                 .from_table(GroupModelMap::Table)
                 .and_where(Expr::col(GroupModelMap::GroupId).eq(id))
-                .and_where(Expr::col(GroupModelMap::ModelId).eq(i32::from(member_id as i32)))
+                .and_where(Expr::col(GroupModelMap::ModelId).eq(member_id))
                 .to_owned();
         },
         GroupKind::Device | GroupKind::Gateway => {

@@ -1,7 +1,7 @@
 CREATE TABLE "data_slice" (
   "id" serial NOT NULL,
-  "device_id" bigint NOT NULL,
-  "model_id" int NOT NULL,
+  "device_id" uuid NOT NULL,
+  "model_id" uuid NOT NULL,
   "timestamp_begin" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "timestamp_end" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "index_begin" int NOT NULL DEFAULT 0,

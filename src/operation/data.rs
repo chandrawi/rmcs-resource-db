@@ -3,6 +3,7 @@ use sqlx::postgres::{Postgres, PgRow};
 use sqlx::types::chrono::NaiveDateTime;
 use sea_query::{PostgresQueryBuilder, Query, Expr, Order};
 use sea_query_binder::SqlxBinder;
+use uuid::Uuid;
 
 use crate::schema::value::{DataIndexing, DataType, DataValue, ArrayDataValue};
 use crate::schema::model::{Model, ModelType};
@@ -20,8 +21,8 @@ enum DataSelector {
 
 async fn select_data_bytes(pool: &Pool<Postgres>, 
     selector: DataSelector,
-    device_id: i64,
-    model_id: i32,
+    device_id: Uuid,
+    model_id: Uuid,
     index: Option<i32>
 ) -> Result<Vec<DataBytesSchema>, Error>
 {
@@ -87,7 +88,7 @@ async fn select_data_bytes(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn select_data_model(pool: &Pool<Postgres>,
-    model_id: i32
+    model_id: Uuid
 ) -> Result<DataModel, Error>
 {
     let (sql, values) = Query::select()
@@ -117,7 +118,7 @@ pub(crate) async fn select_data_model(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_data_by_time(pool: &Pool<Postgres>,
     model: DataModel,
-    device_id: i64,
+    device_id: Uuid,
     timestamp: NaiveDateTime,
     index: Option<i32>
 ) -> Result<Vec<DataSchema>, Error>
@@ -131,7 +132,7 @@ pub(crate) async fn select_data_by_time(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_data_by_last_time(pool: &Pool<Postgres>,
     model: DataModel,
-    device_id: i64,
+    device_id: Uuid,
     last: NaiveDateTime
 ) -> Result<Vec<DataSchema>, Error>
 {
@@ -144,7 +145,7 @@ pub(crate) async fn select_data_by_last_time(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_data_by_range_time(pool: &Pool<Postgres>,
     model: DataModel,
-    device_id: i64,
+    device_id: Uuid,
     begin: NaiveDateTime,
     end: NaiveDateTime
 ) -> Result<Vec<DataSchema>, Error>
@@ -158,7 +159,7 @@ pub(crate) async fn select_data_by_range_time(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_data_by_number_before(pool: &Pool<Postgres>,
     model: DataModel,
-    device_id: i64,
+    device_id: Uuid,
     before: NaiveDateTime,
     number: u32
 ) -> Result<Vec<DataSchema>, Error>
@@ -172,7 +173,7 @@ pub(crate) async fn select_data_by_number_before(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_data_by_number_after(pool: &Pool<Postgres>,
     model: DataModel,
-    device_id: i64,
+    device_id: Uuid,
     after: NaiveDateTime,
     number: u32
 ) -> Result<Vec<DataSchema>, Error>
@@ -186,7 +187,7 @@ pub(crate) async fn select_data_by_number_after(pool: &Pool<Postgres>,
 
 pub(crate) async fn insert_data(pool: &Pool<Postgres>,
     model: DataModel,
-    device_id: i64,
+    device_id: Uuid,
     timestamp: NaiveDateTime,
     index: Option<i32>,
     data: Vec<DataValue>
@@ -223,7 +224,7 @@ pub(crate) async fn insert_data(pool: &Pool<Postgres>,
 
 pub(crate) async fn delete_data(pool: &Pool<Postgres>,
     model: DataModel,
-    device_id: i64,
+    device_id: Uuid,
     timestamp: NaiveDateTime,
     index: Option<i32>,
 ) -> Result<(), Error>

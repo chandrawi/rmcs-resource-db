@@ -2,6 +2,7 @@ use sqlx::{Pool, Row, Error};
 use sqlx::postgres::{Postgres, PgRow};
 use sea_query::{PostgresQueryBuilder, Query, Expr, Order, Func};
 use sea_query_binder::SqlxBinder;
+use uuid::Uuid;
 
 use crate::schema::value::{ConfigValue, ConfigType};
 use crate::schema::device::{
@@ -10,18 +11,18 @@ use crate::schema::device::{
 };
 
 enum DeviceSelector {
-    Id(i64),
-    Gateway(i64),
-    Type(i32),
+    Id(Uuid),
+    Gateway(Uuid),
+    Type(Uuid),
     SN(String),
     Name(String),
-    GatewayType(i64, i32),
-    GatewayName(i64, String)
+    GatewayType(Uuid, Uuid),
+    GatewayName(Uuid, String)
 }
 
 enum ConfigSelector {
     Id(i32),
-    Device(i64)
+    Device(Uuid)
 }
 
 async fn select_join_device(pool: &Pool<Postgres>, 
@@ -106,8 +107,8 @@ async fn select_join_device(pool: &Pool<Postgres>,
         .order_by((DeviceConfig::Table, DeviceConfig::Id), Order::Asc)
         .build_sqlx(PostgresQueryBuilder);
 
-    let mut last_id: Option<i64> = None;
-    let mut last_model: Option<i32> = None;
+    let mut last_id: Option<Uuid> = None;
+    let mut last_model: Option<Uuid> = None;
     let mut device_schema_vec: Vec<DeviceSchema> = Vec::new();
 
     sqlx::query_with(&sql, values)
@@ -115,7 +116,7 @@ async fn select_join_device(pool: &Pool<Postgres>,
             // get last device_schema in device_schema_vec or default
             let mut device_schema = device_schema_vec.pop().unwrap_or_default();
             // on every new id found insert device_schema to device_schema_vec and reset last_model
-            let id: i64 = row.get(0);
+            let id: Uuid = row.get(0);
             if let Some(value) = last_id {
                 if value != id {
                     device_schema_vec.push(device_schema.clone());
@@ -133,7 +134,7 @@ async fn select_join_device(pool: &Pool<Postgres>,
             device_schema.type_.name = row.get(6);
             device_schema.type_.description = row.get(7);
             // on every new model_id found add model_vec and update device_schema type
-            let model_id = row.try_get(8).unwrap_or(0);
+            let model_id = row.try_get(8).unwrap_or_default();
             if last_model == None || last_model != Some(model_id) {
                 device_schema.type_.models.push(model_id);
                 device_schema.configs = Vec::new();
@@ -163,7 +164,7 @@ async fn select_join_device(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_device(pool: &Pool<Postgres>,
     kind: DeviceKind,
-    id: i64
+    id: Uuid
 ) -> Result<DeviceSchema, Error>
 {
     let results = select_join_device(pool, kind, DeviceSelector::Id(id)).await?;
@@ -187,7 +188,7 @@ pub(crate) async fn select_device_by_sn(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_device_by_gateway(pool: &Pool<Postgres>,
     kind: DeviceKind,
-    gateway_id: i64
+    gateway_id: Uuid
 ) -> Result<Vec<DeviceSchema>, Error>
 {
     select_join_device(pool, kind, DeviceSelector::Gateway(gateway_id)).await
@@ -195,7 +196,7 @@ pub(crate) async fn select_device_by_gateway(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_device_by_type(pool: &Pool<Postgres>,
     kind: DeviceKind,
-    type_id: i32
+    type_id: Uuid
 ) -> Result<Vec<DeviceSchema>, Error>
 {
     select_join_device(pool, kind, DeviceSelector::Type(type_id)).await
@@ -212,8 +213,8 @@ pub(crate) async fn select_device_by_name(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_device_by_gateway_type(pool: &Pool<Postgres>,
     kind: DeviceKind,
-    gateway_id: i64,
-    type_id: i32
+    gateway_id: Uuid,
+    type_id: Uuid
 ) -> Result<Vec<DeviceSchema>, Error>
 {
     select_join_device(pool, kind, DeviceSelector::GatewayType(gateway_id, type_id)).await
@@ -221,7 +222,7 @@ pub(crate) async fn select_device_by_gateway_type(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_device_by_gateway_name(pool: &Pool<Postgres>,
     kind: DeviceKind,
-    gateway_id: i64,
+    gateway_id: Uuid,
     name: &str
 ) -> Result<Vec<DeviceSchema>, Error>
 {
@@ -230,9 +231,9 @@ pub(crate) async fn select_device_by_gateway_name(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn insert_device(pool: &Pool<Postgres>,
-    id: i64,
-    gateway_id: i64,
-    type_id: i32,
+    id: Uuid,
+    gateway_id: Uuid,
+    type_id: Uuid,
     serial_number: &str,
     name: &str,
     description: Option<&str>
@@ -268,9 +269,9 @@ pub(crate) async fn insert_device(pool: &Pool<Postgres>,
 
 pub(crate) async fn update_device(pool: &Pool<Postgres>,
     kind: DeviceKind,
-    id: i64,
-    gateway_id: Option<i64>,
-    type_id: Option<i32>,
+    id: Uuid,
+    gateway_id: Option<Uuid>,
+    type_id: Option<Uuid>,
     serial_number: Option<&str>,
     name: Option<&str>,
     description: Option<&str>
@@ -313,7 +314,7 @@ pub(crate) async fn update_device(pool: &Pool<Postgres>,
 
 pub(crate) async fn delete_device(pool: &Pool<Postgres>, 
     kind: DeviceKind,
-    id: i64
+    id: Uuid
 ) -> Result<(), Error> 
 {
     let mut stmt = Query::delete()
@@ -407,14 +408,14 @@ pub(crate) async fn select_device_config_by_id(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_device_config_by_device(pool: &Pool<Postgres>,
     kind: DeviceKind,
-    device_id: i64
+    device_id: Uuid
 ) -> Result<Vec<DeviceConfigSchema>, Error>
 {
     select_device_config(pool, kind, ConfigSelector::Device(device_id)).await
 }
 
 pub(crate) async fn insert_device_config(pool: &Pool<Postgres>,
-    device_id: i64,
+    device_id: Uuid,
     name: &str,
     value: ConfigValue,
     category: &str

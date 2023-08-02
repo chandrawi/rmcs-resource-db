@@ -4,6 +4,7 @@ use sqlx::postgres::{Postgres, PgRow};
 use sqlx::types::chrono::NaiveDateTime;
 use sea_query::{PostgresQueryBuilder, Query, Expr, Order, Func};
 use sea_query_binder::SqlxBinder;
+use uuid::Uuid;
 
 use crate::schema::value::{DataIndexing, DataType, DataValue, ArrayDataValue};
 use crate::schema::model::{Model, ModelType};
@@ -19,8 +20,8 @@ enum BufferSelector {
 
 async fn select_buffer_bytes(pool: &Pool<Postgres>, 
     selector: BufferSelector,
-    device_id: Option<i64>,
-    model_id: Option<i32>,
+    device_id: Option<Uuid>,
+    model_id: Option<Uuid>,
     status: Option<&str>
 ) -> Result<Vec<BufferBytesSchema>, Error>
 {
@@ -82,7 +83,7 @@ async fn select_buffer_bytes(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn select_model_buffer(pool: &Pool<Postgres>,
-    model_id_vec: Vec<i32>
+    model_id_vec: Vec<Uuid>
 ) -> Result<Vec<DataModel>, Error>
 {
     // get unique_id_vec from input model_id_vec
@@ -112,7 +113,7 @@ pub(crate) async fn select_model_buffer(pool: &Pool<Postgres>,
 
     sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
-            let model_id: i32 = row.get(0);
+            let model_id: Uuid = row.get(0);
             // on every new id found add unique_id_vec and update data_model indexing
             if unique_id_vec.iter().filter(|&&el| el == model_id).count() == 0 {
                 unique_id_vec.push(model_id);
@@ -162,14 +163,14 @@ pub(crate) async fn select_buffer_by_id(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_buffer_first(pool: &Pool<Postgres>, 
     number: u32,
-    device_id: Option<i64>,
-    model_id: Option<i32>,
+    device_id: Option<Uuid>,
+    model_id: Option<Uuid>,
     status: Option<&str>
 ) -> Result<Vec<BufferSchema>, Error>
 {
     let selector = BufferSelector::First(number);
     let bytes = select_buffer_bytes(pool, selector, device_id, model_id, status).await?;
-    let model_id_vec: Vec<i32> = bytes.iter().map(|el| el.model_id).collect();
+    let model_id_vec: Vec<Uuid> = bytes.iter().map(|el| el.model_id).collect();
     let models = select_model_buffer(pool, model_id_vec).await?;
     Ok(
         bytes.into_iter().enumerate().map(|(i, buf)| {
@@ -180,14 +181,14 @@ pub(crate) async fn select_buffer_first(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_buffer_last(pool: &Pool<Postgres>, 
     number: u32,
-    device_id: Option<i64>,
-    model_id: Option<i32>,
+    device_id: Option<Uuid>,
+    model_id: Option<Uuid>,
     status: Option<&str>
 ) -> Result<Vec<BufferSchema>, Error>
 {
     let selector = BufferSelector::Last(number);
     let bytes = select_buffer_bytes(pool, selector, device_id, model_id, status).await?;
-    let model_id_vec: Vec<i32> = bytes.iter().map(|el| el.model_id).collect();
+    let model_id_vec: Vec<Uuid> = bytes.iter().map(|el| el.model_id).collect();
     let models = select_model_buffer(pool, model_id_vec).await?;
     Ok(
         bytes.into_iter().enumerate().map(|(i, buf)| {
@@ -197,8 +198,8 @@ pub(crate) async fn select_buffer_last(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
-    device_id: i64,
-    model_id: i32,
+    device_id: Uuid,
+    model_id: Uuid,
     timestamp: NaiveDateTime,
     index: Option<i32>,
     data: Vec<DataValue>,

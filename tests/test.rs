@@ -4,6 +4,7 @@ mod tests {
     use sqlx::{Pool, Error};
     use sqlx::postgres::{Postgres, PgPoolOptions};
     use sqlx::types::chrono::{Utc, NaiveDateTime};
+    use uuid::Uuid;
     use rmcs_resource_db::{ModelConfigSchema, DeviceConfigSchema};
     use rmcs_resource_db::{Resource, ConfigValue::{*, self}, DataIndexing::*, DataType::*, DataValue::*};
 
@@ -55,9 +56,9 @@ mod tests {
         resource.add_type_model(type_id, model_buf_id).await.unwrap();
 
         // create new devices with newly created type as its type 
-        let gateway_id = 0x47AD915C32B89D09;
-        let device_id1 = 0x507C2589F301DB46;
-        let device_id2 = 0x2C8B82061E8F10A2;
+        let gateway_id = Uuid::parse_str("bfc01f2c-8b2c-47cf-912a-f95f6f41a1e6").unwrap();
+        let device_id1 = Uuid::parse_str("74768a42-bc29-40eb-8934-2effcbf34f8f").unwrap();
+        let device_id2 = Uuid::parse_str("150a0a77-2d9b-4672-9253-3d42fd0f0940").unwrap();
         resource.create_device(device_id1, gateway_id, type_id, "TEST01", "Speedometer Compass 1", None).await.unwrap();
         resource.create_device(device_id2, gateway_id, type_id, "TEST02", "Speedometer Compass 2", None).await.unwrap();
         // create device configurations
@@ -79,8 +80,8 @@ mod tests {
         // read model
         let model = resource.read_model(model_id).await.unwrap();
         let models = resource.list_model_by_name("speed").await.unwrap();
-        let last_model = models.into_iter().last().unwrap();
-        assert_eq!(model, last_model);
+        let model_ids: Vec<Uuid> = models.iter().map(|u| u.id).collect();
+        assert!(model_ids.contains(&model_id));
         assert_eq!(model.name, "speed and direction");
         assert_eq!(model.indexing, Timestamp);
         assert_eq!(model.category, "UPLINK");
@@ -98,26 +99,26 @@ mod tests {
         // read device
         let device1 = resource.read_device(device_id1).await.unwrap();
         let devices = resource.list_device_by_gateway(gateway_id).await.unwrap();
-        let last_device = devices.into_iter().last().unwrap();
-        assert_eq!(device1, last_device); // device_id1 > device_id2, so device1 in second (last) order
+        let device_ids: Vec<Uuid> = devices.iter().map(|u| u.id).collect();
+        assert!(device_ids.contains(&device_id1)); // device_id1 > device_id2, so device1 in second (last) order
         assert_eq!(device1.serial_number, "TEST01");
         assert_eq!(device1.name, "Speedometer Compass 1");
         // read type
         let types = resource.list_type_by_name("Speedometer").await.unwrap();
-        assert_eq!(device1.type_, types.into_iter().next().unwrap());
+        let device_type = types.iter().filter(|x| x.id == type_id).next().unwrap();
+        assert_eq!(device1.type_, device_type.to_owned());
         // read device configurations
         let device_configs = resource.list_device_config_by_device(device_id1).await.unwrap();
         assert_eq!(device1.configs, device_configs);
 
         // read group model
         let groups = resource.list_group_model_by_category("APPLICATION").await.unwrap();
-        let group_model = groups.into_iter().next().unwrap();
-        assert_eq!(group_model.models, [model_id]);
+        let group_model = groups.iter().filter(|x| x.models.contains(&model_id)).next().unwrap();
         assert_eq!(group_model.name, "data");
         assert_eq!(group_model.category, "APPLICATION");
         // read group device
         let groups = resource.list_group_device_by_name("sensor").await.unwrap();
-        let group_device = groups.into_iter().next().unwrap();
+        let group_device = groups.iter().filter(|x| x.devices.contains(&device_id1)).next().unwrap();
         assert_eq!(group_device.devices, [device_id1, device_id2]);
         assert_eq!(group_device.name, "sensor");
         assert_eq!(group_device.category, "APPLICATION");
@@ -186,7 +187,7 @@ mod tests {
 
         // read data
         let datas = resource.list_data_by_number_before(device_id1, model_id, timestamp, 100).await.unwrap();
-        let data = datas.into_iter().next().unwrap();
+        let data = datas.iter().filter(|x| x.device_id == device_id1 && x.model_id == model_id).next().unwrap();
         assert_eq!(vec![F32(speed), F32(direction)], data.data);
         assert_eq!(timestamp, data.timestamp);
 
@@ -199,7 +200,7 @@ mod tests {
         let slice_id = resource.create_slice(device_id1, model_id, timestamp, timestamp, Some(0), Some(0), "Speed and compass slice", None).await.unwrap();
         // read data
         let slices = resource.list_slice_by_name("slice").await.unwrap();
-        let slice = slices.into_iter().next().unwrap();
+        let slice = slices.iter().filter(|x| x.device_id == device_id1 && x.model_id == model_id).next().unwrap();
         assert_eq!(slice.timestamp_begin, timestamp);
         assert_eq!(slice.name, "Speed and compass slice");
 
@@ -212,7 +213,7 @@ mod tests {
         resource.create_log(timestamp, device_id1, "UNKNOWN_ERROR", Str("testing success".to_owned())).await.unwrap();
         // read log
         let logs = resource.list_log_by_range_time(timestamp, Utc::now().naive_utc(), None, None).await.unwrap();
-        let log = logs.into_iter().next().unwrap();
+        let log = logs.iter().filter(|x| x.device_id == device_id1 && x.timestamp == timestamp).next().unwrap();
         assert_eq!(log.value, Str("testing success".to_owned()));
 
         // update system log

@@ -1,7 +1,7 @@
 use std::str::FromStr;
-
 use sea_query::Iden;
 use sqlx::types::chrono::NaiveDateTime;
+use uuid::Uuid;
 use crate::schema::value::{DataType, DataValue, ArrayDataValue};
 use rmcs_resource_api::{common, buffer};
 
@@ -21,8 +21,8 @@ pub(crate) enum DataBuffer {
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct BufferSchema {
     pub id: i32,
-    pub device_id: i64,
-    pub model_id: i32,
+    pub device_id: Uuid,
+    pub model_id: Uuid,
     pub timestamp: NaiveDateTime,
     pub index: i32,
     pub data: Vec<DataValue>,
@@ -32,8 +32,8 @@ pub struct BufferSchema {
 #[derive(Debug, Default, PartialEq, Clone)]
 pub(crate) struct BufferBytesSchema {
     pub(crate) id: i32,
-    pub(crate) device_id: i64,
-    pub(crate) model_id: i32,
+    pub(crate) device_id: Uuid,
+    pub(crate) model_id: Uuid,
     pub(crate) timestamp: NaiveDateTime,
     pub(crate) index: i32,
     pub(crate) bytes: Vec<u8>,
@@ -59,8 +59,8 @@ impl From<buffer::BufferSchema> for BufferSchema {
     fn from(value: buffer::BufferSchema) -> Self {
         Self {
             id: value.id,
-            device_id: value.device_id,
-            model_id: value.model_id,
+            device_id: Uuid::from_slice(&value.device_id).unwrap_or_default(),
+            model_id: Uuid::from_slice(&value.model_id).unwrap_or_default(),
             timestamp: NaiveDateTime::from_timestamp_micros(value.timestamp).unwrap_or_default(),
             index: value.index,
             data: ArrayDataValue::from_bytes(
@@ -80,8 +80,8 @@ impl Into<buffer::BufferSchema> for BufferSchema {
     fn into(self) -> buffer::BufferSchema {
         buffer::BufferSchema {
             id: self.id,
-            device_id: self.device_id,
-            model_id: self.model_id,
+            device_id: self.device_id.as_bytes().to_vec(),
+            model_id: self.model_id.as_bytes().to_vec(),
             timestamp: self.timestamp.timestamp_micros(),
             index: self.index as i32,
             data_bytes: ArrayDataValue::from_vec(&self.data).to_bytes(),

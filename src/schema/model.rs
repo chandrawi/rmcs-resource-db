@@ -1,4 +1,5 @@
 use sea_query::Iden;
+use uuid::Uuid;
 use crate::schema::value::{ConfigValue, ConfigType, DataType, DataIndexing};
 use rmcs_resource_api::{common, model};
 
@@ -34,7 +35,7 @@ pub(crate) enum ModelConfig {
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct ModelSchema {
-    pub id: i32,
+    pub id: Uuid,
     pub indexing: DataIndexing,
     pub category: String,
     pub name: String,
@@ -46,7 +47,7 @@ pub struct ModelSchema {
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct ModelConfigSchema {
     pub id: i32,
-    pub model_id: i32,
+    pub model_id: Uuid,
     pub index: i16,
     pub name: String,
     pub value: ConfigValue,
@@ -56,7 +57,7 @@ pub struct ModelConfigSchema {
 impl From<model::ModelSchema> for ModelSchema {
     fn from(value: model::ModelSchema) -> Self {
         Self {
-            id: value.id,
+            id: Uuid::from_slice(&value.id).unwrap_or_default(),
             indexing: DataIndexing::from(common::DataIndexing::from_i32(value.indexing).unwrap_or_default()),
             category: value.category,
             name: value.name,
@@ -75,7 +76,7 @@ impl From<model::ModelSchema> for ModelSchema {
 impl Into<model::ModelSchema> for ModelSchema {
     fn into(self) -> model::ModelSchema {
         model::ModelSchema {
-            id: self.id,
+            id: self.id.as_bytes().to_vec(),
             indexing: Into::<common::DataIndexing>::into(self.indexing).into(),
             category: self.category,
             name: self.name,
@@ -94,7 +95,7 @@ impl From<model::ConfigSchema> for ModelConfigSchema {
     fn from(value: model::ConfigSchema) -> Self {
         Self {
             id: value.id,
-            model_id: value.model_id,
+            model_id: Uuid::from_slice(&value.model_id).unwrap_or_default(),
             index: value.index as i16,
             name: value.name,
             value: ConfigValue::from_bytes(
@@ -110,7 +111,7 @@ impl Into<model::ConfigSchema> for ModelConfigSchema {
     fn into(self) -> model::ConfigSchema {
         model::ConfigSchema {
             id: self.id,
-            model_id: self.model_id,
+            model_id: self.model_id.as_bytes().to_vec(),
             index: self.index as i32,
             name: self.name,
             config_bytes: self.value.to_bytes(),

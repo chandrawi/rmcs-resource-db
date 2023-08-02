@@ -1,5 +1,5 @@
 CREATE TABLE "system_log" (
-  "device_id" bigint NOT NULL,
+  "device_id" uuid NOT NULL,
   "timestamp" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "status" smallint NOT NULL DEFAULT 0,
   "value" bytea NOT NULL,

@@ -1,5 +1,5 @@
 CREATE TABLE "group_model" (
-  "group_id" serial NOT NULL,
+  "group_id" uuid NOT NULL,
   "name" varchar(32) NOT NULL,
   "category" varchar(64) NOT NULL,
   "description" varchar(255) NOT NULL DEFAULT '',
@@ -7,7 +7,7 @@ CREATE TABLE "group_model" (
 );
 
 CREATE TABLE "group_device" (
-  "group_id" serial NOT NULL,
+  "group_id" uuid NOT NULL,
   "name" varchar(32) NOT NULL,
   "kind" boolean NOT NULL DEFAULT false,
   "category" varchar(64) NOT NULL,
@@ -16,8 +16,8 @@ CREATE TABLE "group_device" (
 );
 
 CREATE TABLE "group_model_map" (
-  "group_id" int NOT NULL,
-  "model_id" int NOT NULL,
+  "group_id" uuid NOT NULL,
+  "model_id" uuid NOT NULL,
   PRIMARY KEY ("group_id","model_id"),
   FOREIGN KEY ("group_id")
     REFERENCES "group_model" ("group_id") ON UPDATE CASCADE ON DELETE CASCADE,
@@ -26,8 +26,8 @@ CREATE TABLE "group_model_map" (
 );
 
 CREATE TABLE "group_device_map" (
-  "group_id" int NOT NULL,
-  "device_id" bigint NOT NULL,
+  "group_id" uuid NOT NULL,
+  "device_id" uuid NOT NULL,
   PRIMARY KEY ("group_id","device_id"),
   FOREIGN KEY ("group_id")
     REFERENCES "group_device" ("group_id") ON UPDATE CASCADE ON DELETE CASCADE,

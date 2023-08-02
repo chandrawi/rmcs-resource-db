@@ -1,4 +1,5 @@
 use sea_query::Iden;
+use uuid::Uuid;
 use crate::schema::value::{ConfigValue, ConfigType};
 use rmcs_resource_api::{common, device};
 
@@ -46,8 +47,8 @@ pub(crate) enum DeviceKind {
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct DeviceSchema {
-    pub id: i64,
-    pub gateway_id: i64,
+    pub id: Uuid,
+    pub gateway_id: Uuid,
     pub serial_number: String,
     pub name: String,
     pub description: String,
@@ -57,7 +58,7 @@ pub struct DeviceSchema {
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct GatewaySchema {
-    pub id: i64,
+    pub id: Uuid,
     pub serial_number: String,
     pub name: String,
     pub description: String,
@@ -81,16 +82,16 @@ impl DeviceSchema {
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct TypeSchema {
-    pub id: i32,
+    pub id: Uuid,
     pub name: String,
     pub description: String,
-    pub models: Vec<i32>
+    pub models: Vec<Uuid>
 }
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct DeviceConfigSchema {
     pub id: i32,
-    pub device_id: i64,
+    pub device_id: Uuid,
     pub name: String,
     pub value: ConfigValue,
     pub category: String
@@ -99,7 +100,7 @@ pub struct DeviceConfigSchema {
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct GatewayConfigSchema {
     pub id: i32,
-    pub gateway_id: i64,
+    pub gateway_id: Uuid,
     pub name: String,
     pub value: ConfigValue,
     pub category: String
@@ -121,8 +122,8 @@ impl DeviceConfigSchema {
 impl From<device::DeviceSchema> for DeviceSchema {
     fn from(value: device::DeviceSchema) -> Self {
         Self {
-            id: value.id,
-            gateway_id: value.gateway_id,
+            id: Uuid::from_slice(&value.id).unwrap_or_default(),
+            gateway_id: Uuid::from_slice(&value.gateway_id).unwrap_or_default(),
             serial_number: value.serial_number,
             name: value.name,
             description: value.description,
@@ -135,8 +136,8 @@ impl From<device::DeviceSchema> for DeviceSchema {
 impl Into<device::DeviceSchema> for DeviceSchema {
     fn into(self) -> device::DeviceSchema {
         device::DeviceSchema {
-            id: self.id,
-            gateway_id: self.gateway_id,
+            id: self.id.as_bytes().to_vec(),
+            gateway_id: self.gateway_id.as_bytes().to_vec(),
             serial_number: self.serial_number,
             name: self.name,
             description: self.description,
@@ -149,7 +150,7 @@ impl Into<device::DeviceSchema> for DeviceSchema {
 impl From<device::GatewaySchema> for GatewaySchema {
     fn from(value: device::GatewaySchema) -> Self {
         Self {
-            id: value.id,
+            id: Uuid::from_slice(&value.id).unwrap_or_default(),
             serial_number: value.serial_number,
             name: value.name,
             description: value.description,
@@ -162,7 +163,7 @@ impl From<device::GatewaySchema> for GatewaySchema {
 impl Into<device::GatewaySchema> for GatewaySchema {
     fn into(self) -> device::GatewaySchema {
         device::GatewaySchema {
-            id: self.id,
+            id: self.id.as_bytes().to_vec(),
             serial_number: self.serial_number,
             name: self.name,
             description: self.description,
@@ -176,7 +177,7 @@ impl From<device::ConfigSchema> for DeviceConfigSchema {
     fn from(value: device::ConfigSchema) -> Self {
         Self {
             id: value.id,
-            device_id: value.device_id,
+            device_id: Uuid::from_slice(&value.device_id).unwrap_or_default(),
             name: value.name,
             value: ConfigValue::from_bytes(
                 &value.config_bytes,
@@ -191,7 +192,7 @@ impl Into<device::ConfigSchema> for DeviceConfigSchema {
     fn into(self) -> device::ConfigSchema {
         device::ConfigSchema {
             id: self.id,
-            device_id: self.device_id,
+            device_id: self.device_id.as_bytes().to_vec(),
             name: self.name,
             config_bytes: self.value.to_bytes(),
             config_type: Into::<common::ConfigType>::into(self.value.get_type()).into(),
@@ -204,7 +205,7 @@ impl From<device::ConfigSchema> for GatewayConfigSchema {
     fn from(value: device::ConfigSchema) -> Self {
         Self {
             id: value.id,
-            gateway_id: value.device_id,
+            gateway_id: Uuid::from_slice(&value.device_id).unwrap_or_default(),
             name: value.name,
             value: ConfigValue::from_bytes(
                 &value.config_bytes,
@@ -219,7 +220,7 @@ impl Into<device::ConfigSchema> for GatewayConfigSchema {
     fn into(self) -> device::ConfigSchema {
         device::ConfigSchema {
             id: self.id,
-            device_id: self.gateway_id,
+            device_id: self.gateway_id.as_bytes().to_vec(),
             name: self.name,
             config_bytes: self.value.to_bytes(),
             config_type: Into::<common::ConfigType>::into(self.value.get_type()).into(),
@@ -231,10 +232,10 @@ impl Into<device::ConfigSchema> for GatewayConfigSchema {
 impl From<device::TypeSchema> for TypeSchema {
     fn from(value: device::TypeSchema) -> Self {
         Self {
-            id: value.id,
+            id: Uuid::from_slice(&value.id).unwrap_or_default(),
             name: value.name,
             description: value.description,
-            models: value.models
+            models: value.models.into_iter().map(|u| Uuid::from_slice(&u).unwrap_or_default()).collect()
         }
     }
 }
@@ -242,10 +243,10 @@ impl From<device::TypeSchema> for TypeSchema {
 impl Into<device::TypeSchema> for TypeSchema {
     fn into(self) -> device::TypeSchema {
         device::TypeSchema {
-            id: self.id,
+            id: self.id.as_bytes().to_vec(),
             name: self.name,
             description: self.description,
-            models: self.models
+            models: self.models.into_iter().map(|u| u.as_bytes().to_vec()).collect()
         }
     }
 }
