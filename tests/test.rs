@@ -11,7 +11,7 @@ mod tests {
     async fn get_connection_pool() -> Result<Pool<Postgres>, Error>
     {
         dotenvy::dotenv().ok();
-        let url = std::env::var("DATABASE_RESOURCE_TEST_URL").unwrap();
+        let url = std::env::var("DATABASE_URL_RESOURCE_TEST").unwrap();
         PgPoolOptions::new()
             .max_connections(100)
             .connect(&url)
