@@ -1,4 +1,4 @@
-CREATE TABLE "data_buffer" (
+CREATE TABLE IF NOT EXISTS "data_buffer" (
   "id" serial NOT NULL,
   "device_id" uuid NOT NULL,
   "model_id" uuid NOT NULL,

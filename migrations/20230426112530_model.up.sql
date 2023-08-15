@@ -1,4 +1,4 @@
-CREATE TABLE "model" (
+CREATE TABLE IF NOT EXISTS "model" (
   "model_id" uuid NOT NULL,
   "name" varchar(64) NOT NULL,
   "indexing" smallint NOT NULL DEFAULT 0,
@@ -7,7 +7,7 @@ CREATE TABLE "model" (
   PRIMARY KEY ("model_id")
 );
 
-CREATE TABLE "model_type" (
+CREATE TABLE IF NOT EXISTS "model_type" (
   "model_id" uuid NOT NULL,
   "index" smallint NOT NULL,
   "type" smallint NOT NULL DEFAULT 0,
@@ -16,7 +16,7 @@ CREATE TABLE "model_type" (
     REFERENCES "model" ("model_id") ON UPDATE CASCADE ON DELETE CASCADE
 );
 
-CREATE TABLE "model_config" (
+CREATE TABLE IF NOT EXISTS "model_config" (
   "id" serial NOT NULL,
   "model_id" uuid NOT NULL,
   "index" smallint NOT NULL,

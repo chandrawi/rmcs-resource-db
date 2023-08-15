@@ -1,4 +1,4 @@
-CREATE TABLE "data" (
+CREATE TABLE IF NOT EXISTS "data" (
   "device_id" uuid NOT NULL,
   "model_id" uuid NOT NULL,
   "timestamp" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,

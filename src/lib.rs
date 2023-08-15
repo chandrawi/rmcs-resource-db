@@ -1,5 +1,6 @@
 pub mod schema;
 pub(crate) mod operation;
+pub mod utility;
 
 use sqlx::{Pool, Error};
 use sqlx::postgres::{Postgres, PgPoolOptions};

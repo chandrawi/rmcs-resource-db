@@ -1,4 +1,4 @@
-CREATE TABLE "system_log" (
+CREATE TABLE IF NOT EXISTS "system_log" (
   "device_id" uuid NOT NULL,
   "timestamp" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "status" smallint NOT NULL DEFAULT 0,

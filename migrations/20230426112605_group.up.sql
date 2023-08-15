@@ -1,4 +1,4 @@
-CREATE TABLE "group_model" (
+CREATE TABLE IF NOT EXISTS "group_model" (
   "group_id" uuid NOT NULL,
   "name" varchar(32) NOT NULL,
   "category" varchar(64) NOT NULL,
@@ -6,7 +6,7 @@ CREATE TABLE "group_model" (
   PRIMARY KEY ("group_id")
 );
 
-CREATE TABLE "group_device" (
+CREATE TABLE IF NOT EXISTS "group_device" (
   "group_id" uuid NOT NULL,
   "name" varchar(32) NOT NULL,
   "kind" boolean NOT NULL DEFAULT false,
@@ -15,7 +15,7 @@ CREATE TABLE "group_device" (
   PRIMARY KEY ("group_id")
 );
 
-CREATE TABLE "group_model_map" (
+CREATE TABLE IF NOT EXISTS "group_model_map" (
   "group_id" uuid NOT NULL,
   "model_id" uuid NOT NULL,
   PRIMARY KEY ("group_id","model_id"),
@@ -25,7 +25,7 @@ CREATE TABLE "group_model_map" (
     REFERENCES "model" ("model_id") ON UPDATE CASCADE ON DELETE CASCADE
 );
 
-CREATE TABLE "group_device_map" (
+CREATE TABLE IF NOT EXISTS "group_device_map" (
   "group_id" uuid NOT NULL,
   "device_id" uuid NOT NULL,
   PRIMARY KEY ("group_id","device_id"),
