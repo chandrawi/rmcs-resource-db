@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS "data_buffer" (
   "index" int NOT NULL DEFAULT 0,
   "data" bytea NOT NULL,
   "status" smallint NOT NULL DEFAULT 0,
-  PRIMARY KEY ("id"),
+  PRIMARY KEY ("timestamp","index","model_id","device_id"),
   FOREIGN KEY ("device_id")
     REFERENCES "device" ("device_id"),
   FOREIGN KEY ("model_id")

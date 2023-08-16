@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS "data" (
   "timestamp" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "index" int NOT NULL DEFAULT 0,
   "data" bytea NOT NULL,
-  PRIMARY KEY ("index","timestamp","model_id","device_id"),
+  PRIMARY KEY ("timestamp","index","model_id","device_id"),
   FOREIGN KEY ("device_id")
     REFERENCES "device" ("device_id"),
   FOREIGN KEY ("model_id")
