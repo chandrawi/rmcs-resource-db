@@ -794,15 +794,14 @@ impl Resource {
     pub async fn delete_data(&self, device_id: Uuid, model_id: Uuid, timestamp: NaiveDateTime, index: Option<i32>)
         -> Result<(), Error>
     {
-        let model = data::select_data_model(&self.pool, model_id).await?;
-        data::delete_data(&self.pool, model, device_id, timestamp, index)
+        data::delete_data(&self.pool, model_id, device_id, timestamp, index)
         .await
     }
 
     pub async fn delete_data_with_model(&self, model: DataModel, device_id: Uuid, timestamp: NaiveDateTime, index: Option<i32>)
         -> Result<(), Error>
     {
-        data::delete_data(&self.pool, model, device_id, timestamp, index)
+        data::delete_data(&self.pool, model.id, device_id, timestamp, index)
         .await
     }
 
@@ -843,7 +842,8 @@ impl Resource {
     pub async fn create_buffer(&self, device_id: Uuid, model_id: Uuid, timestamp: NaiveDateTime, index: Option<i32>, data: Vec<DataValue>, status: &str)
         -> Result<i32, Error>
     {
-        buffer::insert_buffer(&self.pool, device_id, model_id, timestamp, index, data, status)
+        let model = data::select_data_model(&self.pool, model_id).await?;
+        buffer::insert_buffer(&self.pool, device_id, model, timestamp, index, data, status)
         .await
     }
 

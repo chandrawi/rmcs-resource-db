@@ -321,6 +321,53 @@ impl DataValue {
             Self::Null => DataType::NullT
         }
     }
+    fn to_int(&self) -> Option<u64> {
+        match *self {
+            I8(value) => Some(value as u64),
+            I16(value) => Some(value as u64),
+            I32(value) => Some(value as u64),
+            I64(value) => Some(value as u64),
+            U8(value) => Some(value as u64),
+            U16(value) => Some(value as u64),
+            U32(value) => Some(value as u64),
+            U64(value) => Some(value as u64),
+            _ => None
+        }
+    }
+    fn to_float(&self) -> Option<f64> {
+        match *self {
+            F32(value) => Some(value as f64),
+            F64(value) => Some(value as f64),
+            _ => None
+        }
+    }
+    pub fn convert(self, type_: DataType) -> Option<Self> {
+        let type_group = | t: DataType | -> u8 {
+            match t {
+                I8T | I16T | I32T | I64T | U8T | U16T | U32T | U64T => 1,
+                F32T | F64T => 2,
+                CharT => 3,
+                BoolT => 4,
+                _ => 0
+            }
+        };
+        if type_group(self.get_type()) != type_group(type_.clone()) {
+            return None
+        }
+        match type_ {
+            I8T => Some(I8(self.to_int().unwrap() as i8)),
+            I16T => Some(I16(self.to_int().unwrap() as i16)),
+            I32T => Some(I32(self.to_int().unwrap() as i32)),
+            I64T => Some(I64(self.to_int().unwrap() as i64)),
+            U8T => Some(U8(self.to_int().unwrap() as u8)),
+            U16T => Some(U16(self.to_int().unwrap() as u16)),
+            U32T => Some(U32(self.to_int().unwrap() as u32)),
+            U64T => Some(U64(self.to_int().unwrap())),
+            F32T => Some(F32(self.to_float().unwrap() as f32)),
+            F64T => Some(F64(self.to_float().unwrap())),
+            _ => Some(self)
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -368,6 +415,22 @@ impl ArrayDataValue {
     }
     pub fn to_vec(self) -> Vec<DataValue> {
         self.0
+    }
+    pub fn convert(self, types: &[DataType]) -> Option<Self> {
+        let mut data_array = Vec::new();
+        let mut it_value = self.0.iter();
+        for ty in types {
+            match it_value.next() {
+                Some(value) => {
+                    match value.clone().convert(ty.clone()) {
+                        Some(v) => data_array.push(v),
+                        None => return None
+                    }
+                },
+                None => return None
+            }
+        }
+        return Some(Self(data_array));
     }
 }
 

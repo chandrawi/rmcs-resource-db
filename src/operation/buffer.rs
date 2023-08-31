@@ -199,14 +199,18 @@ pub(crate) async fn select_buffer_last(pool: &Pool<Postgres>,
 
 pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
     device_id: Uuid,
-    model_id: Uuid,
+    model: DataModel,
     timestamp: NaiveDateTime,
     index: Option<i32>,
     data: Vec<DataValue>,
     status: &str
 ) -> Result<i32, Error>
 {
-    let bytes = ArrayDataValue::from_vec(&data).to_bytes();
+    let converted_values = ArrayDataValue::from_vec(&data).convert(&model.types);
+    let bytes = match converted_values {
+        Some(value) => value.to_bytes(),
+        None => return Err(Error::RowNotFound)
+    };
 
     let (sql, values) = Query::insert()
         .into_table(DataBuffer::Table)
@@ -220,7 +224,7 @@ pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
         ])
         .values([
             device_id.into(),
-            model_id.into(),
+            model.id.into(),
             timestamp.into(),
             index.unwrap_or_default().into(),
             bytes.into(),

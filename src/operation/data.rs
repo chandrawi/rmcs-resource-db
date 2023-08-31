@@ -193,7 +193,11 @@ pub(crate) async fn insert_data(pool: &Pool<Postgres>,
     data: Vec<DataValue>
 ) -> Result<(), Error>
 {
-    let bytes = ArrayDataValue::from_vec(&data).to_bytes();
+    let converted_values = ArrayDataValue::from_vec(&data).convert(&model.types);
+    let bytes = match converted_values {
+        Some(value) => value.to_bytes(),
+        None => return Err(Error::RowNotFound)
+    };
 
     let stmt = Query::insert()
         .into_table(Data::Table)
@@ -223,7 +227,7 @@ pub(crate) async fn insert_data(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn delete_data(pool: &Pool<Postgres>,
-    model: DataModel,
+    model_id: Uuid,
     device_id: Uuid,
     timestamp: NaiveDateTime,
     index: Option<i32>,
@@ -232,7 +236,7 @@ pub(crate) async fn delete_data(pool: &Pool<Postgres>,
     let stmt = Query::delete()
         .from_table(Data::Table)
         .and_where(Expr::col(Data::DeviceId).eq(device_id))
-        .and_where(Expr::col(Data::ModelId).eq(model.id))
+        .and_where(Expr::col(Data::ModelId).eq(model_id))
         .and_where(Expr::col(Data::Timestamp).eq(timestamp))
         .and_where(Expr::col(Data::Index).eq(index.unwrap_or_default()))
         .to_owned();
