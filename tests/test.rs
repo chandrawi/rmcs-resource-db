@@ -191,10 +191,21 @@ mod tests {
         assert_eq!(vec![F32(speed), F32(direction)], data.data);
         assert_eq!(timestamp, data.timestamp);
 
+        // delete data
+        resource.delete_data(device_id1, model_id, timestamp, None).await.unwrap();
+        let result = resource.read_data(device_id1, model_id, timestamp, None).await;
+        assert!(result.is_err());
+
         // update buffer status
         resource.update_buffer(buffers[0].id, None, Some("DELETE")).await.unwrap();
         let buffer = resource.read_buffer(buffers[0].id).await.unwrap();
         assert_eq!(buffer.status, "DELETE");
+
+        // delete buffer data
+        resource.delete_buffer(buffers[0].id).await.unwrap();
+        resource.delete_buffer(buffers[1].id).await.unwrap();
+        let result = resource.read_buffer(buffers[0].id).await;
+        assert!(result.is_err());
 
         // create data slice
         let slice_id = resource.create_slice(device_id1, model_id, timestamp, timestamp, Some(0), Some(0), "Speed and compass slice", None).await.unwrap();
@@ -209,6 +220,11 @@ mod tests {
         let slice = resource.read_slice(slice_id).await.unwrap();
         assert_eq!(slice.description, "Speed and compass sensor 1 at '2023-05-07 07:08:48'");
 
+        // delete data slice
+        resource.delete_slice(slice_id).await.unwrap();
+        let result = resource.read_slice(slice_id).await;
+        assert!(result.is_err());
+
         // create system log
         resource.create_log(timestamp, device_id1, "UNKNOWN_ERROR", Str("testing success".to_owned())).await.unwrap();
         // read log
@@ -220,6 +236,59 @@ mod tests {
         resource.update_log(timestamp, device_id1, Some("SUCCESS"), None).await.unwrap();
         let log = resource.read_log(timestamp, device_id1).await.unwrap();
         assert_eq!(log.status, "SUCCESS");
+
+        // delete system log
+        resource.delete_log(timestamp, device_id1).await.unwrap();
+        let result = resource.read_log(timestamp, device_id1).await;
+        assert!(result.is_err());
+
+        // delete model config
+        let config_id = model_configs.iter().next().map(|el| el.id).unwrap();
+        resource.delete_model_config(config_id).await.unwrap();
+        let result = resource.read_model_config(config_id).await;
+        assert!(result.is_err());
+        // delete model
+        resource.delete_model(model_id).await.unwrap();
+        let result = resource.read_model(model_id).await;
+        assert!(result.is_err());
+        // check if all model config also deleted
+        let configs = resource.list_model_config_by_model(model_id).await.unwrap();
+        assert_eq!(configs.len(), 0);
+
+        // delete device config
+        let config_id = device_configs.iter().next().map(|el| el.id).unwrap();
+        resource.delete_device_config(config_id).await.unwrap();
+        let result = resource.read_device_config(config_id).await;
+        assert!(result.is_err());
+        // delete device
+        resource.delete_device(device_id1).await.unwrap();
+        let result = resource.read_device(device_id1).await;
+        assert!(result.is_err());
+        // check if all device config also deleted
+        let configs = resource.list_device_config_by_device(device_id1).await.unwrap();
+        assert_eq!(configs.len(), 0);
+
+        // delete type
+        let result = resource.delete_type(type_id).await;
+        assert!(result.is_err()); // error because a device associated with the type still exists
+        let devices = resource.list_device_by_type(type_id).await.unwrap();
+        for device in devices {
+            resource.delete_device(device.id).await.unwrap();
+        }
+        resource.delete_type(type_id).await.unwrap();
+
+        // check number of member of the group
+        let group = resource.read_group_model(group_model_id).await.unwrap();
+        assert_eq!(group.models.len(), 0);
+        let group = resource.read_group_device(group_device_id).await.unwrap();
+        assert_eq!(group.devices.len(), 0);
+        // delete group model and device
+        resource.delete_group_model(group_model_id).await.unwrap();
+        resource.delete_group_device(group_device_id).await.unwrap();
+        let result = resource.read_group_model(group_model_id).await;
+        assert!(result.is_err());
+        let result = resource.read_group_device(group_device_id).await;
+        assert!(result.is_err());
 
     }
 
