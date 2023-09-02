@@ -4,7 +4,7 @@ pub mod utility;
 
 use sqlx::{Pool, Error};
 use sqlx::postgres::{Postgres, PgPoolOptions};
-use sqlx::types::chrono::NaiveDateTime;
+use sqlx::types::chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 pub use schema::value::{ConfigType, ConfigValue, LogType, LogValue, DataIndexing, DataType, DataValue, ArrayDataValue};
@@ -680,7 +680,7 @@ impl Resource {
         .await
     }
 
-    pub async fn read_data(&self, device_id: Uuid, model_id: Uuid, timestamp: NaiveDateTime, index: Option<i32>)
+    pub async fn read_data(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, index: Option<i32>)
         -> Result<DataSchema, Error>
     {
         let model = data::select_data_model(&self.pool, model_id).await?;
@@ -688,7 +688,7 @@ impl Resource {
             .ok_or(Error::RowNotFound)
     }
 
-    pub async fn list_data_by_time(&self, device_id: Uuid, model_id: Uuid, timestamp: NaiveDateTime)
+    pub async fn list_data_by_time(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>)
         -> Result<Vec<DataSchema>, Error>
     {
         let model = data::select_data_model(&self.pool, model_id).await?;
@@ -696,7 +696,7 @@ impl Resource {
         .await
     }
 
-    pub async fn list_data_by_last_time(&self, device_id: Uuid, model_id: Uuid, last: NaiveDateTime)
+    pub async fn list_data_by_last_time(&self, device_id: Uuid, model_id: Uuid, last: DateTime<Utc>)
         -> Result<Vec<DataSchema>, Error>
     {
         let model = data::select_data_model(&self.pool, model_id).await?;
@@ -704,7 +704,7 @@ impl Resource {
         .await
     }
 
-    pub async fn list_data_by_range_time(&self, device_id: Uuid, model_id: Uuid, begin: NaiveDateTime, end: NaiveDateTime)
+    pub async fn list_data_by_range_time(&self, device_id: Uuid, model_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
         -> Result<Vec<DataSchema>, Error>
     {
         let model = data::select_data_model(&self.pool, model_id).await?;
@@ -712,7 +712,7 @@ impl Resource {
         .await
     }
 
-    pub async fn list_data_by_number_before(&self, device_id: Uuid, model_id: Uuid, before: NaiveDateTime, number: u32)
+    pub async fn list_data_by_number_before(&self, device_id: Uuid, model_id: Uuid, before: DateTime<Utc>, number: u32)
         -> Result<Vec<DataSchema>, Error>
     {
         let model = data::select_data_model(&self.pool, model_id).await?;
@@ -720,7 +720,7 @@ impl Resource {
         .await
     }
 
-    pub async fn list_data_by_number_after(&self, device_id: Uuid, model_id: Uuid, after: NaiveDateTime, number: u32)
+    pub async fn list_data_by_number_after(&self, device_id: Uuid, model_id: Uuid, after: DateTime<Utc>, number: u32)
         -> Result<Vec<DataSchema>, Error>
     {
         let model = data::select_data_model(&self.pool, model_id).await?;
@@ -734,49 +734,49 @@ impl Resource {
         data::select_data_model(&self.pool, model_id).await
     }
 
-    pub async fn read_data_with_model(&self, model: DataModel, device_id: Uuid, timestamp: NaiveDateTime, index: Option<i32>)
+    pub async fn read_data_with_model(&self, model: DataModel, device_id: Uuid, timestamp: DateTime<Utc>, index: Option<i32>)
         -> Result<DataSchema, Error>
     {
         data::select_data_by_time(&self.pool, model, device_id, timestamp, index).await?.into_iter().next()
             .ok_or(Error::RowNotFound)
     }
 
-    pub async fn list_data_with_model_by_time(&self, model: DataModel, device_id: Uuid, timestamp: NaiveDateTime)
+    pub async fn list_data_with_model_by_time(&self, model: DataModel, device_id: Uuid, timestamp: DateTime<Utc>)
         -> Result<Vec<DataSchema>, Error>
     {
         data::select_data_by_time(&self.pool, model, device_id, timestamp, None)
         .await
     }
 
-    pub async fn list_data_with_model_by_last_time(&self, model: DataModel, device_id: Uuid, last: NaiveDateTime)
+    pub async fn list_data_with_model_by_last_time(&self, model: DataModel, device_id: Uuid, last: DateTime<Utc>)
         -> Result<Vec<DataSchema>, Error>
     {
         data::select_data_by_last_time(&self.pool, model, device_id, last)
         .await
     }
 
-    pub async fn list_data_with_model_by_range_time(&self, model: DataModel, device_id: Uuid, begin: NaiveDateTime, end: NaiveDateTime)
+    pub async fn list_data_with_model_by_range_time(&self, model: DataModel, device_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
         -> Result<Vec<DataSchema>, Error>
     {
         data::select_data_by_range_time(&self.pool, model, device_id, begin, end)
         .await
     }
 
-    pub async fn list_data_with_model_by_number_before(&self, model: DataModel, device_id: Uuid, before: NaiveDateTime, number: u32)
+    pub async fn list_data_with_model_by_number_before(&self, model: DataModel, device_id: Uuid, before: DateTime<Utc>, number: u32)
         -> Result<Vec<DataSchema>, Error>
     {
         data::select_data_by_number_before(&self.pool, model, device_id, before, number)
         .await
     }
 
-    pub async fn list_data_with_model_by_number_after(&self, model: DataModel, device_id: Uuid, after: NaiveDateTime, number: u32)
+    pub async fn list_data_with_model_by_number_after(&self, model: DataModel, device_id: Uuid, after: DateTime<Utc>, number: u32)
         -> Result<Vec<DataSchema>, Error>
     {
         data::select_data_by_number_after(&self.pool, model, device_id, after, number)
         .await
     }
 
-    pub async fn create_data(&self, device_id: Uuid, model_id: Uuid, timestamp: NaiveDateTime, index: Option<i32>, data: Vec<DataValue>)
+    pub async fn create_data(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, index: Option<i32>, data: Vec<DataValue>)
         -> Result<(), Error>
     {
         let model = data::select_data_model(&self.pool, model_id).await?;
@@ -784,21 +784,21 @@ impl Resource {
         .await
     }
 
-    pub async fn create_data_with_model(&self, model: DataModel, device_id: Uuid, timestamp: NaiveDateTime, index: Option<i32>, data: Vec<DataValue>)
+    pub async fn create_data_with_model(&self, model: DataModel, device_id: Uuid, timestamp: DateTime<Utc>, index: Option<i32>, data: Vec<DataValue>)
         -> Result<(), Error>
     {
         data::insert_data(&self.pool, model, device_id, timestamp, index, data)
         .await
     }
 
-    pub async fn delete_data(&self, device_id: Uuid, model_id: Uuid, timestamp: NaiveDateTime, index: Option<i32>)
+    pub async fn delete_data(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, index: Option<i32>)
         -> Result<(), Error>
     {
         data::delete_data(&self.pool, model_id, device_id, timestamp, index)
         .await
     }
 
-    pub async fn delete_data_with_model(&self, model: DataModel, device_id: Uuid, timestamp: NaiveDateTime, index: Option<i32>)
+    pub async fn delete_data_with_model(&self, model: DataModel, device_id: Uuid, timestamp: DateTime<Utc>, index: Option<i32>)
         -> Result<(), Error>
     {
         data::delete_data(&self.pool, model.id, device_id, timestamp, index)
@@ -839,7 +839,7 @@ impl Resource {
         .await
     }
 
-    pub async fn create_buffer(&self, device_id: Uuid, model_id: Uuid, timestamp: NaiveDateTime, index: Option<i32>, data: Vec<DataValue>, status: &str)
+    pub async fn create_buffer(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, index: Option<i32>, data: Vec<DataValue>, status: &str)
         -> Result<i32, Error>
     {
         let model = data::select_data_model(&self.pool, model_id).await?;
@@ -890,14 +890,14 @@ impl Resource {
         slice::select_slice_by_device_model(&self.pool, device_id, model_id).await
     }
 
-    pub async fn create_slice(&self, device_id: Uuid, model_id: Uuid, timestamp_begin: NaiveDateTime, timestamp_end: NaiveDateTime, index_begin: Option<i32>, index_end: Option<i32>, name: &str, description: Option<&str>)
+    pub async fn create_slice(&self, device_id: Uuid, model_id: Uuid, timestamp_begin: DateTime<Utc>, timestamp_end: DateTime<Utc>, index_begin: Option<i32>, index_end: Option<i32>, name: &str, description: Option<&str>)
         -> Result<i32, Error>
     {
         slice::insert_slice(&self.pool, device_id, model_id, timestamp_begin, timestamp_end, index_begin, index_end, name, description)
         .await
     }
 
-    pub async fn update_slice(&self, id: i32, timestamp_begin: Option<NaiveDateTime>, timestamp_end: Option<NaiveDateTime>, index_begin: Option<i32>, index_end: Option<i32>, name: Option<&str>, description: Option<&str>)
+    pub async fn update_slice(&self, id: i32, timestamp_begin: Option<DateTime<Utc>>, timestamp_end: Option<DateTime<Utc>>, index_begin: Option<i32>, index_end: Option<i32>, name: Option<&str>, description: Option<&str>)
         -> Result<(), Error>
     {
         slice::update_slice(&self.pool, id, timestamp_begin, timestamp_end, index_begin, index_end, name, description)
@@ -910,45 +910,45 @@ impl Resource {
         slice::delete_slice(&self.pool, id).await
     }
 
-    pub async fn read_log(&self, timestamp: NaiveDateTime, device_id: Uuid)
+    pub async fn read_log(&self, timestamp: DateTime<Utc>, device_id: Uuid)
         -> Result<LogSchema, Error>
     {
         log::select_log_by_id(&self.pool, timestamp, device_id).await
     }
 
-    pub async fn list_log_by_time(&self, timestamp: NaiveDateTime, device_id: Option<Uuid>, status: Option<&str>)
+    pub async fn list_log_by_time(&self, timestamp: DateTime<Utc>, device_id: Option<Uuid>, status: Option<&str>)
         -> Result<Vec<LogSchema>, Error>
     {
         log::select_log_by_time(&self.pool, timestamp, device_id, status).await
     }
 
-    pub async fn list_log_by_last_time(&self, last: NaiveDateTime, device_id: Option<Uuid>, status: Option<&str>)
+    pub async fn list_log_by_last_time(&self, last: DateTime<Utc>, device_id: Option<Uuid>, status: Option<&str>)
         -> Result<Vec<LogSchema>, Error>
     {
         log::select_log_by_last_time(&self.pool, last, device_id, status).await
     }
 
-    pub async fn list_log_by_range_time(&self, begin: NaiveDateTime, end: NaiveDateTime, device_id: Option<Uuid>, status: Option<&str>)
+    pub async fn list_log_by_range_time(&self, begin: DateTime<Utc>, end: DateTime<Utc>, device_id: Option<Uuid>, status: Option<&str>)
         -> Result<Vec<LogSchema>, Error>
     {
         log::select_log_by_range_time(&self.pool, begin, end, device_id, status).await
     }
 
-    pub async fn create_log(&self, timestamp: NaiveDateTime, device_id: Uuid, status: &str, value: ConfigValue)
+    pub async fn create_log(&self, timestamp: DateTime<Utc>, device_id: Uuid, status: &str, value: ConfigValue)
         -> Result<(), Error>
     {
         log::insert_log(&self.pool, timestamp, device_id, status, value)
         .await
     }
 
-    pub async fn update_log(&self, timestamp: NaiveDateTime, device_id: Uuid, status: Option<&str>, value: Option<ConfigValue>)
+    pub async fn update_log(&self, timestamp: DateTime<Utc>, device_id: Uuid, status: Option<&str>, value: Option<ConfigValue>)
         -> Result<(), Error>
     {
         log::update_log(&self.pool, timestamp, device_id, status, value)
         .await
     }
 
-    pub async fn delete_log(&self, timestamp: NaiveDateTime, device_id: Uuid)
+    pub async fn delete_log(&self, timestamp: DateTime<Utc>, device_id: Uuid)
         -> Result<(), Error>
     {
         log::delete_log(&self.pool, timestamp, device_id).await

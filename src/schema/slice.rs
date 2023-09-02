@@ -1,5 +1,5 @@
 use sea_query::Iden;
-use sqlx::types::chrono::NaiveDateTime;
+use sqlx::types::chrono::{DateTime, Utc, TimeZone};
 use uuid::Uuid;
 use rmcs_resource_api::slice;
 
@@ -23,8 +23,8 @@ pub struct SliceSchema {
     pub id: i32,
     pub device_id: Uuid,
     pub model_id: Uuid,
-    pub timestamp_begin: NaiveDateTime,
-    pub timestamp_end: NaiveDateTime,
+    pub timestamp_begin: DateTime<Utc>,
+    pub timestamp_end: DateTime<Utc>,
     pub index_begin: i32,
     pub index_end: i32,
     pub name: String,
@@ -37,8 +37,8 @@ impl From<slice::SliceSchema> for SliceSchema {
             id: value.id,
             device_id: Uuid::from_slice(&value.device_id).unwrap_or_default(),
             model_id: Uuid::from_slice(&value.model_id).unwrap_or_default(),
-            timestamp_begin: NaiveDateTime::from_timestamp_micros(value.timestamp_begin).unwrap_or_default(),
-            timestamp_end: NaiveDateTime::from_timestamp_micros(value.timestamp_end).unwrap_or_default(),
+            timestamp_begin: Utc.timestamp_nanos(value.timestamp_begin * 1000),
+            timestamp_end: Utc.timestamp_nanos(value.timestamp_end * 1000),
             index_begin: value.index_begin as i32,
             index_end: value.index_end as i32,
             name: value.name,

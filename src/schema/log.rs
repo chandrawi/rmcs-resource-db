@@ -1,6 +1,6 @@
 use std::str::FromStr;
 use sea_query::Iden;
-use sqlx::types::chrono::NaiveDateTime;
+use sqlx::types::chrono::{DateTime, Utc, TimeZone};
 use uuid::Uuid;
 use crate::schema::value::{LogValue, LogType};
 use rmcs_resource_api::{common, log};
@@ -18,7 +18,7 @@ pub(crate) enum SystemLog {
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct LogSchema {
-    pub timestamp: NaiveDateTime,
+    pub timestamp: DateTime<Utc>,
     pub device_id: Uuid,
     pub status: String,
     pub value: LogValue
@@ -27,7 +27,7 @@ pub struct LogSchema {
 impl From<log::LogSchema> for LogSchema {
     fn from(value: log::LogSchema) -> Self {
         Self {
-            timestamp: NaiveDateTime::from_timestamp_micros(value.timestamp).unwrap_or_default(),
+            timestamp: Utc.timestamp_nanos(value.timestamp * 1000),
             device_id: Uuid::from_slice(&value.device_id).unwrap_or_default(),
             status: log::LogStatus::from_i32(value.status).unwrap_or_default().as_str_name().to_owned(),
             value: LogValue::from_bytes(

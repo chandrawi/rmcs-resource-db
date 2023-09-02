@@ -1,5 +1,5 @@
 use sea_query::Iden;
-use sqlx::types::chrono::NaiveDateTime;
+use sqlx::types::chrono::{DateTime, Utc, TimeZone};
 use uuid::Uuid;
 use crate::schema::value::{DataValue, ArrayDataValue, DataType, DataIndexing};
 use crate::schema::model::ModelSchema;
@@ -37,7 +37,7 @@ impl std::convert::From<ModelSchema> for DataModel {
 pub struct DataSchema {
     pub device_id: Uuid,
     pub model_id: Uuid,
-    pub timestamp: NaiveDateTime,
+    pub timestamp: DateTime<Utc>,
     pub index: i32,
     pub data: Vec<DataValue>
 }
@@ -46,7 +46,7 @@ pub struct DataSchema {
 pub(crate) struct DataBytesSchema {
     pub(crate) device_id: Uuid,
     pub(crate) model_id: Uuid,
-    pub(crate) timestamp: NaiveDateTime,
+    pub(crate) timestamp: DateTime<Utc>,
     pub(crate) index: i32,
     pub(crate) bytes: Vec<u8>
 }
@@ -93,7 +93,7 @@ impl From<data::DataSchema> for DataSchema {
         Self {
             device_id: Uuid::from_slice(&value.device_id).unwrap_or_default(),
             model_id: Uuid::from_slice(&value.model_id).unwrap_or_default(),
-            timestamp: NaiveDateTime::from_timestamp_micros(value.timestamp).unwrap_or_default(),
+            timestamp: Utc.timestamp_nanos(value.timestamp * 1000),
             index: value.index,
             data: ArrayDataValue::from_bytes(
                     &value.data_bytes,
