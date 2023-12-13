@@ -237,7 +237,7 @@ pub(crate) async fn insert_device(pool: &Pool<Postgres>,
     serial_number: &str,
     name: &str,
     description: Option<&str>
-) -> Result<(), Error>
+) -> Result<Uuid, Error>
 {
     let (sql, values) = Query::insert()
         .into_table(Device::Table)
@@ -264,7 +264,7 @@ pub(crate) async fn insert_device(pool: &Pool<Postgres>,
         .execute(pool)
         .await?;
 
-    Ok(())
+    Ok(id)
 }
 
 pub(crate) async fn update_device(pool: &Pool<Postgres>,

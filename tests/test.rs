@@ -39,8 +39,8 @@ mod tests {
         truncate_tables(&resource.pool).await.unwrap();
 
         // create new data model and add data types
-        let model_id = resource.create_model(Timestamp, "UPLINK", "speed and direction", None).await.unwrap();
-        let model_buf_id = resource.create_model(Timestamp, "UPLINK", "buffer 4", None).await.unwrap();
+        let model_id = resource.create_model(Uuid::new_v4(), Timestamp, "UPLINK", "speed and direction", None).await.unwrap();
+        let model_buf_id = resource.create_model(Uuid::new_v4(), Timestamp, "UPLINK", "buffer 4", None).await.unwrap();
         resource.add_model_type(model_id, &[F32T,F32T]).await.unwrap();
         resource.add_model_type(model_buf_id, &[U8T,U8T,U8T,U8T]).await.unwrap();
         // create scale, symbol, and threshold configurations for new created model
@@ -51,7 +51,7 @@ mod tests {
         let model_cfg_id = resource.create_model_config(model_id, 0, "upper_threshold", Int(250), "THRESHOLD").await.unwrap();
 
         // Create new type and link it to newly created model
-        let type_id = resource.create_type("Speedometer Compass", None).await.unwrap();
+        let type_id = resource.create_type(Uuid::new_v4(), "Speedometer Compass", None).await.unwrap();
         resource.add_type_model(type_id, model_id).await.unwrap();
         resource.add_type_model(type_id, model_buf_id).await.unwrap();
 
@@ -70,10 +70,10 @@ mod tests {
         let device_cfg_id = resource.create_device_config(device_id2, "period", Int(120), "NETWORK").await.unwrap();
 
         // create new group and register newly created models as its member
-        let group_model_id = resource.create_group_model("data", "APPLICATION", None).await.unwrap();
+        let group_model_id = resource.create_group_model(Uuid::new_v4(), "data", "APPLICATION", None).await.unwrap();
         resource.add_group_model_member(group_model_id, model_id).await.unwrap();
         // create new group and register newly created devices as its member
-        let group_device_id = resource.create_group_device("sensor", "APPLICATION", None).await.unwrap();
+        let group_device_id = resource.create_group_device(Uuid::new_v4(), "sensor", "APPLICATION", None).await.unwrap();
         resource.add_group_device_member(group_device_id, device_id1).await.unwrap();
         resource.add_group_device_member(group_device_id, device_id2).await.unwrap();
 

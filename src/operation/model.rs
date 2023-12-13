@@ -174,14 +174,13 @@ pub(crate) async fn select_join_model_by_name_category(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn insert_model(pool: &Pool<Postgres>,
+    id: Uuid,
     indexing: DataIndexing,
     category: &str,
     name: &str,
     description: Option<&str>,
 ) -> Result<Uuid, Error>
 {
-    let model_id = Uuid::new_v4();
-
     let (sql, values) = Query::insert()
         .into_table(Model::Table)
         .columns([
@@ -192,7 +191,7 @@ pub(crate) async fn insert_model(pool: &Pool<Postgres>,
             Model::Description
         ])
         .values([
-            model_id.into(),
+            id.into(),
             i16::from(indexing).into(),
             category.into(),
             name.into(),
@@ -205,7 +204,7 @@ pub(crate) async fn insert_model(pool: &Pool<Postgres>,
         .execute(pool)
         .await?;
 
-    Ok(model_id)
+    Ok(id)
 }
 
 pub(crate) async fn update_model(pool: &Pool<Postgres>,

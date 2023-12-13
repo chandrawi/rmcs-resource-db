@@ -98,12 +98,11 @@ pub(crate) async fn select_device_type_by_name(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn insert_device_type(pool: &Pool<Postgres>,
+    id: Uuid,
     name: &str,
     description: Option<&str>
 ) -> Result<Uuid, Error>
 {
-    let type_id = Uuid::new_v4();
-
     let (sql, values) = Query::insert()
         .into_table(DeviceType::Table)
         .columns([
@@ -112,7 +111,7 @@ pub(crate) async fn insert_device_type(pool: &Pool<Postgres>,
             DeviceType::Description
         ])
         .values([
-            type_id.into(),
+            id.into(),
             name.into(),
             description.unwrap_or_default().into()
         ])
@@ -123,7 +122,7 @@ pub(crate) async fn insert_device_type(pool: &Pool<Postgres>,
         .execute(pool)
         .await?;
 
-    Ok(type_id)
+    Ok(id)
 }
 
 pub(crate) async fn update_device_type(pool: &Pool<Postgres>,

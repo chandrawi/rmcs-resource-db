@@ -123,10 +123,10 @@ impl Resource {
         .await
     }
 
-    pub async fn create_model(&self, indexing: DataIndexing, category: &str, name: &str, description: Option<&str>)
+    pub async fn create_model(&self, id: Uuid, indexing: DataIndexing, category: &str, name: &str, description: Option<&str>)
         -> Result<Uuid, Error>
     {
-        model::insert_model(&self.pool, indexing, category, name, description)
+        model::insert_model(&self.pool, id, indexing, category, name, description)
         .await
     }
 
@@ -243,7 +243,7 @@ impl Resource {
     }
 
     pub async fn create_device(&self, id: Uuid, gateway_id: Uuid, type_id: Uuid, serial_number: &str, name: &str, description: Option<&str>)
-        -> Result<(), Error>
+        -> Result<Uuid, Error>
     {
         device::insert_device(&self.pool, id, gateway_id, type_id, serial_number, name, description)
         .await
@@ -304,7 +304,7 @@ impl Resource {
     }
 
     pub async fn create_gateway(&self, id: Uuid, type_id: Uuid, serial_number: &str, name: &str, description: Option<&str>)
-        -> Result<(), Error>
+        -> Result<Uuid, Error>
     {
         device::insert_device(&self.pool, id, id, type_id, serial_number, name, description)
         .await
@@ -414,10 +414,10 @@ impl Resource {
         .await
     }
 
-    pub async fn create_type(&self, name: &str, description: Option<&str>)
+    pub async fn create_type(&self, id: Uuid, name: &str, description: Option<&str>)
         -> Result<Uuid, Error>
     {
-        types::insert_device_type(&self.pool, name, description)
+        types::insert_device_type(&self.pool, id, name, description)
         .await
     }
 
@@ -491,10 +491,10 @@ impl Resource {
         }
     }
 
-    pub async fn create_group_model(&self, name: &str, category: &str, description: Option<&str>)
+    pub async fn create_group_model(&self, id: Uuid, name: &str, category: &str, description: Option<&str>)
         -> Result<Uuid, Error>
     {
-        group::insert_group(&self.pool, GroupKind::Model, name, category, description)
+        group::insert_group(&self.pool, GroupKind::Model, id, name, category, description)
         .await
     }
 
@@ -568,10 +568,10 @@ impl Resource {
         }
     }
 
-    pub async fn create_group_device(&self, name: &str, category: &str, description: Option<&str>)
+    pub async fn create_group_device(&self, id: Uuid, name: &str, category: &str, description: Option<&str>)
         -> Result<Uuid, Error>
     {
-        group::insert_group(&self.pool, GroupKind::Device, name, category, description)
+        group::insert_group(&self.pool, GroupKind::Device, id, name, category, description)
         .await
     }
 
@@ -645,10 +645,10 @@ impl Resource {
         }
     }
 
-    pub async fn create_group_gateway(&self, name: &str, category: &str, description: Option<&str>)
+    pub async fn create_group_gateway(&self, id: Uuid, name: &str, category: &str, description: Option<&str>)
         -> Result<Uuid, Error>
     {
-        group::insert_group(&self.pool, GroupKind::Gateway, name, category, description)
+        group::insert_group(&self.pool, GroupKind::Gateway, id, name, category, description)
         .await
     }
 

@@ -175,13 +175,12 @@ pub(crate) async fn select_group_by_name_category(pool: &Pool<Postgres>,
 
 pub(crate) async fn insert_group(pool: &Pool<Postgres>,
     kind: GroupKind,
+    id: Uuid,
     name: &str,
     category: &str,
     description: Option<&str>
 ) -> Result<Uuid, Error>
 {
-    let group_id = Uuid::new_v4();
-
     let mut stmt = Query::insert().to_owned();
     match &kind {
         GroupKind::Model => {
@@ -194,7 +193,7 @@ pub(crate) async fn insert_group(pool: &Pool<Postgres>,
                     GroupModel::Description
                 ])
                 .values([
-                    group_id.into(),
+                    id.into(),
                     name.into(),
                     category.into(),
                     description.unwrap_or_default().into()
@@ -213,7 +212,7 @@ pub(crate) async fn insert_group(pool: &Pool<Postgres>,
                     GroupDevice::Description
                 ])
                 .values([
-                    group_id.into(),
+                    id.into(),
                     name.into(),
                     bool::from(kind.clone()).into(),
                     category.into(),
@@ -229,7 +228,7 @@ pub(crate) async fn insert_group(pool: &Pool<Postgres>,
         .execute(pool)
         .await?;
 
-    Ok(group_id)
+    Ok(id)
 }
 
 pub(crate) async fn update_group(pool: &Pool<Postgres>,
