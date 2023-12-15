@@ -181,7 +181,7 @@ impl From<device::ConfigSchema> for DeviceConfigSchema {
             name: value.name,
             value: ConfigValue::from_bytes(
                 &value.config_bytes,
-                ConfigType::from(common::ConfigType::from_i32(value.config_type).unwrap_or_default())
+                ConfigType::from(common::ConfigType::try_from(value.config_type).unwrap_or_default())
             ),
             category: value.category
         }
@@ -209,7 +209,7 @@ impl From<device::ConfigSchema> for GatewayConfigSchema {
             name: value.name,
             value: ConfigValue::from_bytes(
                 &value.config_bytes,
-                ConfigType::from(common::ConfigType::from_i32(value.config_type).unwrap_or_default())
+                ConfigType::from(common::ConfigType::try_from(value.config_type).unwrap_or_default())
             ),
             category: value.category
         }

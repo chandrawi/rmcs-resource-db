@@ -29,10 +29,10 @@ impl From<log::LogSchema> for LogSchema {
         Self {
             timestamp: Utc.timestamp_nanos(value.timestamp * 1000),
             device_id: Uuid::from_slice(&value.device_id).unwrap_or_default(),
-            status: log::LogStatus::from_i32(value.status).unwrap_or_default().as_str_name().to_owned(),
+            status: log::LogStatus::try_from(value.status).unwrap_or_default().as_str_name().to_owned(),
             value: LogValue::from_bytes(
                 &value.log_bytes,
-                LogType::from(common::ConfigType::from_i32(value.log_type).unwrap_or_default())
+                LogType::from(common::ConfigType::try_from(value.log_type).unwrap_or_default())
             )
         }
     }

@@ -63,7 +63,7 @@ impl From<data::DataModel> for DataModel {
         Self {
             id: Uuid::from_slice(&value.id).unwrap_or_default(),
             types: value.types.into_iter().map(|e| {
-                    DataType::from(common::DataType::from_i32(e).unwrap_or_default())
+                    DataType::from(common::DataType::try_from(e).unwrap_or_default())
                 }).collect()
         }
     }
@@ -89,7 +89,7 @@ impl From<data::DataSchema> for DataSchema {
             data: ArrayDataValue::from_bytes(
                     &value.data_bytes,
                     value.data_type.into_iter().map(|e| {
-                        DataType::from(common::DataType::from_i32(e).unwrap_or_default())
+                        DataType::from(common::DataType::try_from(e).unwrap_or_default())
                     })
                     .collect::<Vec<DataType>>()
                     .as_slice()

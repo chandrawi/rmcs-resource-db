@@ -61,12 +61,12 @@ impl From<buffer::BufferSchema> for BufferSchema {
             data: ArrayDataValue::from_bytes(
                     &value.data_bytes,
                     value.data_type.into_iter().map(|e| {
-                        DataType::from(common::DataType::from_i32(e).unwrap_or_default())
+                        DataType::from(common::DataType::try_from(e).unwrap_or_default())
                     })
                     .collect::<Vec<DataType>>()
                     .as_slice()
                 ).to_vec(),
-            status: buffer::BufferStatus::from_i32(value.status).unwrap_or_default().as_str_name().to_owned()
+            status: buffer::BufferStatus::try_from(value.status).unwrap_or_default().as_str_name().to_owned()
         }
     }
 }
