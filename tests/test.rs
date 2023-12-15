@@ -6,7 +6,7 @@ mod tests {
     use sqlx::types::chrono::{Utc, DateTime};
     use uuid::Uuid;
     use rmcs_resource_db::{ModelConfigSchema, DeviceConfigSchema};
-    use rmcs_resource_db::{Resource, ConfigValue::{*, self}, DataIndexing::*, DataType::*, DataValue::*};
+    use rmcs_resource_db::{Resource, ConfigValue::{*, self}, DataType::*, DataValue::*};
 
     async fn get_connection_pool() -> Result<Pool<Postgres>, Error>
     {
@@ -30,7 +30,7 @@ mod tests {
     #[sqlx::test]
     async fn test_resource()
     {
-        // std::env::set_var("RUST_BACKTRACE", "1");
+        std::env::set_var("RUST_BACKTRACE", "1");
 
         let pool = get_connection_pool().await.unwrap();
         let resource = Resource::new_with_pool(pool);
@@ -39,8 +39,8 @@ mod tests {
         truncate_tables(&resource.pool).await.unwrap();
 
         // create new data model and add data types
-        let model_id = resource.create_model(Uuid::new_v4(), Timestamp, "UPLINK", "speed and direction", None).await.unwrap();
-        let model_buf_id = resource.create_model(Uuid::new_v4(), Timestamp, "UPLINK", "buffer 4", None).await.unwrap();
+        let model_id = resource.create_model(Uuid::new_v4(), "UPLINK", "speed and direction", None).await.unwrap();
+        let model_buf_id = resource.create_model(Uuid::new_v4(), "UPLINK", "buffer 4", None).await.unwrap();
         resource.add_model_type(model_id, &[F32T,F32T]).await.unwrap();
         resource.add_model_type(model_buf_id, &[U8T,U8T,U8T,U8T]).await.unwrap();
         // create scale, symbol, and threshold configurations for new created model
@@ -83,7 +83,6 @@ mod tests {
         let model_ids: Vec<Uuid> = models.iter().map(|u| u.id).collect();
         assert!(model_ids.contains(&model_id));
         assert_eq!(model.name, "speed and direction");
-        assert_eq!(model.indexing, Timestamp);
         assert_eq!(model.category, "UPLINK");
         assert_eq!(model.types, [F32T,F32T]);
         // read model configurations
@@ -124,7 +123,7 @@ mod tests {
         assert_eq!(group_device.category, "APPLICATION");
 
         // update model
-        resource.update_model(model_buf_id, None, None, Some("buffer 2 integer"), Some("Model for store 2 i32 temporary data")).await.unwrap();
+        resource.update_model(model_buf_id, None, Some("buffer 2 integer"), Some("Model for store 2 i32 temporary data")).await.unwrap();
         resource.remove_model_type(model_buf_id).await.unwrap();
         resource.add_model_type(model_buf_id, &[I32T,I32T]).await.unwrap();
         let model = resource.read_model(model_buf_id).await.unwrap();
@@ -162,8 +161,8 @@ mod tests {
         let timestamp = DateTime::parse_from_str("2023-05-07 07:08:48.123456 +0000", "%Y-%m-%d %H:%M:%S.%6f %z").unwrap().into();
         let raw_1 = vec![I32(1231),I32(890)];
         let raw_2 = vec![I32(1452),I32(-341)];
-        resource.create_buffer(device_id1, model_buf_id, timestamp, None, raw_1.clone(), "CONVERT").await.unwrap();
-        resource.create_buffer(device_id2, model_buf_id, timestamp, None, raw_2.clone(), "CONVERT").await.unwrap();
+        resource.create_buffer(device_id1, model_buf_id, timestamp, raw_1.clone(), "CONVERT").await.unwrap();
+        resource.create_buffer(device_id2, model_buf_id, timestamp, raw_2.clone(), "CONVERT").await.unwrap();
 
         // read buffer
         let buffers = resource.list_buffer_first(100, None, None, None).await.unwrap();
@@ -183,7 +182,7 @@ mod tests {
         let speed = convert(raw_1[0].clone().try_into().unwrap(), coef0, coef1) as f32;
         let direction = convert(raw_1[1].clone().try_into().unwrap(), coef0, coef1) as f32;
         // create data
-        resource.create_data(device_id1, model_id, timestamp, None, vec![F32(speed), F32(direction)]).await.unwrap();
+        resource.create_data(device_id1, model_id, timestamp, vec![F32(speed), F32(direction)]).await.unwrap();
 
         // read data
         let datas = resource.list_data_by_number_before(device_id1, model_id, timestamp, 100).await.unwrap();
@@ -192,13 +191,14 @@ mod tests {
         assert_eq!(timestamp, data.timestamp);
 
         // delete data
-        resource.delete_data(device_id1, model_id, timestamp, None).await.unwrap();
-        let result = resource.read_data(device_id1, model_id, timestamp, None).await;
+        resource.delete_data(device_id1, model_id, timestamp).await.unwrap();
+        let result = resource.read_data(device_id1, model_id, timestamp).await;
         assert!(result.is_err());
 
         // update buffer status
         resource.update_buffer(buffers[0].id, None, Some("DELETE")).await.unwrap();
         let buffer = resource.read_buffer(buffers[0].id).await.unwrap();
+        assert_eq!(buffers[0].data, buffer.data);
         assert_eq!(buffer.status, "DELETE");
 
         // delete buffer data
@@ -208,7 +208,7 @@ mod tests {
         assert!(result.is_err());
 
         // create data slice
-        let slice_id = resource.create_slice(device_id1, model_id, timestamp, timestamp, Some(0), Some(0), "Speed and compass slice", None).await.unwrap();
+        let slice_id = resource.create_slice(device_id1, model_id, timestamp, timestamp, "Speed and compass slice", None).await.unwrap();
         // read data
         let slices = resource.list_slice_by_name("slice").await.unwrap();
         let slice = slices.iter().filter(|x| x.device_id == device_id1 && x.model_id == model_id).next().unwrap();
@@ -216,7 +216,7 @@ mod tests {
         assert_eq!(slice.name, "Speed and compass slice");
 
         // update data slice
-        resource.update_slice(slice_id, None, None, None, None, None, Some("Speed and compass sensor 1 at '2023-05-07 07:08:48'")).await.unwrap();
+        resource.update_slice(slice_id, None, None, None, Some("Speed and compass sensor 1 at '2023-05-07 07:08:48'")).await.unwrap();
         let slice = resource.read_slice(slice_id).await.unwrap();
         assert_eq!(slice.description, "Speed and compass sensor 1 at '2023-05-07 07:08:48'");
 

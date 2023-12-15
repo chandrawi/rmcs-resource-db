@@ -26,8 +26,6 @@ async fn select_slice(pool: &Pool<Postgres>,
             DataSlice::ModelId,
             DataSlice::TimestampBegin,
             DataSlice::TimestampEnd,
-            DataSlice::IndexBegin,
-            DataSlice::IndexEnd,
             DataSlice::Name,
             DataSlice::Description
         ])
@@ -65,10 +63,8 @@ async fn select_slice(pool: &Pool<Postgres>,
                 model_id: row.get(2),
                 timestamp_begin: row.get(3),
                 timestamp_end: row.get(4),
-                index_begin: row.get(5),
-                index_end: row.get(6),
-                name: row.get(7),
-                description: row.get(8)
+                name: row.get(5),
+                description: row.get(6)
             }
         })
         .fetch_all(pool)
@@ -120,8 +116,6 @@ pub(crate) async fn insert_slice(pool: &Pool<Postgres>,
     model_id: Uuid,
     timestamp_begin: DateTime<Utc>,
     timestamp_end: DateTime<Utc>,
-    index_begin: Option<i32>,
-    index_end: Option<i32>,
     name: &str,
     description: Option<&str>
 ) -> Result<i32, Error>
@@ -133,8 +127,6 @@ pub(crate) async fn insert_slice(pool: &Pool<Postgres>,
             DataSlice::ModelId,
             DataSlice::TimestampBegin,
             DataSlice::TimestampEnd,
-            DataSlice::IndexBegin,
-            DataSlice::IndexEnd,
             DataSlice::Name,
             DataSlice::Description
         ])
@@ -143,8 +135,6 @@ pub(crate) async fn insert_slice(pool: &Pool<Postgres>,
             model_id.into(),
             timestamp_begin.into(),
             timestamp_end.into(),
-            index_begin.into(),
-            index_end.into(),
             name.into(),
             description.unwrap_or_default().into()
         ])
@@ -171,8 +161,6 @@ pub(crate) async fn update_slice(pool: &Pool<Postgres>,
     id: i32,
     timestamp_begin: Option<DateTime<Utc>>,
     timestamp_end: Option<DateTime<Utc>>,
-    index_begin: Option<i32>,
-    index_end: Option<i32>,
     name: Option<&str>,
     description: Option<&str>
 ) -> Result<(), Error>
@@ -186,12 +174,6 @@ pub(crate) async fn update_slice(pool: &Pool<Postgres>,
     }
     if let Some(timestamp) = timestamp_end {
         stmt = stmt.value(DataSlice::TimestampEnd, timestamp).to_owned();
-    }
-    if let Some(index) = index_begin {
-        stmt = stmt.value(DataSlice::IndexBegin, index).to_owned();
-    }
-    if let Some(index) = index_end {
-        stmt = stmt.value(DataSlice::IndexEnd, index).to_owned();
     }
     if let Some(name) = name {
         stmt = stmt.value(DataSlice::Name, name).to_owned();

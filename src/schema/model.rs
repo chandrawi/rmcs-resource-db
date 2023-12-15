@@ -1,13 +1,12 @@
 use sea_query::Iden;
 use uuid::Uuid;
-use crate::schema::value::{ConfigValue, ConfigType, DataType, DataIndexing};
+use crate::schema::value::{ConfigValue, ConfigType, DataType};
 use rmcs_resource_api::{common, model};
 
 #[derive(Iden)]
 pub(crate) enum Model {
     Table,
     ModelId,
-    Indexing,
     Category,
     Name,
     Description
@@ -36,7 +35,6 @@ pub(crate) enum ModelConfig {
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct ModelSchema {
     pub id: Uuid,
-    pub indexing: DataIndexing,
     pub category: String,
     pub name: String,
     pub description: String,
@@ -58,7 +56,6 @@ impl From<model::ModelSchema> for ModelSchema {
     fn from(value: model::ModelSchema) -> Self {
         Self {
             id: Uuid::from_slice(&value.id).unwrap_or_default(),
-            indexing: DataIndexing::from(common::DataIndexing::from_i32(value.indexing).unwrap_or_default()),
             category: value.category,
             name: value.name,
             description: value.description,
@@ -77,7 +74,6 @@ impl Into<model::ModelSchema> for ModelSchema {
     fn into(self) -> model::ModelSchema {
         model::ModelSchema {
             id: self.id.as_bytes().to_vec(),
-            indexing: Into::<common::DataIndexing>::into(self.indexing).into(),
             category: self.category,
             name: self.name,
             description: self.description,

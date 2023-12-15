@@ -12,8 +12,6 @@ pub(crate) enum DataSlice {
     ModelId,
     TimestampBegin,
     TimestampEnd,
-    IndexBegin,
-    IndexEnd,
     Name,
     Description
 }
@@ -25,8 +23,6 @@ pub struct SliceSchema {
     pub model_id: Uuid,
     pub timestamp_begin: DateTime<Utc>,
     pub timestamp_end: DateTime<Utc>,
-    pub index_begin: i32,
-    pub index_end: i32,
     pub name: String,
     pub description: String
 }
@@ -39,8 +35,6 @@ impl From<slice::SliceSchema> for SliceSchema {
             model_id: Uuid::from_slice(&value.model_id).unwrap_or_default(),
             timestamp_begin: Utc.timestamp_nanos(value.timestamp_begin * 1000),
             timestamp_end: Utc.timestamp_nanos(value.timestamp_end * 1000),
-            index_begin: value.index_begin as i32,
-            index_end: value.index_end as i32,
             name: value.name,
             description: value.description
         }
@@ -55,8 +49,6 @@ impl Into<slice::SliceSchema> for SliceSchema {
             model_id: self.model_id.as_bytes().to_vec(),
             timestamp_begin: self.timestamp_begin.timestamp_micros(),
             timestamp_end: self.timestamp_end.timestamp_micros(),
-            index_begin: self.index_begin as i32,
-            index_end: self.index_end as i32,
             name: self.name,
             description: self.description
         }

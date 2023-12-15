@@ -4,7 +4,7 @@ use sea_query::{PostgresQueryBuilder, Query, Expr, Cond, Order, Func};
 use sea_query_binder::SqlxBinder;
 use uuid::Uuid;
 
-use crate::schema::value::{ConfigType, ConfigValue, DataIndexing, DataType};
+use crate::schema::value::{ConfigType, ConfigValue, DataType};
 use crate::schema::model::{Model, ModelType, ModelConfig, ModelSchema, ModelConfigSchema};
 
 enum ModelSelector {
@@ -26,7 +26,6 @@ async fn select_join_model(pool: &Pool<Postgres>,
     let mut stmt = Query::select()
         .columns([
             (Model::Table, Model::ModelId),
-            (Model::Table, Model::Indexing),
             (Model::Table, Model::Category),
             (Model::Table, Model::Name),
             (Model::Table, Model::Description)
@@ -101,30 +100,29 @@ async fn select_join_model(pool: &Pool<Postgres>,
             }
             last_id = Some(id);
             model_schema.id = id;
-            model_schema.indexing = DataIndexing::from(row.get::<i16,_>(1));
-            model_schema.category = row.get(2);
-            model_schema.name = row.get(3);
-            model_schema.description = row.get(4);
+            model_schema.category = row.get(1);
+            model_schema.name = row.get(2);
+            model_schema.description = row.get(3);
             // on every new index found update model_schema types and clear config_schema_vec
-            let type_index: i16 = row.get(5);
+            let type_index: i16 = row.get(4);
             if last_index == None || last_index != Some(type_index) {
-                model_schema.types.push(DataType::from(row.get::<i16,_>(6)));
+                model_schema.types.push(DataType::from(row.get::<i16,_>(5)));
                 model_schema.configs.push(Vec::new());
                 config_schema_vec.clear();
             }
             last_index = Some(type_index);
             // update model_schema configs if non empty config found
-            let config_id: Option<i32> = row.try_get(7).ok();
+            let config_id: Option<i32> = row.try_get(6).ok();
             if let Some(cfg_id) = config_id {
-                let bytes: Vec<u8> = row.try_get(9).unwrap_or_default();
-                let type_ = ConfigType::from(row.try_get::<i16,_>(10).unwrap_or_default());
+                let bytes: Vec<u8> = row.try_get(8).unwrap_or_default();
+                let type_ = ConfigType::from(row.try_get::<i16,_>(9).unwrap_or_default());
                 config_schema_vec.push(ModelConfigSchema {
                     id: cfg_id,
                     model_id: id,
                     index: type_index,
-                    name: row.try_get(8).unwrap_or_default(),
+                    name: row.try_get(7).unwrap_or_default(),
                     value: ConfigValue::from_bytes(bytes.as_slice(), type_),
-                    category: row.try_get(11).unwrap_or_default()
+                    category: row.try_get(10).unwrap_or_default()
                 });
                 model_schema.configs.pop();
                 model_schema.configs.push(config_schema_vec.clone());
@@ -175,7 +173,6 @@ pub(crate) async fn select_join_model_by_name_category(pool: &Pool<Postgres>,
 
 pub(crate) async fn insert_model(pool: &Pool<Postgres>,
     id: Uuid,
-    indexing: DataIndexing,
     category: &str,
     name: &str,
     description: Option<&str>,
@@ -185,14 +182,12 @@ pub(crate) async fn insert_model(pool: &Pool<Postgres>,
         .into_table(Model::Table)
         .columns([
             Model::ModelId,
-            Model::Indexing,
             Model::Category,
             Model::Name,
             Model::Description
         ])
         .values([
             id.into(),
-            i16::from(indexing).into(),
             category.into(),
             name.into(),
             description.unwrap_or_default().into()
@@ -209,7 +204,6 @@ pub(crate) async fn insert_model(pool: &Pool<Postgres>,
 
 pub(crate) async fn update_model(pool: &Pool<Postgres>,
     id: Uuid,
-    indexing: Option<DataIndexing>,
     category: Option<&str>,
     name: Option<&str>,
     description: Option<&str>,
@@ -219,9 +213,6 @@ pub(crate) async fn update_model(pool: &Pool<Postgres>,
         .table(Model::Table)
         .to_owned();
 
-    if let Some(value) = indexing {
-        stmt = stmt.value(Model::Indexing, i16::from(value)).to_owned();
-    }
     if let Some(value) = category {
         stmt = stmt.value(Model::Category, value).to_owned();
     }

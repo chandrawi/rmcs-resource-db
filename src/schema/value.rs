@@ -95,54 +95,6 @@ impl ConfigValue {
 pub type LogType = ConfigType;
 pub type LogValue = ConfigValue;
 
-#[derive(Debug, Default, PartialEq, Clone)]
-pub enum DataIndexing {
-    #[default]
-    Timestamp,
-    Index,
-    TimestampIndex
-}
-
-impl From<i16> for DataIndexing {
-    fn from(value: i16) -> Self {
-        match value {
-            1 => Self::Index,
-            2 => Self::TimestampIndex,
-            _ => Self::Timestamp,
-        }
-    }
-}
-
-impl From<DataIndexing> for i16 {
-    fn from(value: DataIndexing) -> Self {
-        match value {
-            DataIndexing::Index => 1,
-            DataIndexing::TimestampIndex => 2,
-            DataIndexing::Timestamp => 0
-        }
-    }
-}
-
-impl From<common::DataIndexing> for DataIndexing {
-    fn from(value: common::DataIndexing) -> Self {
-        match value {
-            common::DataIndexing::Timestamp => Self::Timestamp,
-            common::DataIndexing::Index => Self::Index,
-            common::DataIndexing::TimestampIndex => Self::TimestampIndex
-        }
-    }
-}
-
-impl Into<common::DataIndexing> for DataIndexing {
-    fn into(self) -> common::DataIndexing {
-        match self {
-            Self::Timestamp => common::DataIndexing::Timestamp,
-            Self::Index => common::DataIndexing::Index,
-            Self::TimestampIndex => common::DataIndexing::TimestampIndex
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum DataType {
     I8T,

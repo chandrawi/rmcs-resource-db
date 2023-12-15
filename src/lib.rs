@@ -7,7 +7,7 @@ use sqlx::postgres::{Postgres, PgPoolOptions};
 use sqlx::types::chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-pub use schema::value::{ConfigType, ConfigValue, LogType, LogValue, DataIndexing, DataType, DataValue, ArrayDataValue};
+pub use schema::value::{ConfigType, ConfigValue, LogType, LogValue, DataType, DataValue, ArrayDataValue};
 pub use schema::model::{ModelSchema, ModelConfigSchema};
 pub use schema::device::{DeviceSchema, GatewaySchema, TypeSchema, DeviceConfigSchema, GatewayConfigSchema};
 use schema::device::DeviceKind;
@@ -123,17 +123,17 @@ impl Resource {
         .await
     }
 
-    pub async fn create_model(&self, id: Uuid, indexing: DataIndexing, category: &str, name: &str, description: Option<&str>)
+    pub async fn create_model(&self, id: Uuid, category: &str, name: &str, description: Option<&str>)
         -> Result<Uuid, Error>
     {
-        model::insert_model(&self.pool, id, indexing, category, name, description)
+        model::insert_model(&self.pool, id, category, name, description)
         .await
     }
 
-    pub async fn update_model(&self, id: Uuid, indexing: Option<DataIndexing>, category: Option<&str>, name: Option<&str>, description: Option<&str>)
+    pub async fn update_model(&self, id: Uuid, category: Option<&str>, name: Option<&str>, description: Option<&str>)
         -> Result<(), Error>
     {
-        model::update_model(&self.pool, id, indexing, category, name, description)
+        model::update_model(&self.pool, id, category, name, description)
         .await
     }
 
@@ -680,11 +680,11 @@ impl Resource {
         .await
     }
 
-    pub async fn read_data(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, index: Option<i32>)
+    pub async fn read_data(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>)
         -> Result<DataSchema, Error>
     {
         let model = data::select_data_model(&self.pool, model_id).await?;
-        data::select_data_by_time(&self.pool, model, device_id, timestamp, index).await?.into_iter().next()
+        data::select_data_by_time(&self.pool, model, device_id, timestamp).await?.into_iter().next()
             .ok_or(Error::RowNotFound)
     }
 
@@ -692,7 +692,7 @@ impl Resource {
         -> Result<Vec<DataSchema>, Error>
     {
         let model = data::select_data_model(&self.pool, model_id).await?;
-        data::select_data_by_time(&self.pool, model, device_id, timestamp, None)
+        data::select_data_by_time(&self.pool, model, device_id, timestamp)
         .await
     }
 
@@ -734,17 +734,17 @@ impl Resource {
         data::select_data_model(&self.pool, model_id).await
     }
 
-    pub async fn read_data_with_model(&self, model: DataModel, device_id: Uuid, timestamp: DateTime<Utc>, index: Option<i32>)
+    pub async fn read_data_with_model(&self, model: DataModel, device_id: Uuid, timestamp: DateTime<Utc>)
         -> Result<DataSchema, Error>
     {
-        data::select_data_by_time(&self.pool, model, device_id, timestamp, index).await?.into_iter().next()
+        data::select_data_by_time(&self.pool, model, device_id, timestamp).await?.into_iter().next()
             .ok_or(Error::RowNotFound)
     }
 
     pub async fn list_data_with_model_by_time(&self, model: DataModel, device_id: Uuid, timestamp: DateTime<Utc>)
         -> Result<Vec<DataSchema>, Error>
     {
-        data::select_data_by_time(&self.pool, model, device_id, timestamp, None)
+        data::select_data_by_time(&self.pool, model, device_id, timestamp)
         .await
     }
 
@@ -776,32 +776,32 @@ impl Resource {
         .await
     }
 
-    pub async fn create_data(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, index: Option<i32>, data: Vec<DataValue>)
+    pub async fn create_data(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, data: Vec<DataValue>)
         -> Result<(), Error>
     {
         let model = data::select_data_model(&self.pool, model_id).await?;
-        data::insert_data(&self.pool, model, device_id, timestamp, index, data)
+        data::insert_data(&self.pool, model, device_id, timestamp, data)
         .await
     }
 
-    pub async fn create_data_with_model(&self, model: DataModel, device_id: Uuid, timestamp: DateTime<Utc>, index: Option<i32>, data: Vec<DataValue>)
+    pub async fn create_data_with_model(&self, model: DataModel, device_id: Uuid, timestamp: DateTime<Utc>, data: Vec<DataValue>)
         -> Result<(), Error>
     {
-        data::insert_data(&self.pool, model, device_id, timestamp, index, data)
+        data::insert_data(&self.pool, model, device_id, timestamp, data)
         .await
     }
 
-    pub async fn delete_data(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, index: Option<i32>)
+    pub async fn delete_data(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>)
         -> Result<(), Error>
     {
-        data::delete_data(&self.pool, model_id, device_id, timestamp, index)
+        data::delete_data(&self.pool, model_id, device_id, timestamp)
         .await
     }
 
-    pub async fn delete_data_with_model(&self, model: DataModel, device_id: Uuid, timestamp: DateTime<Utc>, index: Option<i32>)
+    pub async fn delete_data_with_model(&self, model: DataModel, device_id: Uuid, timestamp: DateTime<Utc>)
         -> Result<(), Error>
     {
-        data::delete_data(&self.pool, model.id, device_id, timestamp, index)
+        data::delete_data(&self.pool, model.id, device_id, timestamp)
         .await
     }
 
@@ -839,11 +839,11 @@ impl Resource {
         .await
     }
 
-    pub async fn create_buffer(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, index: Option<i32>, data: Vec<DataValue>, status: &str)
+    pub async fn create_buffer(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, data: Vec<DataValue>, status: &str)
         -> Result<i32, Error>
     {
         let model = data::select_data_model(&self.pool, model_id).await?;
-        buffer::insert_buffer(&self.pool, device_id, model, timestamp, index, data, status)
+        buffer::insert_buffer(&self.pool, device_id, model, timestamp, data, status)
         .await
     }
 
@@ -890,17 +890,17 @@ impl Resource {
         slice::select_slice_by_device_model(&self.pool, device_id, model_id).await
     }
 
-    pub async fn create_slice(&self, device_id: Uuid, model_id: Uuid, timestamp_begin: DateTime<Utc>, timestamp_end: DateTime<Utc>, index_begin: Option<i32>, index_end: Option<i32>, name: &str, description: Option<&str>)
+    pub async fn create_slice(&self, device_id: Uuid, model_id: Uuid, timestamp_begin: DateTime<Utc>, timestamp_end: DateTime<Utc>, name: &str, description: Option<&str>)
         -> Result<i32, Error>
     {
-        slice::insert_slice(&self.pool, device_id, model_id, timestamp_begin, timestamp_end, index_begin, index_end, name, description)
+        slice::insert_slice(&self.pool, device_id, model_id, timestamp_begin, timestamp_end, name, description)
         .await
     }
 
-    pub async fn update_slice(&self, id: i32, timestamp_begin: Option<DateTime<Utc>>, timestamp_end: Option<DateTime<Utc>>, index_begin: Option<i32>, index_end: Option<i32>, name: Option<&str>, description: Option<&str>)
+    pub async fn update_slice(&self, id: i32, timestamp_begin: Option<DateTime<Utc>>, timestamp_end: Option<DateTime<Utc>>, name: Option<&str>, description: Option<&str>)
         -> Result<(), Error>
     {
-        slice::update_slice(&self.pool, id, timestamp_begin, timestamp_end, index_begin, index_end, name, description)
+        slice::update_slice(&self.pool, id, timestamp_begin, timestamp_end, name, description)
         .await
     }
 

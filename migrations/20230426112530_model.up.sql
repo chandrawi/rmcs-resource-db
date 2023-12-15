@@ -1,7 +1,6 @@
 CREATE TABLE IF NOT EXISTS "model" (
   "model_id" uuid NOT NULL,
   "name" varchar(64) NOT NULL,
-  "indexing" smallint NOT NULL DEFAULT 0,
   "category" varchar(64) NOT NULL,
   "description" varchar(255) NOT NULL DEFAULT '',
   PRIMARY KEY ("model_id")

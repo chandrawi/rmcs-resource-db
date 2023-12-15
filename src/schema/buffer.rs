@@ -13,7 +13,6 @@ pub(crate) enum DataBuffer {
     DeviceId,
     ModelId,
     Timestamp,
-    Index,
     Data,
     Status
 }
@@ -24,7 +23,6 @@ pub struct BufferSchema {
     pub device_id: Uuid,
     pub model_id: Uuid,
     pub timestamp: DateTime<Utc>,
-    pub index: i32,
     pub data: Vec<DataValue>,
     pub status: String
 }
@@ -35,7 +33,6 @@ pub(crate) struct BufferBytesSchema {
     pub(crate) device_id: Uuid,
     pub(crate) model_id: Uuid,
     pub(crate) timestamp: DateTime<Utc>,
-    pub(crate) index: i32,
     pub(crate) bytes: Vec<u8>,
     pub(crate) status: String
 }
@@ -48,7 +45,6 @@ impl BufferBytesSchema {
             device_id: self.device_id,
             model_id: self.model_id,
             timestamp: self.timestamp,
-            index: self.index,
             data: ArrayDataValue::from_bytes(&self.bytes, types).to_vec(),
             status: self.status
         }
@@ -62,7 +58,6 @@ impl From<buffer::BufferSchema> for BufferSchema {
             device_id: Uuid::from_slice(&value.device_id).unwrap_or_default(),
             model_id: Uuid::from_slice(&value.model_id).unwrap_or_default(),
             timestamp: Utc.timestamp_nanos(value.timestamp * 1000),
-            index: value.index,
             data: ArrayDataValue::from_bytes(
                     &value.data_bytes,
                     value.data_type.into_iter().map(|e| {
@@ -83,7 +78,6 @@ impl Into<buffer::BufferSchema> for BufferSchema {
             device_id: self.device_id.as_bytes().to_vec(),
             model_id: self.model_id.as_bytes().to_vec(),
             timestamp: self.timestamp.timestamp_micros(),
-            index: self.index as i32,
             data_bytes: ArrayDataValue::from_vec(&self.data).to_bytes(),
             data_type: self.data.into_iter().map(|e| {
                     Into::<common::DataType>::into(e.get_type()).into()
