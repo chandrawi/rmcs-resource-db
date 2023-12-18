@@ -14,6 +14,7 @@ use crate::operation::data;
 
 enum BufferSelector {
     Id(i32),
+    Time,
     First(u32),
     Last(u32)
 }
@@ -22,13 +23,15 @@ async fn select_buffer_bytes(pool: &Pool<Postgres>,
     selector: BufferSelector,
     device_id: Option<Uuid>,
     model_id: Option<Uuid>,
+    timestamp: Option<DateTime<Utc>>,
     status: Option<&str>
 ) -> Result<Vec<BufferBytesSchema>, Error>
 {
     let (order, number) = match selector {
         BufferSelector::Id(_) => (Order::Asc, 1),
         BufferSelector::First(number) => (Order::Asc, number),
-        BufferSelector::Last(number) => (Order::Desc, number)
+        BufferSelector::Last(number) => (Order::Desc, number),
+        BufferSelector::Time => (Order::Asc, 1)
     };
 
     let mut stmt = Query::select().to_owned();
@@ -56,6 +59,9 @@ async fn select_buffer_bytes(pool: &Pool<Postgres>,
     }
     if let Some(id) = model_id {
         stmt = stmt.and_where(Expr::col(DataBuffer::ModelId).eq(id)).to_owned();
+    }
+    if let Some(ts) = timestamp {
+        stmt = stmt.and_where(Expr::col(DataBuffer::Timestamp).eq(ts)).to_owned();
     }
     if let Some(stat) = status {
         let status = i16::from(BufferStatus::from_str(stat).unwrap());
@@ -147,7 +153,21 @@ pub(crate) async fn select_buffer_by_id(pool: &Pool<Postgres>,
 ) -> Result<BufferSchema, Error>
 {
     let selector = BufferSelector::Id(id);
-    let bytes = select_buffer_bytes(pool, selector, None, None, None).await?;
+    let bytes = select_buffer_bytes(pool, selector, None, None, None, None).await?;
+    let bytes = bytes.into_iter().next().ok_or(Error::RowNotFound)?;
+    let model = data::select_data_model(pool, bytes.model_id).await?;
+    Ok(bytes.to_buffer_schema(&model.types))
+}
+
+pub(crate) async fn select_buffer_by_time(pool: &Pool<Postgres>, 
+    device_id: Uuid,
+    model_id: Uuid,
+    timestamp: DateTime<Utc>,
+    status: Option<&str>
+) -> Result<BufferSchema, Error>
+{
+    let selector = BufferSelector::Time;
+    let bytes = select_buffer_bytes(pool, selector, Some(device_id), Some(model_id), Some(timestamp), status).await?;
     let bytes = bytes.into_iter().next().ok_or(Error::RowNotFound)?;
     let model = data::select_data_model(pool, bytes.model_id).await?;
     Ok(bytes.to_buffer_schema(&model.types))
@@ -161,7 +181,7 @@ pub(crate) async fn select_buffer_first(pool: &Pool<Postgres>,
 ) -> Result<Vec<BufferSchema>, Error>
 {
     let selector = BufferSelector::First(number);
-    let bytes = select_buffer_bytes(pool, selector, device_id, model_id, status).await?;
+    let bytes = select_buffer_bytes(pool, selector, device_id, model_id, None, status).await?;
     let model_id_vec: Vec<Uuid> = bytes.iter().map(|el| el.model_id).collect();
     let models = select_model_buffer(pool, model_id_vec).await?;
     Ok(
@@ -179,7 +199,7 @@ pub(crate) async fn select_buffer_last(pool: &Pool<Postgres>,
 ) -> Result<Vec<BufferSchema>, Error>
 {
     let selector = BufferSelector::Last(number);
-    let bytes = select_buffer_bytes(pool, selector, device_id, model_id, status).await?;
+    let bytes = select_buffer_bytes(pool, selector, device_id, model_id, None, status).await?;
     let model_id_vec: Vec<Uuid> = bytes.iter().map(|el| el.model_id).collect();
     let models = select_model_buffer(pool, model_id_vec).await?;
     Ok(

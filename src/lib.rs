@@ -811,6 +811,12 @@ impl Resource {
         buffer::select_buffer_by_id(&self.pool, id).await
     }
 
+    pub async fn read_buffer_by_time(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, status: Option<&str>)
+        -> Result<BufferSchema, Error>
+    {
+        buffer::select_buffer_by_time(&self.pool, device_id, model_id, timestamp, status).await
+    }
+
     pub async fn read_buffer_first(&self, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<&str>)
         -> Result<BufferSchema, Error>
     {
