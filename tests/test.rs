@@ -161,8 +161,8 @@ mod tests {
         let timestamp = DateTime::parse_from_str("2023-05-07 07:08:48.123456 +0000", "%Y-%m-%d %H:%M:%S.%6f %z").unwrap().into();
         let raw_1 = vec![I32(1231),I32(890)];
         let raw_2 = vec![I32(1452),I32(-341)];
-        resource.create_buffer(device_id1, model_buf_id, timestamp, raw_1.clone(), "CONVERT").await.unwrap();
-        resource.create_buffer(device_id2, model_buf_id, timestamp, raw_2.clone(), "CONVERT").await.unwrap();
+        resource.create_buffer(device_id1, model_buf_id, timestamp, raw_1.clone(), "ANALYSIS_1").await.unwrap();
+        resource.create_buffer(device_id2, model_buf_id, timestamp, raw_2.clone(), "ANALYSIS_1").await.unwrap();
 
         // read buffer
         let buffers = resource.list_buffer_first(100, None, None, None).await.unwrap();
