@@ -18,76 +18,6 @@ pub(crate) enum DataBuffer {
 }
 
 #[derive(Debug, Default, PartialEq, Clone)]
-pub struct BufferSchema {
-    pub id: i32,
-    pub device_id: Uuid,
-    pub model_id: Uuid,
-    pub timestamp: DateTime<Utc>,
-    pub data: Vec<DataValue>,
-    pub status: String
-}
-
-#[derive(Debug, Default, PartialEq, Clone)]
-pub(crate) struct BufferBytesSchema {
-    pub(crate) id: i32,
-    pub(crate) device_id: Uuid,
-    pub(crate) model_id: Uuid,
-    pub(crate) timestamp: DateTime<Utc>,
-    pub(crate) bytes: Vec<u8>,
-    pub(crate) status: String
-}
-
-impl BufferBytesSchema {
-    pub(crate) fn to_buffer_schema(self, types: &[DataType]) -> BufferSchema
-    {
-        BufferSchema {
-            id: self.id,
-            device_id: self.device_id,
-            model_id: self.model_id,
-            timestamp: self.timestamp,
-            data: ArrayDataValue::from_bytes(&self.bytes, types).to_vec(),
-            status: self.status
-        }
-    }
-}
-
-impl From<buffer::BufferSchema> for BufferSchema {
-    fn from(value: buffer::BufferSchema) -> Self {
-        Self {
-            id: value.id,
-            device_id: Uuid::from_slice(&value.device_id).unwrap_or_default(),
-            model_id: Uuid::from_slice(&value.model_id).unwrap_or_default(),
-            timestamp: Utc.timestamp_nanos(value.timestamp * 1000),
-            data: ArrayDataValue::from_bytes(
-                    &value.data_bytes,
-                    value.data_type.into_iter().map(|e| {
-                        DataType::from(common::DataType::try_from(e).unwrap_or_default())
-                    })
-                    .collect::<Vec<DataType>>()
-                    .as_slice()
-                ).to_vec(),
-            status: buffer::BufferStatus::try_from(value.status).unwrap_or_default().as_str_name().to_owned()
-        }
-    }
-}
-
-impl Into<buffer::BufferSchema> for BufferSchema {
-    fn into(self) -> buffer::BufferSchema {
-        buffer::BufferSchema {
-            id: self.id,
-            device_id: self.device_id.as_bytes().to_vec(),
-            model_id: self.model_id.as_bytes().to_vec(),
-            timestamp: self.timestamp.timestamp_micros(),
-            data_bytes: ArrayDataValue::from_vec(&self.data).to_bytes(),
-            data_type: self.data.into_iter().map(|e| {
-                    Into::<common::DataType>::into(e.get_type()).into()
-                }).collect(),
-            status: buffer::BufferStatus::from_str_name(&self.status).unwrap_or_default().into()
-        }
-    }
-}
-
-#[derive(Default)]
 pub enum BufferStatus {
     #[default]
     Default,
@@ -227,6 +157,76 @@ impl ToString for BufferStatus {
             Self::Analysis9 => String::from("ANALYSIS9"),
             Self::Analysis10 => String::from("ANALYSIS10"),
             Self::BufferCode(i) => i.to_string()
+        }
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Clone)]
+pub struct BufferSchema {
+    pub id: i32,
+    pub device_id: Uuid,
+    pub model_id: Uuid,
+    pub timestamp: DateTime<Utc>,
+    pub data: Vec<DataValue>,
+    pub status: BufferStatus
+}
+
+#[derive(Debug, Default, PartialEq, Clone)]
+pub(crate) struct BufferBytesSchema {
+    pub(crate) id: i32,
+    pub(crate) device_id: Uuid,
+    pub(crate) model_id: Uuid,
+    pub(crate) timestamp: DateTime<Utc>,
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) status: BufferStatus
+}
+
+impl BufferBytesSchema {
+    pub(crate) fn to_buffer_schema(self, types: &[DataType]) -> BufferSchema
+    {
+        BufferSchema {
+            id: self.id,
+            device_id: self.device_id,
+            model_id: self.model_id,
+            timestamp: self.timestamp,
+            data: ArrayDataValue::from_bytes(&self.bytes, types).to_vec(),
+            status: self.status
+        }
+    }
+}
+
+impl From<buffer::BufferSchema> for BufferSchema {
+    fn from(value: buffer::BufferSchema) -> Self {
+        Self {
+            id: value.id,
+            device_id: Uuid::from_slice(&value.device_id).unwrap_or_default(),
+            model_id: Uuid::from_slice(&value.model_id).unwrap_or_default(),
+            timestamp: Utc.timestamp_nanos(value.timestamp * 1000),
+            data: ArrayDataValue::from_bytes(
+                    &value.data_bytes,
+                    value.data_type.into_iter().map(|e| {
+                        DataType::from(common::DataType::try_from(e).unwrap_or_default())
+                    })
+                    .collect::<Vec<DataType>>()
+                    .as_slice()
+                ).to_vec(),
+            status: BufferStatus::from(value.status as i16)
+        }
+    }
+}
+
+impl Into<buffer::BufferSchema> for BufferSchema {
+    fn into(self) -> buffer::BufferSchema {
+        buffer::BufferSchema {
+            id: self.id,
+            device_id: self.device_id.as_bytes().to_vec(),
+            model_id: self.model_id.as_bytes().to_vec(),
+            timestamp: self.timestamp.timestamp_micros(),
+            data_bytes: ArrayDataValue::from_vec(&self.data).to_bytes(),
+            data_type: self.data.into_iter().map(|e| {
+                    Into::<common::DataType>::into(e.get_type()).into()
+                }).collect(),
+            status: i16::from(self.status).into()
         }
     }
 }

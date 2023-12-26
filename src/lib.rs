@@ -14,9 +14,9 @@ use schema::device::DeviceKind;
 pub use schema::group::{GroupModelSchema, GroupDeviceSchema, GroupGatewaySchema};
 use schema::group::GroupKind;
 pub use schema::data::{DataSchema, DataModel};
-pub use schema::buffer::BufferSchema;
+pub use schema::buffer::{BufferSchema, BufferStatus};
 pub use schema::slice::SliceSchema;
-pub use schema::log::LogSchema;
+pub use schema::log::{LogSchema, LogStatus};
 use operation::model;
 use operation::device;
 use operation::types;
@@ -811,41 +811,41 @@ impl Resource {
         buffer::select_buffer_by_id(&self.pool, id).await
     }
 
-    pub async fn read_buffer_by_time(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, status: Option<&str>)
+    pub async fn read_buffer_by_time(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, status: Option<BufferStatus>)
         -> Result<BufferSchema, Error>
     {
         buffer::select_buffer_by_time(&self.pool, device_id, model_id, timestamp, status).await
     }
 
-    pub async fn read_buffer_first(&self, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<&str>)
+    pub async fn read_buffer_first(&self, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
         -> Result<BufferSchema, Error>
     {
         buffer::select_buffer_first(&self.pool, 1, device_id, model_id, status)
             .await?.into_iter().next().ok_or(Error::RowNotFound)
     }
 
-    pub async fn read_buffer_last(&self, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<&str>)
+    pub async fn read_buffer_last(&self, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
         -> Result<BufferSchema, Error>
     {
         buffer::select_buffer_last(&self.pool, 1, device_id, model_id, status)
             .await?.into_iter().next().ok_or(Error::RowNotFound)
     }
 
-    pub async fn list_buffer_first(&self, number: u32, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<&str>)
+    pub async fn list_buffer_first(&self, number: u32, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
         -> Result<Vec<BufferSchema>, Error>
     {
         buffer::select_buffer_first(&self.pool, number, device_id, model_id, status)
         .await
     }
 
-    pub async fn list_buffer_last(&self, number: u32, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<&str>)
+    pub async fn list_buffer_last(&self, number: u32, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
         -> Result<Vec<BufferSchema>, Error>
     {
         buffer::select_buffer_last(&self.pool, number, device_id, model_id, status)
         .await
     }
 
-    pub async fn create_buffer(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, data: Vec<DataValue>, status: &str)
+    pub async fn create_buffer(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, data: Vec<DataValue>, status: BufferStatus)
         -> Result<i32, Error>
     {
         let model = data::select_data_model(&self.pool, model_id).await?;
@@ -853,7 +853,7 @@ impl Resource {
         .await
     }
 
-    pub async fn update_buffer(&self, id: i32, data: Option<Vec<DataValue>>, status: Option<&str>)
+    pub async fn update_buffer(&self, id: i32, data: Option<Vec<DataValue>>, status: Option<BufferStatus>)
         -> Result<(), Error>
     {
         buffer::update_buffer(&self.pool, id, data, status)
@@ -922,32 +922,32 @@ impl Resource {
         log::select_log_by_id(&self.pool, timestamp, device_id).await
     }
 
-    pub async fn list_log_by_time(&self, timestamp: DateTime<Utc>, device_id: Option<Uuid>, status: Option<&str>)
+    pub async fn list_log_by_time(&self, timestamp: DateTime<Utc>, device_id: Option<Uuid>, status: Option<LogStatus>)
         -> Result<Vec<LogSchema>, Error>
     {
         log::select_log_by_time(&self.pool, timestamp, device_id, status).await
     }
 
-    pub async fn list_log_by_last_time(&self, last: DateTime<Utc>, device_id: Option<Uuid>, status: Option<&str>)
+    pub async fn list_log_by_last_time(&self, last: DateTime<Utc>, device_id: Option<Uuid>, status: Option<LogStatus>)
         -> Result<Vec<LogSchema>, Error>
     {
         log::select_log_by_last_time(&self.pool, last, device_id, status).await
     }
 
-    pub async fn list_log_by_range_time(&self, begin: DateTime<Utc>, end: DateTime<Utc>, device_id: Option<Uuid>, status: Option<&str>)
+    pub async fn list_log_by_range_time(&self, begin: DateTime<Utc>, end: DateTime<Utc>, device_id: Option<Uuid>, status: Option<LogStatus>)
         -> Result<Vec<LogSchema>, Error>
     {
         log::select_log_by_range_time(&self.pool, begin, end, device_id, status).await
     }
 
-    pub async fn create_log(&self, timestamp: DateTime<Utc>, device_id: Uuid, status: &str, value: ConfigValue)
+    pub async fn create_log(&self, timestamp: DateTime<Utc>, device_id: Uuid, status: LogStatus, value: ConfigValue)
         -> Result<(), Error>
     {
         log::insert_log(&self.pool, timestamp, device_id, status, value)
         .await
     }
 
-    pub async fn update_log(&self, timestamp: DateTime<Utc>, device_id: Uuid, status: Option<&str>, value: Option<ConfigValue>)
+    pub async fn update_log(&self, timestamp: DateTime<Utc>, device_id: Uuid, status: Option<LogStatus>, value: Option<ConfigValue>)
         -> Result<(), Error>
     {
         log::update_log(&self.pool, timestamp, device_id, status, value)

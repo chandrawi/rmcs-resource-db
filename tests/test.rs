@@ -7,6 +7,7 @@ mod tests {
     use uuid::Uuid;
     use rmcs_resource_db::{ModelConfigSchema, DeviceConfigSchema};
     use rmcs_resource_db::{Resource, ConfigValue::{*, self}, DataType::*, DataValue::*};
+    use rmcs_resource_db::{BufferStatus::*, LogStatus::*};
 
     async fn get_connection_pool() -> Result<Pool<Postgres>, Error>
     {
@@ -161,8 +162,8 @@ mod tests {
         let timestamp = DateTime::parse_from_str("2023-05-07 07:08:48.123456 +0000", "%Y-%m-%d %H:%M:%S.%6f %z").unwrap().into();
         let raw_1 = vec![I32(1231),I32(890)];
         let raw_2 = vec![I32(1452),I32(-341)];
-        resource.create_buffer(device_id1, model_buf_id, timestamp, raw_1.clone(), "ANALYSIS_1").await.unwrap();
-        resource.create_buffer(device_id2, model_buf_id, timestamp, raw_2.clone(), "ANALYSIS_1").await.unwrap();
+        resource.create_buffer(device_id1, model_buf_id, timestamp, raw_1.clone(), Analysis1).await.unwrap();
+        resource.create_buffer(device_id2, model_buf_id, timestamp, raw_2.clone(), Analysis1).await.unwrap();
 
         // read buffer
         let buffers = resource.list_buffer_first(100, None, None, None).await.unwrap();
@@ -196,10 +197,10 @@ mod tests {
         assert!(result.is_err());
 
         // update buffer status
-        resource.update_buffer(buffers[0].id, None, Some("DELETE")).await.unwrap();
+        resource.update_buffer(buffers[0].id, None, Some(Delete)).await.unwrap();
         let buffer = resource.read_buffer(buffers[0].id).await.unwrap();
         assert_eq!(buffers[0].data, buffer.data);
-        assert_eq!(buffer.status, "DELETE");
+        assert_eq!(buffer.status, Delete);
 
         // delete buffer data
         resource.delete_buffer(buffers[0].id).await.unwrap();
@@ -226,16 +227,16 @@ mod tests {
         assert!(result.is_err());
 
         // create system log
-        resource.create_log(timestamp, device_id1, "UNKNOWN_ERROR", Str("testing success".to_owned())).await.unwrap();
+        resource.create_log(timestamp, device_id1, UnknownError, Str("testing success".to_owned())).await.unwrap();
         // read log
         let logs = resource.list_log_by_range_time(timestamp, Utc::now(), None, None).await.unwrap();
         let log = logs.iter().filter(|x| x.device_id == device_id1 && x.timestamp == timestamp).next().unwrap();
         assert_eq!(log.value, Str("testing success".to_owned()));
 
         // update system log
-        resource.update_log(timestamp, device_id1, Some("SUCCESS"), None).await.unwrap();
+        resource.update_log(timestamp, device_id1, Some(Success), None).await.unwrap();
         let log = resource.read_log(timestamp, device_id1).await.unwrap();
-        assert_eq!(log.status, "SUCCESS");
+        assert_eq!(log.status, Success);
 
         // delete system log
         resource.delete_log(timestamp, device_id1).await.unwrap();

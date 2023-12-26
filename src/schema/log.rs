@@ -17,40 +17,6 @@ pub(crate) enum SystemLog {
 }
 
 #[derive(Debug, Default, PartialEq, Clone)]
-pub struct LogSchema {
-    pub timestamp: DateTime<Utc>,
-    pub device_id: Uuid,
-    pub status: String,
-    pub value: LogValue
-}
-
-impl From<log::LogSchema> for LogSchema {
-    fn from(value: log::LogSchema) -> Self {
-        Self {
-            timestamp: Utc.timestamp_nanos(value.timestamp * 1000),
-            device_id: Uuid::from_slice(&value.device_id).unwrap_or_default(),
-            status: log::LogStatus::try_from(value.status).unwrap_or_default().as_str_name().to_owned(),
-            value: LogValue::from_bytes(
-                &value.log_bytes,
-                LogType::from(common::ConfigType::try_from(value.log_type).unwrap_or_default())
-            )
-        }
-    }
-}
-
-impl Into<log::LogSchema> for LogSchema {
-    fn into(self) -> log::LogSchema {
-        log::LogSchema {
-            timestamp: self.timestamp.timestamp_micros(),
-            device_id: self.device_id.as_bytes().to_vec(),
-            status: log::LogStatus::from_str_name(&self.status).unwrap_or_default().into(),
-            log_bytes: self.value.to_bytes(),
-            log_type: Into::<common::ConfigType>::into(self.value.get_type()).into()
-        }
-    }
-}
-
-#[derive(Default)]
 pub enum LogStatus {
     #[default]
     Default,
@@ -155,6 +121,40 @@ impl ToString for LogStatus {
             Self::UnknownError => String::from("UNKNOWN_ERROR"),
             Self::UnknownStatus => String::from("UNKNOWN_STATUS"),
             Self::LogCode(i) => i.to_string()
+        }
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Clone)]
+pub struct LogSchema {
+    pub timestamp: DateTime<Utc>,
+    pub device_id: Uuid,
+    pub status: LogStatus,
+    pub value: LogValue
+}
+
+impl From<log::LogSchema> for LogSchema {
+    fn from(value: log::LogSchema) -> Self {
+        Self {
+            timestamp: Utc.timestamp_nanos(value.timestamp * 1000),
+            device_id: Uuid::from_slice(&value.device_id).unwrap_or_default(),
+            status: LogStatus::from(value.status as i16),
+            value: LogValue::from_bytes(
+                &value.log_bytes,
+                LogType::from(common::ConfigType::try_from(value.log_type).unwrap_or_default())
+            )
+        }
+    }
+}
+
+impl Into<log::LogSchema> for LogSchema {
+    fn into(self) -> log::LogSchema {
+        log::LogSchema {
+            timestamp: self.timestamp.timestamp_micros(),
+            device_id: self.device_id.as_bytes().to_vec(),
+            status: i16::from(self.status).into(),
+            log_bytes: self.value.to_bytes(),
+            log_type: Into::<common::ConfigType>::into(self.value.get_type()).into()
         }
     }
 }

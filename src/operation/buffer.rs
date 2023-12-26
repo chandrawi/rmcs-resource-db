@@ -1,4 +1,3 @@
-use std::str::FromStr;
 use sqlx::{Pool, Row, Error};
 use sqlx::postgres::{Postgres, PgRow};
 use sqlx::types::chrono::{DateTime, Utc};
@@ -24,7 +23,7 @@ async fn select_buffer_bytes(pool: &Pool<Postgres>,
     device_id: Option<Uuid>,
     model_id: Option<Uuid>,
     timestamp: Option<DateTime<Utc>>,
-    status: Option<&str>
+    status: Option<BufferStatus>
 ) -> Result<Vec<BufferBytesSchema>, Error>
 {
     let (order, number) = match selector {
@@ -64,7 +63,7 @@ async fn select_buffer_bytes(pool: &Pool<Postgres>,
         stmt = stmt.and_where(Expr::col(DataBuffer::Timestamp).eq(ts)).to_owned();
     }
     if let Some(stat) = status {
-        let status = i16::from(BufferStatus::from_str(stat).unwrap());
+        let status = i16::from(stat);
         stmt = stmt.and_where(Expr::col(DataBuffer::Status).eq(status)).to_owned();
     }
     let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
@@ -77,7 +76,7 @@ async fn select_buffer_bytes(pool: &Pool<Postgres>,
                 model_id: row.get(2),
                 timestamp: row.get(3),
                 bytes: row.get(4),
-                status: BufferStatus::from(row.get::<i16,_>(5)).to_string()
+                status: BufferStatus::from(row.get::<i16,_>(5))
             }
         })
         .fetch_all(pool)
@@ -163,7 +162,7 @@ pub(crate) async fn select_buffer_by_time(pool: &Pool<Postgres>,
     device_id: Uuid,
     model_id: Uuid,
     timestamp: DateTime<Utc>,
-    status: Option<&str>
+    status: Option<BufferStatus>
 ) -> Result<BufferSchema, Error>
 {
     let selector = BufferSelector::Time;
@@ -177,7 +176,7 @@ pub(crate) async fn select_buffer_first(pool: &Pool<Postgres>,
     number: u32,
     device_id: Option<Uuid>,
     model_id: Option<Uuid>,
-    status: Option<&str>
+    status: Option<BufferStatus>
 ) -> Result<Vec<BufferSchema>, Error>
 {
     let selector = BufferSelector::First(number);
@@ -195,7 +194,7 @@ pub(crate) async fn select_buffer_last(pool: &Pool<Postgres>,
     number: u32,
     device_id: Option<Uuid>,
     model_id: Option<Uuid>,
-    status: Option<&str>
+    status: Option<BufferStatus>
 ) -> Result<Vec<BufferSchema>, Error>
 {
     let selector = BufferSelector::Last(number);
@@ -214,7 +213,7 @@ pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
     model: DataModel,
     timestamp: DateTime<Utc>,
     data: Vec<DataValue>,
-    status: &str
+    status: BufferStatus
 ) -> Result<i32, Error>
 {
     let converted_values = ArrayDataValue::from_vec(&data).convert(&model.types);
@@ -237,7 +236,7 @@ pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
             model.id.into(),
             timestamp.into(),
             bytes.into(),
-            i16::from(BufferStatus::from_str(status).unwrap()).into()
+            i16::from(status).into()
         ])
         .unwrap_or(&mut sea_query::InsertStatement::default())
         .build_sqlx(PostgresQueryBuilder);
@@ -261,7 +260,7 @@ pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
 pub(crate) async fn update_buffer(pool: &Pool<Postgres>,
     id: i32,
     data: Option<Vec<DataValue>>,
-    status: Option<&str>
+    status: Option<BufferStatus>
 ) -> Result<(), Error>
 {
     let mut stmt = Query::update()
@@ -273,7 +272,7 @@ pub(crate) async fn update_buffer(pool: &Pool<Postgres>,
         stmt = stmt.value(DataBuffer::Data, bytes).to_owned();
     }
     if let Some(value) = status {
-        stmt = stmt.value(DataBuffer::Status, i16::from(BufferStatus::from_str(value).unwrap())).to_owned();
+        stmt = stmt.value(DataBuffer::Status, i16::from(value)).to_owned();
     }
 
     let (sql, values) = stmt

@@ -1,4 +1,3 @@
-use std::str::FromStr;
 use sqlx::{Pool, Row, Error};
 use sqlx::postgres::{Postgres, PgRow};
 use sqlx::types::chrono::{DateTime, Utc};
@@ -18,7 +17,7 @@ enum LogSelector {
 async fn select_log(pool: &Pool<Postgres>,
     selector: LogSelector,
     device_id: Option<Uuid>,
-    status: Option<&str>
+    status: Option<LogStatus>
 ) -> Result<Vec<LogSchema>, Error>
 {
     let mut stmt = Query::select()
@@ -48,7 +47,8 @@ async fn select_log(pool: &Pool<Postgres>,
     if let Some(id) = device_id {
         stmt = stmt.and_where(Expr::col(SystemLog::DeviceId).eq(id)).to_owned();
     }
-    if let Some(status) = status {
+    if let Some(stat) = status {
+        let status = i16::from(stat);
         stmt = stmt.and_where(Expr::col(SystemLog::Status).eq(status)).to_owned();
     }
     let (sql, values) = stmt
@@ -63,7 +63,7 @@ async fn select_log(pool: &Pool<Postgres>,
             LogSchema {
                 device_id: row.get(0),
                 timestamp: row.get(1),
-                status: LogStatus::from(row.get::<i16,_>(2)).to_string(),
+                status: LogStatus::from(row.get::<i16,_>(2)),
                 value: ConfigValue::from_bytes(&bytes, type_)
             }
         })
@@ -85,7 +85,7 @@ pub(crate) async fn select_log_by_id(pool: &Pool<Postgres>,
 pub(crate) async fn select_log_by_time(pool: &Pool<Postgres>,
     timestamp: DateTime<Utc>,
     device_id: Option<Uuid>,
-    status: Option<&str>
+    status: Option<LogStatus>
 ) -> Result<Vec<LogSchema>, Error>
 {
     select_log(pool, LogSelector::Time(timestamp), device_id, status).await
@@ -94,7 +94,7 @@ pub(crate) async fn select_log_by_time(pool: &Pool<Postgres>,
 pub(crate) async fn select_log_by_last_time(pool: &Pool<Postgres>,
     last: DateTime<Utc>,
     device_id: Option<Uuid>,
-    status: Option<&str>
+    status: Option<LogStatus>
 ) -> Result<Vec<LogSchema>, Error>
 {
     select_log(pool, LogSelector::Last(last), device_id, status).await
@@ -104,7 +104,7 @@ pub(crate) async fn select_log_by_range_time(pool: &Pool<Postgres>,
     begin: DateTime<Utc>,
     end: DateTime<Utc>,
     device_id: Option<Uuid>,
-    status: Option<&str>
+    status: Option<LogStatus>
 ) -> Result<Vec<LogSchema>, Error>
 {
     select_log(pool, LogSelector::Range(begin, end), device_id, status).await
@@ -113,7 +113,7 @@ pub(crate) async fn select_log_by_range_time(pool: &Pool<Postgres>,
 pub(crate) async fn insert_log(pool: &Pool<Postgres>,
     timestamp: DateTime<Utc>,
     device_id: Uuid,
-    status: &str,
+    status: LogStatus,
     value: ConfigValue
 ) -> Result<(), Error>
 {
@@ -132,7 +132,7 @@ pub(crate) async fn insert_log(pool: &Pool<Postgres>,
         .values([
             device_id.into(),
             timestamp.into(),
-            i16::from(LogStatus::from_str(status).unwrap()).into(),
+            i16::from(status).into(),
             bytes.into(),
             type_.into()
         ])
@@ -149,7 +149,7 @@ pub(crate) async fn insert_log(pool: &Pool<Postgres>,
 pub(crate) async fn update_log(pool: &Pool<Postgres>,
     timestamp: DateTime<Utc>,
     device_id: Uuid,
-    status: Option<&str>,
+    status: Option<LogStatus>,
     value: Option<ConfigValue>
 ) -> Result<(), Error>
 {
@@ -158,7 +158,7 @@ pub(crate) async fn update_log(pool: &Pool<Postgres>,
         .to_owned();
 
     if let Some(value) = status {
-        stmt = stmt.value(SystemLog::Status, i16::from(LogStatus::from_str(value).unwrap())).to_owned();
+        stmt = stmt.value(SystemLog::Status, i16::from(value)).to_owned();
     }
     if let Some(value) = value {
         let bytes = value.to_bytes();
