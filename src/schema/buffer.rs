@@ -41,6 +41,8 @@ pub enum BufferStatus {
     Analysis8,
     Analysis9,
     Analysis10,
+    ExternalInput,
+    ExternalOutput,
     BufferCode(i16)
 }
 
@@ -68,6 +70,8 @@ impl From<i16> for BufferStatus {
             18 => Self::Analysis8,
             19 => Self::Analysis9,
             20 => Self::Analysis10,
+            21 => Self::ExternalInput,
+            22 => Self::ExternalOutput,
             _ => Self::BufferCode(value)
         }
     }
@@ -97,6 +101,8 @@ impl From<BufferStatus> for i16 {
             BufferStatus::Analysis8 => 18,
             BufferStatus::Analysis9 => 19,
             BufferStatus::Analysis10 => 20,
+            BufferStatus::ExternalInput => 21,
+            BufferStatus::ExternalOutput => 22,
             BufferStatus::BufferCode(i) => i
         }
     }
@@ -127,6 +133,8 @@ impl FromStr for BufferStatus {
             "ANALYSIS_8" => Ok(Self::Analysis8),
             "ANALYSIS_9" => Ok(Self::Analysis9),
             "ANALYSIS_10" => Ok(Self::Analysis10),
+            "EXTERNAL_INPUT" => Ok(Self::ExternalInput),
+            "EXTERNAL_OUTPUT" => Ok(Self::ExternalOutput),
             _ => s.parse::<i16>().map(|i| Self::BufferCode(i))
         }
     }
@@ -156,6 +164,8 @@ impl ToString for BufferStatus {
             Self::Analysis8 => String::from("ANALYSIS8"),
             Self::Analysis9 => String::from("ANALYSIS9"),
             Self::Analysis10 => String::from("ANALYSIS10"),
+            Self::ExternalInput => String::from("EXTERNAL_INPUT"),
+            Self::ExternalOutput => String::from("EXTERNAL_OUTPUT"),
             Self::BufferCode(i) => i.to_string()
         }
     }
