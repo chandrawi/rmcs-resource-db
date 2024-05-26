@@ -97,7 +97,7 @@ async fn select_join_device(pool: &Pool<Postgres>,
     }
     if let DeviceKind::Gateway = kind {
         stmt = stmt.and_where(
-            Expr::col((DeviceConfig::Table, DeviceConfig::DeviceId)).equals((Device::Table, Device::GatewayId))
+            Expr::col((Device::Table, Device::DeviceId)).equals((Device::Table, Device::GatewayId))
         ).to_owned()
     }
     let (sql, values) = stmt

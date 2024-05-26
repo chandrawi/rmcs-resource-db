@@ -6,7 +6,7 @@ use sea_query_binder::SqlxBinder;
 use uuid::Uuid;
 
 use crate::schema::value::{DataType, DataValue, ArrayDataValue};
-use crate::schema::model::ModelType;
+use crate::schema::model::Model;
 use crate::schema::data::{
     Data, DataModel, DataBytesSchema, DataSchema
 };
@@ -86,10 +86,9 @@ pub(crate) async fn select_data_model(pool: &Pool<Postgres>,
 ) -> Result<DataModel, Error>
 {
     let (sql, values) = Query::select()
-        .column((ModelType::Table, ModelType::Type))
-        .from(ModelType::Table)
-        .and_where(Expr::col((ModelType::Table, ModelType::ModelId)).eq(model_id))
-        .order_by((ModelType::Table, ModelType::Index), Order::Asc)
+        .column((Model::Table, Model::DataType))
+        .from(Model::Table)
+        .and_where(Expr::col((Model::Table, Model::ModelId)).eq(model_id))
         .build_sqlx(PostgresQueryBuilder);
 
     let mut data_type = DataModel { id: model_id, types: Vec::new() };

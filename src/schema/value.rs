@@ -112,8 +112,8 @@ pub enum DataType {
     NullT
 }
 
-impl From<i16> for DataType {
-    fn from(value: i16) -> Self {
+impl From<u8> for DataType {
+    fn from(value: u8) -> Self {
         match value {
             1 => I8T,
             2 => I16T,
@@ -132,7 +132,13 @@ impl From<i16> for DataType {
     }
 }
 
-impl From<DataType> for i16 {
+impl From<i16> for DataType {
+    fn from(value: i16) -> Self {
+        Self::from(value as u8)
+    }
+}
+
+impl From<DataType> for u8 {
     fn from(value: DataType) -> Self {
         match value {
             I8T => 1,
@@ -149,6 +155,12 @@ impl From<DataType> for i16 {
             BoolT => 12,
             DataType::NullT => 0
         }
+    }
+}
+
+impl From<DataType> for i16 {
+    fn from(value: DataType) -> Self {
+        u8::from(value) as i16
     }
 }
 

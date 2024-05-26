@@ -1,11 +1,11 @@
 use sqlx::{Pool, Row, Error};
 use sqlx::postgres::{Postgres, PgRow};
-use sea_query::{PostgresQueryBuilder, Query, Expr, Cond, Order, Func};
+use sea_query::{PostgresQueryBuilder, Query, Expr, Order, Func};
 use sea_query_binder::SqlxBinder;
 use uuid::Uuid;
 
 use crate::schema::value::{ConfigType, ConfigValue, DataType};
-use crate::schema::model::{Model, ModelType, ModelConfig, ModelSchema, ModelConfigSchema};
+use crate::schema::model::{Model, ModelConfig, ModelSchema, ModelConfigSchema};
 
 enum ModelSelector {
     Id(Uuid),
@@ -26,34 +26,23 @@ async fn select_join_model(pool: &Pool<Postgres>,
     let mut stmt = Query::select()
         .columns([
             (Model::Table, Model::ModelId),
-            (Model::Table, Model::Category),
             (Model::Table, Model::Name),
-            (Model::Table, Model::Description)
-        ])
-        .columns([
-            (ModelType::Table, ModelType::Index),
-            (ModelType::Table, ModelType::Type)
+            (Model::Table, Model::Category),
+            (Model::Table, Model::Description),
+            (Model::Table, Model::DataType)
         ])
         .columns([
             (ModelConfig::Table, ModelConfig::Id),
+            (ModelConfig::Table, ModelConfig::Index),
             (ModelConfig::Table, ModelConfig::Name),
             (ModelConfig::Table, ModelConfig::Value),
             (ModelConfig::Table, ModelConfig::Type),
             (ModelConfig::Table, ModelConfig::Category)
         ])
         .from(Model::Table)
-        .inner_join(ModelType::Table, 
-            Expr::col((Model::Table, Model::ModelId))
-            .equals((ModelType::Table, ModelType::ModelId))
-        )
         .left_join(ModelConfig::Table, 
-            Cond::all()
-            .add(Expr::col((ModelType::Table, ModelType::ModelId))
-                .equals((ModelConfig::Table, ModelConfig::ModelId))
-            )
-            .add(Expr::col((ModelType::Table, ModelType::Index))
-                .equals((ModelConfig::Table, ModelConfig::Index))
-            )
+            Expr::col((Model::Table, Model::ModelId))
+            .equals((ModelConfig::Table, ModelConfig::ModelId))
         )
         .to_owned();
 
@@ -76,7 +65,7 @@ async fn select_join_model(pool: &Pool<Postgres>,
     }
     let (sql, values) = stmt
         .order_by((Model::Table, Model::ModelId), Order::Asc)
-        .order_by((ModelType::Table, ModelType::Index), Order::Asc)
+        .order_by((ModelConfig::Table, ModelConfig::Index), Order::Asc)
         .order_by((ModelConfig::Table, ModelConfig::Id), Order::Asc)
         .build_sqlx(PostgresQueryBuilder);
 
@@ -100,33 +89,32 @@ async fn select_join_model(pool: &Pool<Postgres>,
             }
             last_id = Some(id);
             model_schema.id = id;
-            model_schema.category = row.get(1);
-            model_schema.name = row.get(2);
+            model_schema.name = row.get(1);
+            model_schema.category = row.get(2);
             model_schema.description = row.get(3);
+            model_schema.data_type = row.get::<Vec<u8>,_>(4).into_iter().map(|byte| byte.into()).collect();
             // on every new index found update model_schema types and clear config_schema_vec
-            let type_index: i16 = row.get(4);
-            if last_index == None || last_index != Some(type_index) {
-                model_schema.types.push(DataType::from(row.get::<i16,_>(5)));
+            let type_index: Option<i16> = row.try_get(6).ok();
+            if last_index != type_index {
                 model_schema.configs.push(Vec::new());
                 config_schema_vec.clear();
             }
-            last_index = Some(type_index);
+            last_index = type_index;
             // update model_schema configs if non empty config found
-            let config_id: Option<i32> = row.try_get(6).ok();
-            if let Some(cfg_id) = config_id {
+            if let Some(index) = type_index {
                 let bytes: Vec<u8> = row.try_get(8).unwrap_or_default();
                 let type_ = ConfigType::from(row.try_get::<i16,_>(9).unwrap_or_default());
                 config_schema_vec.push(ModelConfigSchema {
-                    id: cfg_id,
+                    id: row.try_get(5).unwrap_or_default(),
                     model_id: id,
-                    index: type_index,
+                    index,
                     name: row.try_get(7).unwrap_or_default(),
                     value: ConfigValue::from_bytes(bytes.as_slice(), type_),
                     category: row.try_get(10).unwrap_or_default()
                 });
-                model_schema.configs.pop();
-                model_schema.configs.push(config_schema_vec.clone());
             }
+            model_schema.configs.pop();
+            model_schema.configs.push(config_schema_vec.clone());
             // update model_schema_vec with updated model_schema
             model_schema_vec.push(model_schema.clone());
         })
@@ -173,6 +161,7 @@ pub(crate) async fn select_join_model_by_name_category(pool: &Pool<Postgres>,
 
 pub(crate) async fn insert_model(pool: &Pool<Postgres>,
     id: Uuid,
+    data_type: &[DataType],
     category: &str,
     name: &str,
     description: Option<&str>,
@@ -184,13 +173,17 @@ pub(crate) async fn insert_model(pool: &Pool<Postgres>,
             Model::ModelId,
             Model::Category,
             Model::Name,
-            Model::Description
+            Model::Description,
+            Model::DataType
         ])
         .values([
             id.into(),
             category.into(),
             name.into(),
-            description.unwrap_or_default().into()
+            description.unwrap_or_default().into(),
+            data_type.into_iter().map(|ty| {
+                ty.to_owned().into()
+            }).collect::<Vec<u8>>().into()
         ])
         .unwrap_or(&mut sea_query::InsertStatement::default())
         .build_sqlx(PostgresQueryBuilder);
@@ -204,9 +197,10 @@ pub(crate) async fn insert_model(pool: &Pool<Postgres>,
 
 pub(crate) async fn update_model(pool: &Pool<Postgres>,
     id: Uuid,
+    data_type: Option<&[DataType]>,
     category: Option<&str>,
     name: Option<&str>,
-    description: Option<&str>,
+    description: Option<&str>
 ) -> Result<(), Error>
 {
     let mut stmt = Query::update()
@@ -221,6 +215,11 @@ pub(crate) async fn update_model(pool: &Pool<Postgres>,
     }
     if let Some(value) = description {
         stmt = stmt.value(Model::Description, value).to_owned();
+    }
+    if let Some(value) = data_type {
+        stmt = stmt.value(Model::DataType, value.into_iter().map(|ty| {
+            ty.to_owned().into()
+        }).collect::<Vec<u8>>()).to_owned();
     }
 
     let (sql, values) = stmt
@@ -241,56 +240,6 @@ pub(crate) async fn delete_model(pool: &Pool<Postgres>,
     let (sql, values) = Query::delete()
         .from_table(Model::Table)
         .and_where(Expr::col(Model::ModelId).eq(id))
-        .build_sqlx(PostgresQueryBuilder);
-
-    sqlx::query_with(&sql, values)
-        .execute(pool)
-        .await?;
-
-    Ok(())
-}
-
-pub(crate) async fn insert_model_types(pool: &Pool<Postgres>,
-    id: Uuid,
-    types: &[DataType]
-) -> Result<(), Error>
-{
-    let mut stmt = Query::insert()
-        .into_table(ModelType::Table)
-        .columns([
-            ModelType::ModelId,
-            ModelType::Index,
-            ModelType::Type
-        ])
-        .to_owned();
-    let mut i = 0;
-    for ty in types {
-        let t = i16::from(ty.clone());
-        stmt = stmt.values([
-                id.into(),
-                i.into(),
-                t.into()
-            ])
-            .unwrap_or(&mut sea_query::InsertStatement::default())
-            .to_owned();
-        i += 1;
-    }
-    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
-
-    sqlx::query_with(&sql, values)
-        .execute(pool)
-        .await?;
-
-    Ok(())
-}
-
-pub(crate) async fn delete_model_types(pool: &Pool<Postgres>, 
-    id: Uuid
-) -> Result<(), Error> 
-{
-    let (sql, values) = Query::delete()
-        .from_table(ModelType::Table)
-        .and_where(Expr::col(ModelType::ModelId).eq(id))
         .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)

@@ -6,7 +6,7 @@ use sea_query_binder::SqlxBinder;
 use uuid::Uuid;
 
 use crate::schema::value::{DataType, DataValue, ArrayDataValue};
-use crate::schema::model::ModelType;
+use crate::schema::model::Model;
 use crate::schema::data::DataModel;
 use crate::schema::buffer::{DataBuffer, BufferBytesSchema, BufferSchema, BufferStatus};
 use crate::operation::data;
@@ -96,13 +96,12 @@ pub(crate) async fn select_model_buffer(pool: &Pool<Postgres>,
 
     let (sql, values) = Query::select()
         .columns([
-            (ModelType::Table, ModelType::ModelId),
-            (ModelType::Table, ModelType::Type)
+            (Model::Table, Model::ModelId),
+            (Model::Table, Model::DataType)
         ])
-        .from(ModelType::Table)
-        .and_where(Expr::col((ModelType::Table, ModelType::ModelId)).is_in(unique_id_vec))
-        .order_by((ModelType::Table, ModelType::ModelId), Order::Asc)
-        .order_by((ModelType::Table, ModelType::Index), Order::Asc)
+        .from(Model::Table)
+        .and_where(Expr::col((Model::Table, Model::ModelId)).is_in(unique_id_vec))
+        .order_by((Model::Table, Model::ModelId), Order::Asc)
         .build_sqlx(PostgresQueryBuilder);
 
     unique_id_vec = Vec::new();

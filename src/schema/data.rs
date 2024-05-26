@@ -25,7 +25,7 @@ impl std::convert::From<ModelSchema> for DataModel {
     fn from(value: ModelSchema) -> Self {
         DataModel {
             id: value.id,
-            types: value.types
+            types: value.data_type
         }
     }
 }

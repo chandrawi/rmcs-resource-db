@@ -123,17 +123,17 @@ impl Resource {
         .await
     }
 
-    pub async fn create_model(&self, id: Uuid, category: &str, name: &str, description: Option<&str>)
+    pub async fn create_model(&self, id: Uuid, data_type: &[DataType], category: &str, name: &str, description: Option<&str>)
         -> Result<Uuid, Error>
     {
-        model::insert_model(&self.pool, id, category, name, description)
+        model::insert_model(&self.pool, id, data_type, category, name, description)
         .await
     }
 
-    pub async fn update_model(&self, id: Uuid, category: Option<&str>, name: Option<&str>, description: Option<&str>)
+    pub async fn update_model(&self, id: Uuid, data_type: Option<&[DataType]>, category: Option<&str>, name: Option<&str>, description: Option<&str>)
         -> Result<(), Error>
     {
-        model::update_model(&self.pool, id, category, name, description)
+        model::update_model(&self.pool, id, data_type, category, name, description)
         .await
     }
 
@@ -141,20 +141,6 @@ impl Resource {
         -> Result<(), Error>
     {
         model::delete_model(&self.pool, id)
-        .await
-    }
-
-    pub async fn add_model_type(&self, id: Uuid, types: &[DataType])
-        -> Result<(), Error>
-    {
-        model::insert_model_types(&self.pool, id, types)
-        .await
-    }
-
-    pub async fn remove_model_type(&self, id: Uuid)
-        -> Result<(), Error>
-    {
-        model::delete_model_types(&self.pool, id)
         .await
     }
 

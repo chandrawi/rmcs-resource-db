@@ -9,15 +9,8 @@ pub(crate) enum Model {
     ModelId,
     Category,
     Name,
-    Description
-}
-
-#[derive(Iden)]
-pub(crate) enum ModelType {
-    Table,
-    ModelId,
-    Index,
-    Type,
+    Description,
+    DataType
 }
 
 #[derive(Iden)]
@@ -38,7 +31,7 @@ pub struct ModelSchema {
     pub category: String,
     pub name: String,
     pub description: String,
-    pub types: Vec<DataType>,
+    pub data_type: Vec<DataType>,
     pub configs: Vec<Vec<ModelConfigSchema>>
 }
 
@@ -59,7 +52,7 @@ impl From<model::ModelSchema> for ModelSchema {
             category: value.category,
             name: value.name,
             description: value.description,
-            types: value.types.into_iter().map(|e| {
+            data_type: value.data_type.into_iter().map(|e| {
                     DataType::from(common::DataType::try_from(e).unwrap_or_default())
                 })
                 .collect(),
@@ -77,7 +70,7 @@ impl Into<model::ModelSchema> for ModelSchema {
             category: self.category,
             name: self.name,
             description: self.description,
-            types: self.types.into_iter().map(|e| {
+            data_type: self.data_type.into_iter().map(|e| {
                     Into::<common::DataType>::into(e).into()
                 }).collect(),
             configs: self.configs.into_iter().map(|e| model::ConfigSchemaVec {
