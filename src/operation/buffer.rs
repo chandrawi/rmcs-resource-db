@@ -9,6 +9,7 @@ use crate::schema::value::{DataType, DataValue, ArrayDataValue};
 use crate::schema::model::Model;
 use crate::schema::data::DataModel;
 use crate::schema::buffer::{DataBuffer, BufferSchema, BufferStatus};
+use crate::operation::data::select_data_model;
 
 enum BufferSelector {
     Id(i32),
@@ -90,6 +91,33 @@ async fn select_buffer(pool: &Pool<Postgres>,
     Ok(rows)
 }
 
+pub(crate) async fn select_buffer_model(pool: &Pool<Postgres>,
+    buffer_id: i32
+) -> Result<DataModel, Error>
+{
+    let (sql, values) = Query::select()
+        .columns([
+            (Model::Table, Model::ModelId),
+            (Model::Table, Model::DataType)
+        ])
+        .from(DataBuffer::Table)
+        .inner_join(Model::Table,
+            Expr::col((DataBuffer::Table, DataBuffer::ModelId))
+            .equals((Model::Table, Model::ModelId)))
+        .and_where(Expr::col((DataBuffer::Table, DataBuffer::Id)).eq(buffer_id))
+        .build_sqlx(PostgresQueryBuilder);
+
+    let (model_id, data_type) = sqlx::query_with(&sql, values)
+        .map(|row: PgRow| {(
+            row.get(0),
+            row.get::<Vec<u8>,_>(0).into_iter().map(|ty| ty.into()).collect()
+        )})
+        .fetch_one(pool)
+        .await?;
+
+    Ok(DataModel { id: model_id, data_type })
+}
+
 pub(crate) async fn select_buffer_by_id(pool: &Pool<Postgres>, 
     id: i32
 ) -> Result<BufferSchema, Error>
@@ -137,12 +165,13 @@ pub(crate) async fn select_buffer_last(pool: &Pool<Postgres>,
 
 pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
     device_id: Uuid,
-    model: DataModel,
+    model_id: Uuid,
     timestamp: DateTime<Utc>,
     data: Vec<DataValue>,
     status: BufferStatus
 ) -> Result<i32, Error>
 {
+    let model = select_data_model(pool, model_id).await?;
     let converted_values = ArrayDataValue::from_vec(&data).convert(&model.data_type);
     let bytes = match converted_values {
         Some(value) => value.to_bytes(),
@@ -195,7 +224,12 @@ pub(crate) async fn update_buffer(pool: &Pool<Postgres>,
         .to_owned();
 
     if let Some(value) = data {
-        let bytes = ArrayDataValue::from_vec(&value).to_bytes();
+        let model = select_buffer_model(pool, id).await?;
+        let converted_values = ArrayDataValue::from_vec(&value).convert(&model.data_type);
+        let bytes = match converted_values {
+            Some(value) => value.to_bytes(),
+            None => return Err(Error::RowNotFound)
+        };
         stmt = stmt.value(DataBuffer::Data, bytes).to_owned();
     }
     if let Some(value) = status {

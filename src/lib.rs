@@ -669,111 +669,49 @@ impl Resource {
     pub async fn read_data(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>)
         -> Result<DataSchema, Error>
     {
-        let model = data::select_data_model(&self.pool, model_id).await?;
-        data::select_data_by_time(&self.pool, model, device_id, timestamp).await?.into_iter().next()
+        data::select_data_by_time(&self.pool, model_id, device_id, timestamp).await?.into_iter().next()
             .ok_or(Error::RowNotFound)
     }
 
     pub async fn list_data_by_time(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>)
         -> Result<Vec<DataSchema>, Error>
     {
-        let model = data::select_data_model(&self.pool, model_id).await?;
-        data::select_data_by_time(&self.pool, model, device_id, timestamp)
+        data::select_data_by_time(&self.pool, model_id, device_id, timestamp)
         .await
     }
 
     pub async fn list_data_by_last_time(&self, device_id: Uuid, model_id: Uuid, last: DateTime<Utc>)
         -> Result<Vec<DataSchema>, Error>
     {
-        let model = data::select_data_model(&self.pool, model_id).await?;
-        data::select_data_by_last_time(&self.pool, model, device_id, last)
+        data::select_data_by_last_time(&self.pool, model_id, device_id, last)
         .await
     }
 
     pub async fn list_data_by_range_time(&self, device_id: Uuid, model_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
         -> Result<Vec<DataSchema>, Error>
     {
-        let model = data::select_data_model(&self.pool, model_id).await?;
-        data::select_data_by_range_time(&self.pool, model, device_id, begin, end)
+        data::select_data_by_range_time(&self.pool, model_id, device_id, begin, end)
         .await
     }
 
     pub async fn list_data_by_number_before(&self, device_id: Uuid, model_id: Uuid, before: DateTime<Utc>, number: u32)
         -> Result<Vec<DataSchema>, Error>
     {
-        let model = data::select_data_model(&self.pool, model_id).await?;
-        data::select_data_by_number_before(&self.pool, model, device_id, before, number)
+        data::select_data_by_number_before(&self.pool, model_id, device_id, before, number)
         .await
     }
 
     pub async fn list_data_by_number_after(&self, device_id: Uuid, model_id: Uuid, after: DateTime<Utc>, number: u32)
         -> Result<Vec<DataSchema>, Error>
     {
-        let model = data::select_data_model(&self.pool, model_id).await?;
-        data::select_data_by_number_after(&self.pool, model, device_id, after, number)
-        .await
-    }
-
-    pub async fn get_data_model(&self, model_id: Uuid)
-        -> Result<DataModel, Error>
-    {
-        data::select_data_model(&self.pool, model_id).await
-    }
-
-    pub async fn read_data_with_model(&self, model: DataModel, device_id: Uuid, timestamp: DateTime<Utc>)
-        -> Result<DataSchema, Error>
-    {
-        data::select_data_by_time(&self.pool, model, device_id, timestamp).await?.into_iter().next()
-            .ok_or(Error::RowNotFound)
-    }
-
-    pub async fn list_data_with_model_by_time(&self, model: DataModel, device_id: Uuid, timestamp: DateTime<Utc>)
-        -> Result<Vec<DataSchema>, Error>
-    {
-        data::select_data_by_time(&self.pool, model, device_id, timestamp)
-        .await
-    }
-
-    pub async fn list_data_with_model_by_last_time(&self, model: DataModel, device_id: Uuid, last: DateTime<Utc>)
-        -> Result<Vec<DataSchema>, Error>
-    {
-        data::select_data_by_last_time(&self.pool, model, device_id, last)
-        .await
-    }
-
-    pub async fn list_data_with_model_by_range_time(&self, model: DataModel, device_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
-        -> Result<Vec<DataSchema>, Error>
-    {
-        data::select_data_by_range_time(&self.pool, model, device_id, begin, end)
-        .await
-    }
-
-    pub async fn list_data_with_model_by_number_before(&self, model: DataModel, device_id: Uuid, before: DateTime<Utc>, number: u32)
-        -> Result<Vec<DataSchema>, Error>
-    {
-        data::select_data_by_number_before(&self.pool, model, device_id, before, number)
-        .await
-    }
-
-    pub async fn list_data_with_model_by_number_after(&self, model: DataModel, device_id: Uuid, after: DateTime<Utc>, number: u32)
-        -> Result<Vec<DataSchema>, Error>
-    {
-        data::select_data_by_number_after(&self.pool, model, device_id, after, number)
+        data::select_data_by_number_after(&self.pool, model_id, device_id, after, number)
         .await
     }
 
     pub async fn create_data(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, data: Vec<DataValue>)
         -> Result<(), Error>
     {
-        let model = data::select_data_model(&self.pool, model_id).await?;
-        data::insert_data(&self.pool, model, device_id, timestamp, data)
-        .await
-    }
-
-    pub async fn create_data_with_model(&self, model: DataModel, device_id: Uuid, timestamp: DateTime<Utc>, data: Vec<DataValue>)
-        -> Result<(), Error>
-    {
-        data::insert_data(&self.pool, model, device_id, timestamp, data)
+        data::insert_data(&self.pool, model_id, device_id, timestamp, data)
         .await
     }
 
@@ -781,13 +719,6 @@ impl Resource {
         -> Result<(), Error>
     {
         data::delete_data(&self.pool, model_id, device_id, timestamp)
-        .await
-    }
-
-    pub async fn delete_data_with_model(&self, model: DataModel, device_id: Uuid, timestamp: DateTime<Utc>)
-        -> Result<(), Error>
-    {
-        data::delete_data(&self.pool, model.id, device_id, timestamp)
         .await
     }
 
@@ -834,8 +765,7 @@ impl Resource {
     pub async fn create_buffer(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, data: Vec<DataValue>, status: BufferStatus)
         -> Result<i32, Error>
     {
-        let model = data::select_data_model(&self.pool, model_id).await?;
-        buffer::insert_buffer(&self.pool, device_id, model, timestamp, data, status)
+        buffer::insert_buffer(&self.pool, device_id, model_id, timestamp, data, status)
         .await
     }
 

@@ -7,9 +7,7 @@ use uuid::Uuid;
 
 use crate::schema::value::{DataType, DataValue, ArrayDataValue};
 use crate::schema::model::Model;
-use crate::schema::data::{
-    Data, DataModel, DataSchema
-};
+use crate::schema::data::{Data, DataModel, DataSchema};
 
 enum DataSelector {
     Time(DateTime<Utc>),
@@ -108,31 +106,31 @@ pub(crate) async fn select_data_model(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn select_data_by_time(pool: &Pool<Postgres>,
-    model: DataModel,
+    model_id: Uuid,
     device_id: Uuid,
     timestamp: DateTime<Utc>
 ) -> Result<Vec<DataSchema>, Error>
 {
     let selector = DataSelector::Time(timestamp);
     Ok(
-        select_data(pool, selector, device_id, model.id).await?
+        select_data(pool, selector, device_id, model_id).await?
     )
 }
 
 pub(crate) async fn select_data_by_last_time(pool: &Pool<Postgres>,
-    model: DataModel,
+    model_id: Uuid,
     device_id: Uuid,
     last: DateTime<Utc>
 ) -> Result<Vec<DataSchema>, Error>
 {
     let selector = DataSelector::Last(last);
     Ok(
-        select_data(pool, selector, device_id, model.id).await?
+        select_data(pool, selector, device_id, model_id).await?
     )
 }
 
 pub(crate) async fn select_data_by_range_time(pool: &Pool<Postgres>,
-    model: DataModel,
+    model_id: Uuid,
     device_id: Uuid,
     begin: DateTime<Utc>,
     end: DateTime<Utc>
@@ -140,12 +138,12 @@ pub(crate) async fn select_data_by_range_time(pool: &Pool<Postgres>,
 {
     let selector = DataSelector::Range(begin, end);
     Ok(
-        select_data(pool, selector, device_id, model.id).await?
+        select_data(pool, selector, device_id, model_id).await?
     )
 }
 
 pub(crate) async fn select_data_by_number_before(pool: &Pool<Postgres>,
-    model: DataModel,
+    model_id: Uuid,
     device_id: Uuid,
     before: DateTime<Utc>,
     number: u32
@@ -153,12 +151,12 @@ pub(crate) async fn select_data_by_number_before(pool: &Pool<Postgres>,
 {
     let selector = DataSelector::NumberBefore(before, number);
     Ok(
-        select_data(pool, selector, device_id, model.id).await?
+        select_data(pool, selector, device_id, model_id).await?
     )
 }
 
 pub(crate) async fn select_data_by_number_after(pool: &Pool<Postgres>,
-    model: DataModel,
+    model_id: Uuid,
     device_id: Uuid,
     after: DateTime<Utc>,
     number: u32
@@ -166,17 +164,18 @@ pub(crate) async fn select_data_by_number_after(pool: &Pool<Postgres>,
 {
     let selector = DataSelector::NumberAfter(after, number);
     Ok(
-        select_data(pool, selector, device_id, model.id).await?
+        select_data(pool, selector, device_id, model_id).await?
     )
 }
 
 pub(crate) async fn insert_data(pool: &Pool<Postgres>,
-    model: DataModel,
+    model_id: Uuid,
     device_id: Uuid,
     timestamp: DateTime<Utc>,
     data: Vec<DataValue>
 ) -> Result<(), Error>
 {
+    let model = select_data_model(pool, model_id).await?;
     let converted_values = ArrayDataValue::from_vec(&data).convert(&model.data_type);
     let bytes = match converted_values {
         Some(value) => value.to_bytes(),
@@ -193,7 +192,7 @@ pub(crate) async fn insert_data(pool: &Pool<Postgres>,
         ])
         .values([
             device_id.into(),
-            model.id.into(),
+            model_id.into(),
             timestamp.into(),
             bytes.into()
         ])
