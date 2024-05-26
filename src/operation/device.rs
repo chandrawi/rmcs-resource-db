@@ -5,10 +5,7 @@ use sea_query_binder::SqlxBinder;
 use uuid::Uuid;
 
 use crate::schema::value::{ConfigValue, ConfigType};
-use crate::schema::device::{
-    Device, DeviceType, DeviceTypeModel, DeviceConfig, DeviceKind,
-    DeviceSchema, DeviceConfigSchema
-};
+use crate::schema::device::{Device, DeviceType, DeviceTypeModel, DeviceConfig, DeviceKind, DeviceSchema, DeviceConfigSchema};
 
 enum DeviceSelector {
     Id(Uuid),

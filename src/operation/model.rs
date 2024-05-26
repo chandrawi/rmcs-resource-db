@@ -6,12 +6,14 @@ use uuid::Uuid;
 
 use crate::schema::value::{ConfigType, ConfigValue, DataType};
 use crate::schema::model::{Model, ModelConfig, ModelSchema, ModelConfigSchema};
+use crate::schema::device::DeviceTypeModel;
 
 enum ModelSelector {
     Id(Uuid),
     Name(String),
     Category(String),
-    NameCategory(String, String)
+    NameCategory(String, String),
+    TypeId(Uuid)
 }
 
 enum ConfigSelector {
@@ -61,6 +63,13 @@ async fn select_join_model(pool: &Pool<Postgres>,
                 .and_where(Expr::col((Model::Table, Model::Name)).like(name))
                 .and_where(Expr::col((Model::Table, Model::Category)).eq(category))
                 .to_owned();
+        },
+        ModelSelector::TypeId(id) => {
+            stmt = stmt.inner_join(DeviceTypeModel::Table, 
+                    Expr::col((Model::Table, Model::ModelId))
+                    .equals((DeviceTypeModel::Table, DeviceTypeModel::ModelId)))
+                .and_where(Expr::col((DeviceTypeModel::Table, DeviceTypeModel::TypeId)).eq(id))
+                .to_owned();
         }
     }
     let (sql, values) = stmt
@@ -95,7 +104,7 @@ async fn select_join_model(pool: &Pool<Postgres>,
             model_schema.data_type = row.get::<Vec<u8>,_>(4).into_iter().map(|byte| byte.into()).collect();
             // on every new index found update model_schema types and clear config_schema_vec
             let type_index: Option<i16> = row.try_get(6).ok();
-            if last_index != type_index {
+            if last_index == None || last_index != type_index {
                 model_schema.configs.push(Vec::new());
                 config_schema_vec.clear();
             }
@@ -157,6 +166,13 @@ pub(crate) async fn select_join_model_by_name_category(pool: &Pool<Postgres>,
 {
     let name_like = String::from("%") + name + "%";
     select_join_model(pool, ModelSelector::NameCategory(String::from(name_like), String::from(category))).await
+}
+
+pub(crate) async fn select_join_model_by_type(pool: &Pool<Postgres>, 
+    type_id: Uuid
+) -> Result<Vec<ModelSchema>, Error>
+{
+    select_join_model(pool, ModelSelector::TypeId(type_id)).await
 }
 
 pub(crate) async fn insert_model(pool: &Pool<Postgres>,

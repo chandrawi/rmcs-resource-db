@@ -123,6 +123,13 @@ impl Resource {
         .await
     }
 
+    pub async fn list_model_by_type(&self, type_id: Uuid)
+        -> Result<Vec<ModelSchema>, Error>
+    {
+        model::select_join_model_by_type(&self.pool, type_id)
+        .await
+    }
+
     pub async fn create_model(&self, id: Uuid, data_type: &[DataType], category: &str, name: &str, description: Option<&str>)
         -> Result<Uuid, Error>
     {
