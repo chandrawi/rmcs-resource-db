@@ -18,14 +18,14 @@ pub(crate) enum Data {
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct DataModel {
     pub(crate) id: Uuid,
-    pub(crate) types: Vec<DataType>
+    pub(crate) data_type: Vec<DataType>
 }
 
 impl std::convert::From<ModelSchema> for DataModel {
     fn from(value: ModelSchema) -> Self {
         DataModel {
             id: value.id,
-            types: value.data_type
+            data_type: value.data_type
         }
     }
 }
@@ -36,48 +36,6 @@ pub struct DataSchema {
     pub model_id: Uuid,
     pub timestamp: DateTime<Utc>,
     pub data: Vec<DataValue>
-}
-
-#[derive(Debug, Default, PartialEq, Clone)]
-pub(crate) struct DataBytesSchema {
-    pub(crate) device_id: Uuid,
-    pub(crate) model_id: Uuid,
-    pub(crate) timestamp: DateTime<Utc>,
-    pub(crate) bytes: Vec<u8>
-}
-
-impl DataBytesSchema {
-    pub(crate) fn to_data_schema(self, types: &[DataType]) -> DataSchema
-    {
-        DataSchema {
-            device_id: self.device_id,
-            model_id: self.model_id,
-            timestamp: self.timestamp,
-            data: ArrayDataValue::from_bytes(&self.bytes, types).to_vec()
-        }
-    }
-}
-
-impl From<data::DataModel> for DataModel {
-    fn from(value: data::DataModel) -> Self {
-        Self {
-            id: Uuid::from_slice(&value.id).unwrap_or_default(),
-            types: value.types.into_iter().map(|e| {
-                    DataType::from(common::DataType::try_from(e).unwrap_or_default())
-                }).collect()
-        }
-    }
-}
-
-impl Into<data::DataModel> for DataModel {
-    fn into(self) -> data::DataModel {
-        data::DataModel {
-            id: self.id.as_bytes().to_vec(),
-            types: self.types.into_iter().map(|e| {
-                    Into::<common::DataType>::into(e).into()
-                }).collect()
-        }
-    }
 }
 
 impl From<data::DataSchema> for DataSchema {

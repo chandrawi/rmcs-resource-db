@@ -181,30 +181,6 @@ pub struct BufferSchema {
     pub status: BufferStatus
 }
 
-#[derive(Debug, Default, PartialEq, Clone)]
-pub(crate) struct BufferBytesSchema {
-    pub(crate) id: i32,
-    pub(crate) device_id: Uuid,
-    pub(crate) model_id: Uuid,
-    pub(crate) timestamp: DateTime<Utc>,
-    pub(crate) bytes: Vec<u8>,
-    pub(crate) status: BufferStatus
-}
-
-impl BufferBytesSchema {
-    pub(crate) fn to_buffer_schema(self, types: &[DataType]) -> BufferSchema
-    {
-        BufferSchema {
-            id: self.id,
-            device_id: self.device_id,
-            model_id: self.model_id,
-            timestamp: self.timestamp,
-            data: ArrayDataValue::from_bytes(&self.bytes, types).to_vec(),
-            status: self.status
-        }
-    }
-}
-
 impl From<buffer::BufferSchema> for BufferSchema {
     fn from(value: buffer::BufferSchema) -> Self {
         Self {

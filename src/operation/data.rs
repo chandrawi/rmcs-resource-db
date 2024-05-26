@@ -8,7 +8,7 @@ use uuid::Uuid;
 use crate::schema::value::{DataType, DataValue, ArrayDataValue};
 use crate::schema::model::Model;
 use crate::schema::data::{
-    Data, DataModel, DataBytesSchema, DataSchema
+    Data, DataModel, DataSchema
 };
 
 enum DataSelector {
@@ -19,47 +19,51 @@ enum DataSelector {
     NumberAfter(DateTime<Utc>, u32)
 }
 
-async fn select_data_bytes(pool: &Pool<Postgres>, 
+async fn select_data(pool: &Pool<Postgres>, 
     selector: DataSelector,
     device_id: Uuid,
     model_id: Uuid
-) -> Result<Vec<DataBytesSchema>, Error>
+) -> Result<Vec<DataSchema>, Error>
 {
     let mut stmt = Query::select()
         .columns([
-            Data::DeviceId,
-            Data::ModelId,
-            Data::Timestamp,
-            Data::Data
+            (Data::Table, Data::DeviceId),
+            (Data::Table, Data::ModelId),
+            (Data::Table, Data::Timestamp),
+            (Data::Table, Data::Data)
         ])
+        .column((Model::Table, Model::DataType))
         .from(Data::Table)
-        .and_where(Expr::col(Data::DeviceId).eq(device_id))
-        .and_where(Expr::col(Data::ModelId).eq(model_id))
+        .inner_join(Model::Table, 
+            Expr::col((Data::Table, Data::ModelId))
+            .equals((Model::Table, Model::ModelId)))
+        .and_where(Expr::col((Data::Table, Data::DeviceId)).eq(device_id))
+        .and_where(Expr::col((Data::Table, Data::ModelId)).eq(model_id))
         .to_owned();
     match selector {
         DataSelector::Time(time) => {
-            stmt = stmt.and_where(Expr::col(Data::Timestamp).eq(time)).to_owned();
+            stmt = stmt.and_where(Expr::col((Data::Table, Data::Timestamp)).eq(time)).to_owned();
         },
         DataSelector::Last(last) => {
-            stmt = stmt.and_where(Expr::col(Data::Timestamp).gt(last)).to_owned();
+            stmt = stmt.and_where(Expr::col((Data::Table, Data::Timestamp)).gt(last)).to_owned();
         },
         DataSelector::Range(begin, end) => {
             stmt = stmt
-                .and_where(Expr::col(Data::Timestamp).gte(begin))
-                .and_where(Expr::col(Data::Timestamp).lte(end))
+                .and_where(Expr::col((Data::Table, Data::Timestamp)).gte(begin))
+                .and_where(Expr::col((Data::Table, Data::Timestamp)).lte(end))
                 .to_owned();
         },
         DataSelector::NumberBefore(time, limit) => {
             stmt = stmt
-                .and_where(Expr::col(Data::Timestamp).lte(time))
-                .order_by(Data::Timestamp, Order::Desc)
+                .and_where(Expr::col((Data::Table, Data::Timestamp)).lte(time))
+                .order_by((Data::Table, Data::Timestamp), Order::Desc)
                 .limit(limit.into())
                 .to_owned();
         },
         DataSelector::NumberAfter(time, limit) => {
             stmt = stmt
-                .and_where(Expr::col(Data::Timestamp).gte(time))
-                .order_by(Data::Timestamp, Order::Asc)
+                .and_where(Expr::col((Data::Table, Data::Timestamp)).gte(time))
+                .order_by((Data::Table, Data::Timestamp), Order::Asc)
                 .limit(limit.into())
                 .to_owned();
         }
@@ -68,11 +72,13 @@ async fn select_data_bytes(pool: &Pool<Postgres>,
 
     let rows = sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
-            DataBytesSchema {
+            let bytes: Vec<u8> = row.get(3);
+            let types: Vec<DataType> = row.get::<Vec<u8>,_>(4).into_iter().map(|ty| ty.into()).collect();
+            DataSchema {
                 device_id: row.get(0),
                 model_id: row.get(1),
                 timestamp: row.get(2),
-                bytes: row.get(3)
+                data: ArrayDataValue::from_bytes(&bytes, &types).to_vec()
             }
         })
         .fetch_all(pool)
@@ -91,16 +97,14 @@ pub(crate) async fn select_data_model(pool: &Pool<Postgres>,
         .and_where(Expr::col((Model::Table, Model::ModelId)).eq(model_id))
         .build_sqlx(PostgresQueryBuilder);
 
-    let mut data_type = DataModel { id: model_id, types: Vec::new() };
-
-    sqlx::query_with(&sql, values)
+    let data_type = sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
-            data_type.types.push(DataType::from(row.get::<i16,_>(0)))
+            row.get::<Vec<u8>,_>(0).into_iter().map(|ty| ty.into()).collect()
         })
-        .fetch_all(pool)
+        .fetch_one(pool)
         .await?;
 
-    Ok(data_type)
+    Ok(DataModel { id: model_id, data_type })
 }
 
 pub(crate) async fn select_data_by_time(pool: &Pool<Postgres>,
@@ -110,9 +114,8 @@ pub(crate) async fn select_data_by_time(pool: &Pool<Postgres>,
 ) -> Result<Vec<DataSchema>, Error>
 {
     let selector = DataSelector::Time(timestamp);
-    let bytes = select_data_bytes(pool, selector, device_id, model.id).await?;
     Ok(
-        bytes.into_iter().map(|el| el.to_data_schema(&model.types)).collect()
+        select_data(pool, selector, device_id, model.id).await?
     )
 }
 
@@ -123,9 +126,8 @@ pub(crate) async fn select_data_by_last_time(pool: &Pool<Postgres>,
 ) -> Result<Vec<DataSchema>, Error>
 {
     let selector = DataSelector::Last(last);
-    let bytes = select_data_bytes(pool, selector, device_id, model.id).await?;
     Ok(
-        bytes.into_iter().map(|el| el.to_data_schema(&model.types)).collect()
+        select_data(pool, selector, device_id, model.id).await?
     )
 }
 
@@ -137,9 +139,8 @@ pub(crate) async fn select_data_by_range_time(pool: &Pool<Postgres>,
 ) -> Result<Vec<DataSchema>, Error>
 {
     let selector = DataSelector::Range(begin, end);
-    let bytes = select_data_bytes(pool, selector, device_id, model.id).await?;
     Ok(
-        bytes.into_iter().map(|el| el.to_data_schema(&model.types)).collect()
+        select_data(pool, selector, device_id, model.id).await?
     )
 }
 
@@ -151,9 +152,8 @@ pub(crate) async fn select_data_by_number_before(pool: &Pool<Postgres>,
 ) -> Result<Vec<DataSchema>, Error>
 {
     let selector = DataSelector::NumberBefore(before, number);
-    let bytes = select_data_bytes(pool, selector, device_id, model.id).await?;
     Ok(
-        bytes.into_iter().map(|el| el.to_data_schema(&model.types)).collect()
+        select_data(pool, selector, device_id, model.id).await?
     )
 }
 
@@ -165,9 +165,8 @@ pub(crate) async fn select_data_by_number_after(pool: &Pool<Postgres>,
 ) -> Result<Vec<DataSchema>, Error>
 {
     let selector = DataSelector::NumberAfter(after, number);
-    let bytes = select_data_bytes(pool, selector, device_id, model.id).await?;
     Ok(
-        bytes.into_iter().map(|el| el.to_data_schema(&model.types)).collect()
+        select_data(pool, selector, device_id, model.id).await?
     )
 }
 
@@ -178,7 +177,7 @@ pub(crate) async fn insert_data(pool: &Pool<Postgres>,
     data: Vec<DataValue>
 ) -> Result<(), Error>
 {
-    let converted_values = ArrayDataValue::from_vec(&data).convert(&model.types);
+    let converted_values = ArrayDataValue::from_vec(&data).convert(&model.data_type);
     let bytes = match converted_values {
         Some(value) => value.to_bytes(),
         None => return Err(Error::RowNotFound)
