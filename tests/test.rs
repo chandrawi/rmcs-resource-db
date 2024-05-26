@@ -21,7 +21,7 @@ mod tests {
 
     async fn truncate_tables(pool: &Pool<Postgres>) -> Result<(), Error>
     {
-        let sql = "TRUNCATE TABLE \"system_log\", \"data_slice\", \"data_buffer\", \"data\", \"group_model_map\", \"group_device_map\", \"group_model\", \"group_device\", \"device_config\", \"device\", \"device_type_model\", \"device_type\", \"model_config\", \"model_type\", \"model\";";
+        let sql = "TRUNCATE TABLE \"system_log\", \"data_slice\", \"data_buffer\", \"data\", \"group_model_map\", \"group_device_map\", \"group_model\", \"group_device\", \"device_config\", \"device\", \"device_type_model\", \"device_type\", \"model_config\", \"model\";";
         sqlx::query(sql)
             .execute(pool)
             .await?;
@@ -40,10 +40,8 @@ mod tests {
         truncate_tables(&resource.pool).await.unwrap();
 
         // create new data model and add data types
-        let model_id = resource.create_model(Uuid::new_v4(), "UPLINK", "speed and direction", None).await.unwrap();
-        let model_buf_id = resource.create_model(Uuid::new_v4(), "UPLINK", "buffer 4", None).await.unwrap();
-        resource.add_model_type(model_id, &[F32T,F32T]).await.unwrap();
-        resource.add_model_type(model_buf_id, &[U8T,U8T,U8T,U8T]).await.unwrap();
+        let model_id = resource.create_model(Uuid::new_v4(), &[F32T,F32T], "UPLINK", "speed and direction", None).await.unwrap();
+        let model_buf_id = resource.create_model(Uuid::new_v4(), &[U8T,U8T,U8T,U8T], "UPLINK", "buffer 4", None).await.unwrap();
         // create scale, symbol, and threshold configurations for new created model
         resource.create_model_config(model_id, 0, "scale_0", Str("speed".to_owned()), "SCALE").await.unwrap();
         resource.create_model_config(model_id, 1, "scale_1", Str("direction".to_owned()), "SCALE").await.unwrap();
@@ -85,7 +83,7 @@ mod tests {
         assert!(model_ids.contains(&model_id));
         assert_eq!(model.name, "speed and direction");
         assert_eq!(model.category, "UPLINK");
-        assert_eq!(model.types, [F32T,F32T]);
+        assert_eq!(model.data_type, [F32T,F32T]);
         // read model configurations
         let model_configs = resource.list_model_config_by_model(model_id).await.unwrap();
         let mut config_vec: Vec<ModelConfigSchema> = Vec::new();
@@ -124,12 +122,10 @@ mod tests {
         assert_eq!(group_device.category, "APPLICATION");
 
         // update model
-        resource.update_model(model_buf_id, None, Some("buffer 2 integer"), Some("Model for store 2 i32 temporary data")).await.unwrap();
-        resource.remove_model_type(model_buf_id).await.unwrap();
-        resource.add_model_type(model_buf_id, &[I32T,I32T]).await.unwrap();
+        resource.update_model(model_buf_id, Some(&[I32T,I32T]), None, Some("buffer 2 integer"), Some("Model for store 2 i32 temporary data")).await.unwrap();
         let model = resource.read_model(model_buf_id).await.unwrap();
         assert_eq!(model.name, "buffer 2 integer");
-        assert_eq!(model.types, [I32T,I32T]);
+        assert_eq!(model.data_type, [I32T,I32T]);
         // update model configurations
         resource.update_model_config(model_cfg_id, None, Some(Int(238)), None).await.unwrap();
         let config = resource.read_model_config(model_cfg_id).await.unwrap();
