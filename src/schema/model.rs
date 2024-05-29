@@ -54,8 +54,7 @@ impl From<model::ModelSchema> for ModelSchema {
             description: value.description,
             data_type: value.data_type.into_iter().map(|e| {
                     DataType::from(common::DataType::try_from(e).unwrap_or_default())
-                })
-                .collect(),
+                }).collect(),
             configs: value.configs.into_iter().map(|e| {
                     e.configs.into_iter().map(|e| e.into()).collect()
                 }).collect()

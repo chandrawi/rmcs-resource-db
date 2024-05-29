@@ -132,8 +132,8 @@ impl From<u8> for DataType {
     }
 }
 
-impl From<i16> for DataType {
-    fn from(value: i16) -> Self {
+impl From<i32> for DataType {
+    fn from(value: i32) -> Self {
         Self::from(value as u8)
     }
 }
@@ -158,9 +158,9 @@ impl From<DataType> for u8 {
     }
 }
 
-impl From<DataType> for i16 {
+impl From<DataType> for i32 {
     fn from(value: DataType) -> Self {
-        u8::from(value) as i16
+        u8::from(value) as i32
     }
 }
 

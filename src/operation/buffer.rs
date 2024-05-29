@@ -110,7 +110,7 @@ pub(crate) async fn select_buffer_model(pool: &Pool<Postgres>,
     let (model_id, data_type) = sqlx::query_with(&sql, values)
         .map(|row: PgRow| {(
             row.get(0),
-            row.get::<Vec<u8>,_>(0).into_iter().map(|ty| ty.into()).collect()
+            row.get::<Vec<u8>,_>(1).into_iter().map(|ty| ty.into()).collect()
         )})
         .fetch_one(pool)
         .await?;
