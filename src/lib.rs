@@ -98,35 +98,42 @@ impl Resource {
     pub async fn read_model(&self, id: Uuid)
         -> Result<ModelSchema, Error>
     {
-        model::select_join_model_by_id(&self.pool, id)
+        model::select_model_by_id(&self.pool, id)
+        .await
+    }
+
+    pub async fn list_model_by_ids(&self, ids: &[Uuid])
+        -> Result<Vec<ModelSchema>, Error>
+    {
+        model::select_model_by_ids(&self.pool, ids)
         .await
     }
 
     pub async fn list_model_by_name(&self, name: &str)
         -> Result<Vec<ModelSchema>, Error>
     {
-        model::select_join_model_by_name(&self.pool, name)
+        model::select_model_by_name(&self.pool, name)
         .await
     }
 
     pub async fn list_model_by_category(&self, category: &str)
         -> Result<Vec<ModelSchema>, Error>
     {
-        model::select_join_model_by_category(&self.pool, category)
+        model::select_model_by_category(&self.pool, category)
         .await
     }
 
     pub async fn list_model_by_name_category(&self, name: &str, category: &str)
         -> Result<Vec<ModelSchema>, Error>
     {
-        model::select_join_model_by_name_category(&self.pool, name, category)
+        model::select_model_by_name_category(&self.pool, name, category)
         .await
     }
 
     pub async fn list_model_by_type(&self, type_id: Uuid)
         -> Result<Vec<ModelSchema>, Error>
     {
-        model::select_join_model_by_type(&self.pool, type_id)
+        model::select_model_by_type(&self.pool, type_id)
         .await
     }
 
@@ -189,7 +196,7 @@ impl Resource {
     pub async fn read_device(&self, id: Uuid)
         -> Result<DeviceSchema, Error>
     {
-        device::select_device(&self.pool, DeviceKind::Device, id)
+        device::select_device_by_id(&self.pool, DeviceKind::Device, id)
         .await
     }
 
@@ -197,6 +204,13 @@ impl Resource {
         -> Result<DeviceSchema, Error>
     {
         device::select_device_by_sn(&self.pool, DeviceKind::Device, serial_number)
+        .await
+    }
+
+    pub async fn list_device_by_ids(&self, ids: &[Uuid])
+        -> Result<Vec<DeviceSchema>, Error>
+    {
+        device::select_device_by_ids(&self.pool, DeviceKind::Device, ids)
         .await
     }
 
@@ -259,7 +273,7 @@ impl Resource {
     pub async fn read_gateway(&self, id: Uuid)
         -> Result<GatewaySchema, Error>
     {
-        match device::select_device(&self.pool, DeviceKind::Gateway, id).await {
+        match device::select_device_by_id(&self.pool, DeviceKind::Gateway, id).await {
             Ok(value) => Ok(value.into_gateway()),
             Err(error) => Err(error)
         }
@@ -270,6 +284,17 @@ impl Resource {
     {
         match device::select_device_by_sn(&self.pool, DeviceKind::Gateway, serial_number).await {
             Ok(value) => Ok(value.into_gateway()),
+            Err(error) => Err(error)
+        }
+    }
+
+    pub async fn list_gateway_by_ids(&self, ids: &[Uuid])
+        -> Result<Vec<GatewaySchema>, Error>
+    {
+        match device::select_device_by_ids(&self.pool, DeviceKind::Gateway, ids).await {
+            Ok(value) => {
+                value.into_iter().map(|el| Ok(el.into_gateway())).collect()
+            },
             Err(error) => Err(error)
         }
     }
@@ -400,6 +425,13 @@ impl Resource {
         .await
     }
 
+    pub async fn list_type_by_ids(&self, ids: &[Uuid])
+        -> Result<Vec<TypeSchema>, Error>
+    {
+        types::select_device_type_by_ids(&self.pool, ids)
+        .await
+    }
+
     pub async fn list_type_by_name(&self, name: &str)
         -> Result<Vec<TypeSchema>, Error>
     {
@@ -447,6 +479,17 @@ impl Resource {
     {
         match group::select_group_by_id(&self.pool, GroupKind::Model, id).await {
             Ok(value) => Ok(value.into_group_model()),
+            Err(error) => Err(error)
+        }
+    }
+
+    pub async fn list_group_model_by_ids(&self, ids: &[Uuid])
+        -> Result<Vec<GroupModelSchema>, Error>
+    {
+        match group::select_group_by_ids(&self.pool, GroupKind::Model, ids).await {
+            Ok(value) => {
+                value.into_iter().map(|el| Ok(el.into_group_model())).collect()
+            },
             Err(error) => Err(error)
         }
     }
@@ -528,6 +571,17 @@ impl Resource {
         }
     }
 
+    pub async fn list_group_device_by_ids(&self, ids: &[Uuid])
+        -> Result<Vec<GroupDeviceSchema>, Error>
+    {
+        match group::select_group_by_ids(&self.pool, GroupKind::Device, ids).await {
+            Ok(value) => {
+                value.into_iter().map(|el| Ok(el.into_group_device())).collect()
+            },
+            Err(error) => Err(error)
+        }
+    }
+
     pub async fn list_group_device_by_name(&self, name: &str)
         -> Result<Vec<GroupDeviceSchema>, Error>
     {
@@ -601,6 +655,17 @@ impl Resource {
     {
         match group::select_group_by_id(&self.pool, GroupKind::Gateway, id).await {
             Ok(value) => Ok(value.into_group_gateway()),
+            Err(error) => Err(error)
+        }
+    }
+
+    pub async fn list_group_gateway_by_ids(&self, ids: &[Uuid])
+        -> Result<Vec<GroupGatewaySchema>, Error>
+    {
+        match group::select_group_by_ids(&self.pool, GroupKind::Gateway, ids).await {
+            Ok(value) => {
+                value.into_iter().map(|el| Ok(el.into_group_gateway())).collect()
+            },
             Err(error) => Err(error)
         }
     }

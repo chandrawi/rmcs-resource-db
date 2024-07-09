@@ -10,7 +10,8 @@ enum GroupSelector {
     Id(Uuid),
     Name(String),
     Category(String),
-    NameCategory(String, String)
+    NameCategory(String, String),
+    Ids(Vec<Uuid>)
 }
 
 async fn select_group(pool: &Pool<Postgres>, 
@@ -54,6 +55,9 @@ async fn select_group(pool: &Pool<Postgres>,
                         .order_by((GroupModel::Table, GroupModel::GroupId), Order::Asc)
                         .order_by((GroupModelMap::Table, GroupModelMap::ModelId), Order::Asc)
                         .to_owned();
+                },
+                GroupSelector::Ids(ids) => {
+                    stmt = stmt.and_where(Expr::col((GroupModel::Table, GroupModel::GroupId)).is_in(ids)).to_owned();
                 }
             }
         },
@@ -92,6 +96,9 @@ async fn select_group(pool: &Pool<Postgres>,
                         .order_by((GroupDevice::Table, GroupDevice::GroupId), Order::Asc)
                         .order_by((GroupDeviceMap::Table, GroupDeviceMap::DeviceId), Order::Asc)
                         .to_owned();
+                },
+                GroupSelector::Ids(ids) => {
+                    stmt = stmt.and_where(Expr::col((GroupDevice::Table, GroupDevice::GroupId)).is_in(ids)).to_owned();
                 }
             }
         }
@@ -144,6 +151,14 @@ pub(crate) async fn select_group_by_id(pool: &Pool<Postgres>,
         Some(value) => Ok(value),
         None => Err(Error::RowNotFound)
     }
+}
+
+pub(crate) async fn select_group_by_ids(pool: &Pool<Postgres>,
+    kind: GroupKind,
+    ids: &[Uuid]
+) -> Result<Vec<GroupSchema>, Error>
+{
+    select_group(pool, kind, GroupSelector::Ids(ids.to_owned())).await
 }
 
 pub(crate) async fn select_group_by_name(pool: &Pool<Postgres>,

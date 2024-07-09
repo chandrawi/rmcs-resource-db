@@ -8,7 +8,8 @@ use crate::schema::device::{DeviceType, DeviceTypeModel, TypeSchema};
 
 enum TypeSelector {
     Id(Uuid),
-    Name(String)
+    Name(String),
+    Ids(Vec<Uuid>)
 }
 
 async fn select_device_type(pool: &Pool<Postgres>, 
@@ -37,6 +38,9 @@ async fn select_device_type(pool: &Pool<Postgres>,
         },
         TypeSelector::Name(name) => {
             stmt = stmt.and_where(Expr::col((DeviceType::Table, DeviceType::Name)).like(name)).to_owned();
+        },
+        TypeSelector::Ids(ids) => {
+            stmt = stmt.and_where(Expr::col((DeviceType::Table, DeviceType::TypeId)).is_in(ids)).to_owned();
         }
     }
     let (sql, values) = stmt
@@ -87,6 +91,13 @@ pub(crate) async fn select_device_type_by_id(pool: &Pool<Postgres>,
         Some(value) => Ok(value),
         None => Err(Error::RowNotFound)
     }
+}
+
+pub(crate) async fn select_device_type_by_ids(pool: &Pool<Postgres>, 
+    ids: &[Uuid]
+) -> Result<Vec<TypeSchema>, Error>
+{
+    select_device_type(pool, TypeSelector::Ids(ids.to_owned())).await
 }
 
 pub(crate) async fn select_device_type_by_name(pool: &Pool<Postgres>, 

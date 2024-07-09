@@ -13,7 +13,8 @@ enum ModelSelector {
     Name(String),
     Category(String),
     NameCategory(String, String),
-    TypeId(Uuid)
+    TypeId(Uuid),
+    Ids(Vec<Uuid>)
 }
 
 enum ConfigSelector {
@@ -21,7 +22,7 @@ enum ConfigSelector {
     Model(Uuid)
 }
 
-async fn select_join_model(pool: &Pool<Postgres>, 
+async fn select_model(pool: &Pool<Postgres>, 
     selector: ModelSelector
 ) -> Result<Vec<ModelSchema>, Error>
 {
@@ -70,6 +71,9 @@ async fn select_join_model(pool: &Pool<Postgres>,
                     .equals((DeviceTypeModel::Table, DeviceTypeModel::ModelId)))
                 .and_where(Expr::col((DeviceTypeModel::Table, DeviceTypeModel::TypeId)).eq(id))
                 .to_owned();
+        },
+        ModelSelector::Ids(ids) => {
+            stmt = stmt.and_where(Expr::col((Model::Table, Model::ModelId)).is_in(ids)).to_owned();
         }
     }
     let (sql, values) = stmt
@@ -133,46 +137,53 @@ async fn select_join_model(pool: &Pool<Postgres>,
     Ok(model_schema_vec)
 }
 
-pub(crate) async fn select_join_model_by_id(pool: &Pool<Postgres>, 
+pub(crate) async fn select_model_by_id(pool: &Pool<Postgres>, 
     id: Uuid
 ) -> Result<ModelSchema, Error>
 {
-    let results = select_join_model(pool, ModelSelector::Id(id)).await?;
+    let results = select_model(pool, ModelSelector::Id(id)).await?;
     match results.into_iter().next() {
         Some(value) => Ok(value),
         None => Err(Error::RowNotFound)
     }
 }
 
-pub(crate) async fn select_join_model_by_name(pool: &Pool<Postgres>, 
+pub(crate) async fn select_model_by_ids(pool: &Pool<Postgres>, 
+    ids: &[Uuid]
+) -> Result<Vec<ModelSchema>, Error>
+{
+    select_model(pool, ModelSelector::Ids(ids.to_owned())).await
+}
+
+pub(crate) async fn select_model_by_name(pool: &Pool<Postgres>, 
     name: &str
 ) -> Result<Vec<ModelSchema>, Error>
 {
     let name_like = String::from("%") + name + "%";
-    select_join_model(pool, ModelSelector::Name(name_like)).await
+    select_model(pool, ModelSelector::Name(name_like)).await
 }
 
-pub(crate) async fn select_join_model_by_category(pool: &Pool<Postgres>, 
+pub(crate) async fn select_model_by_category(pool: &Pool<Postgres>, 
     category: &str
 ) -> Result<Vec<ModelSchema>, Error>
 {
-    select_join_model(pool, ModelSelector::Category(String::from(category))).await
+    select_model(pool, ModelSelector::Category(String::from(category))).await
 }
 
-pub(crate) async fn select_join_model_by_name_category(pool: &Pool<Postgres>, 
+pub(crate) async fn select_model_by_name_category(pool: &Pool<Postgres>, 
     name: &str,
     category: &str
 ) -> Result<Vec<ModelSchema>, Error>
 {
     let name_like = String::from("%") + name + "%";
-    select_join_model(pool, ModelSelector::NameCategory(String::from(name_like), String::from(category))).await
+    select_model(pool, ModelSelector::NameCategory(String::from(name_like), String::from(category))).await
 }
 
-pub(crate) async fn select_join_model_by_type(pool: &Pool<Postgres>, 
+pub(crate) async fn select_model_by_type(pool: &Pool<Postgres>, 
     type_id: Uuid
 ) -> Result<Vec<ModelSchema>, Error>
 {
-    select_join_model(pool, ModelSelector::TypeId(type_id)).await
+    select_model(pool, ModelSelector::TypeId(type_id)).await
 }
 
 pub(crate) async fn insert_model(pool: &Pool<Postgres>,

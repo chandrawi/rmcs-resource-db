@@ -14,7 +14,8 @@ enum DeviceSelector {
     SN(String),
     Name(String),
     GatewayType(Uuid, Uuid),
-    GatewayName(Uuid, String)
+    GatewayName(Uuid, String),
+    Ids(Vec<Uuid>)
 }
 
 enum ConfigSelector {
@@ -22,7 +23,7 @@ enum ConfigSelector {
     Device(Uuid)
 }
 
-async fn select_join_device(pool: &Pool<Postgres>, 
+async fn select_device(pool: &Pool<Postgres>, 
     kind: DeviceKind,
     selector: DeviceSelector
 ) -> Result<Vec<DeviceSchema>, Error>
@@ -90,6 +91,9 @@ async fn select_join_device(pool: &Pool<Postgres>,
             stmt = stmt.and_where(Expr::col((Device::Table, Device::GatewayId)).eq(id))
                 .and_where(Expr::col((Device::Table, Device::Name)).like(name))
                 .to_owned();
+        },
+        DeviceSelector::Ids(ids) => {
+            stmt = stmt.and_where(Expr::col((Device::Table, Device::DeviceId)).is_in(ids)).to_owned();
         }
     }
     if let DeviceKind::Gateway = kind {
@@ -159,12 +163,12 @@ async fn select_join_device(pool: &Pool<Postgres>,
     Ok(device_schema_vec)
 }
 
-pub(crate) async fn select_device(pool: &Pool<Postgres>,
+pub(crate) async fn select_device_by_id(pool: &Pool<Postgres>,
     kind: DeviceKind,
     id: Uuid
 ) -> Result<DeviceSchema, Error>
 {
-    let results = select_join_device(pool, kind, DeviceSelector::Id(id)).await?;
+    let results = select_device(pool, kind, DeviceSelector::Id(id)).await?;
     match results.into_iter().next() {
         Some(value) => Ok(value),
         None => Err(Error::RowNotFound)
@@ -176,11 +180,19 @@ pub(crate) async fn select_device_by_sn(pool: &Pool<Postgres>,
     serial_number: &str
 ) -> Result<DeviceSchema, Error>
 {
-    let results = select_join_device(pool, kind, DeviceSelector::SN(String::from(serial_number))).await?;
+    let results = select_device(pool, kind, DeviceSelector::SN(String::from(serial_number))).await?;
     match results.into_iter().next() {
         Some(value) => Ok(value),
         None => Err(Error::RowNotFound)
     }
+}
+
+pub(crate) async fn select_device_by_ids(pool: &Pool<Postgres>,
+    kind: DeviceKind,
+    ids: &[Uuid]
+) -> Result<Vec<DeviceSchema>, Error>
+{
+    select_device(pool, kind, DeviceSelector::Ids(ids.to_owned())).await
 }
 
 pub(crate) async fn select_device_by_gateway(pool: &Pool<Postgres>,
@@ -188,7 +200,7 @@ pub(crate) async fn select_device_by_gateway(pool: &Pool<Postgres>,
     gateway_id: Uuid
 ) -> Result<Vec<DeviceSchema>, Error>
 {
-    select_join_device(pool, kind, DeviceSelector::Gateway(gateway_id)).await
+    select_device(pool, kind, DeviceSelector::Gateway(gateway_id)).await
 }
 
 pub(crate) async fn select_device_by_type(pool: &Pool<Postgres>,
@@ -196,7 +208,7 @@ pub(crate) async fn select_device_by_type(pool: &Pool<Postgres>,
     type_id: Uuid
 ) -> Result<Vec<DeviceSchema>, Error>
 {
-    select_join_device(pool, kind, DeviceSelector::Type(type_id)).await
+    select_device(pool, kind, DeviceSelector::Type(type_id)).await
 }
 
 pub(crate) async fn select_device_by_name(pool: &Pool<Postgres>,
@@ -205,7 +217,7 @@ pub(crate) async fn select_device_by_name(pool: &Pool<Postgres>,
 ) -> Result<Vec<DeviceSchema>, Error>
 {
     let name_like = String::from("%") + name + "%";
-    select_join_device(pool, kind, DeviceSelector::Name(String::from(name_like))).await
+    select_device(pool, kind, DeviceSelector::Name(String::from(name_like))).await
 }
 
 pub(crate) async fn select_device_by_gateway_type(pool: &Pool<Postgres>,
@@ -214,7 +226,7 @@ pub(crate) async fn select_device_by_gateway_type(pool: &Pool<Postgres>,
     type_id: Uuid
 ) -> Result<Vec<DeviceSchema>, Error>
 {
-    select_join_device(pool, kind, DeviceSelector::GatewayType(gateway_id, type_id)).await
+    select_device(pool, kind, DeviceSelector::GatewayType(gateway_id, type_id)).await
 }
 
 pub(crate) async fn select_device_by_gateway_name(pool: &Pool<Postgres>,
@@ -224,7 +236,7 @@ pub(crate) async fn select_device_by_gateway_name(pool: &Pool<Postgres>,
 ) -> Result<Vec<DeviceSchema>, Error>
 {
     let name_like = String::from("%") + name + "%";
-    select_join_device(pool, kind, DeviceSelector::GatewayName(gateway_id, name_like)).await
+    select_device(pool, kind, DeviceSelector::GatewayName(gateway_id, name_like)).await
 }
 
 pub(crate) async fn insert_device(pool: &Pool<Postgres>,
