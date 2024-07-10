@@ -1,7 +1,7 @@
 use ConfigValue::{Int, Float, Str};
-use DataValue::{I8, I16, I32, I64, U8, U16, U32, U64, F32, F64, Char, Bool};
+use DataValue::{I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, F32, F64, Char, Bool};
 use ConfigType::{IntT, FloatT, StrT};
-use DataType::{I8T, I16T, I32T, I64T, U8T, U16T, U32T, U64T, F32T, F64T, CharT, BoolT};
+use DataType::{I8T, I16T, I32T, I64T, I128T, U8T, U16T, U32T, U64T, U128T, F32T, F64T, CharT, BoolT};
 use rmcs_resource_api::common;
 
 #[derive(Debug)]
@@ -101,10 +101,12 @@ pub enum DataType {
     I16T,
     I32T,
     I64T,
+    I128T,
     U8T,
     U16T,
     U32T,
     U64T,
+    U128T,
     F32T,
     F64T,
     CharT,
@@ -119,14 +121,16 @@ impl From<u8> for DataType {
             2 => I16T,
             3 => I32T,
             4 => I64T,
-            5 => U8T,
-            6 => U16T,
-            7 => U32T,
-            8 => U64T,
-            9 => F32T,
-            10 => F64T,
-            11 => CharT,
-            12 => BoolT,
+            5 => I128T,
+            6 => U8T,
+            7 => U16T,
+            8 => U32T,
+            9 => U64T,
+            10 => U128T,
+            12 => F32T,
+            13 => F64T,
+            15 => BoolT,
+            16 => CharT,
             _ => Self::NullT
         }
     }
@@ -145,14 +149,16 @@ impl From<DataType> for u8 {
             I16T => 2,
             I32T => 3,
             I64T => 4,
-            U8T => 5,
-            U16T => 6,
-            U32T => 7,
-            U64T => 8,
-            F32T => 9,
-            F64T => 10,
-            CharT => 11,
-            BoolT => 12,
+            I128T => 5,
+            U8T => 6,
+            U16T => 7,
+            U32T => 8,
+            U64T => 9,
+            U128T => 10,
+            F32T => 12,
+            F64T => 13,
+            BoolT => 15,
+            CharT => 16,
             DataType::NullT => 0
         }
     }
@@ -172,14 +178,16 @@ impl From<common::DataType> for DataType {
             common::DataType::I16 => Self::I16T,
             common::DataType::I32 => Self::I32T,
             common::DataType::I64 => Self::I64T,
+            common::DataType::I128 => Self::I128T,
             common::DataType::U8 => Self::U8T,
             common::DataType::U16 => Self::U16T,
             common::DataType::U32 => Self::U32T,
             common::DataType::U64 => Self::U64T,
+            common::DataType::U128 => Self::U128T,
             common::DataType::F32 => Self::F32T,
             common::DataType::F64 => Self::F64T,
-            common::DataType::Char => Self::CharT,
-            common::DataType::Bool => Self::BoolT
+            common::DataType::Bool => Self::BoolT,
+            common::DataType::Char => Self::CharT
         }
     }
 }
@@ -191,10 +199,12 @@ impl Into<common::DataType> for DataType {
             Self::I16T => common::DataType::I16,
             Self::I32T => common::DataType::I32,
             Self::I64T => common::DataType::I64,
+            Self::I128T => common::DataType::I128,
             Self::U8T => common::DataType::U8,
             Self::U16T => common::DataType::U16,
             Self::U32T => common::DataType::U32,
             Self::U64T => common::DataType::U64,
+            Self::U128T => common::DataType::U128,
             Self::F32T => common::DataType::F32,
             Self::F64T => common::DataType::F64,
             Self::CharT => common::DataType::Char,
@@ -210,10 +220,12 @@ pub enum DataValue {
     I16(i16),
     I32(i32),
     I64(i64),
+    I128(i128),
     U8(u8),
     U16(u16),
     U32(u32),
     U64(u64),
+    U128(u128),
     F32(f32),
     F64(f64),
     Char(char),
@@ -240,10 +252,12 @@ impl DataValue {
             I16T => sel_val(2, I16(i16::from_be_bytes(bytes.try_into().unwrap_or_default()))),
             I32T => sel_val(4, I32(i32::from_be_bytes(bytes.try_into().unwrap_or_default()))),
             I64T => sel_val(8, I64(i64::from_be_bytes(bytes.try_into().unwrap_or_default()))),
+            I128T => sel_val(16, I128(i128::from_be_bytes(bytes.try_into().unwrap_or_default()))),
             U8T => sel_val(1, U8(u8::from_be_bytes(bytes.try_into().unwrap_or_default()))),
             U16T => sel_val(2, U16(u16::from_be_bytes(bytes.try_into().unwrap_or_default()))),
             U32T => sel_val(4, U32(u32::from_be_bytes(bytes.try_into().unwrap_or_default()))),
             U64T => sel_val(8, U64(u64::from_be_bytes(bytes.try_into().unwrap_or_default()))),
+            U128T => sel_val(16, U128(u128::from_be_bytes(bytes.try_into().unwrap_or_default()))),
             F32T => sel_val(4, F32(f32::from_be_bytes(bytes.try_into().unwrap_or_default()))),
             F64T => sel_val(8, F64(f64::from_be_bytes(bytes.try_into().unwrap_or_default()))),
             CharT => sel_val(1, Char(char::from_u32(first_el as u32).unwrap_or_default())),
@@ -257,10 +271,12 @@ impl DataValue {
             I16(value) => value.to_be_bytes().to_vec(),
             I32(value) => value.to_be_bytes().to_vec(),
             I64(value) => value.to_be_bytes().to_vec(),
+            I128(value) => value.to_be_bytes().to_vec(),
             U8(value) => value.to_be_bytes().to_vec(),
             U16(value) => value.to_be_bytes().to_vec(),
             U32(value) => value.to_be_bytes().to_vec(),
             U64(value) => value.to_be_bytes().to_vec(),
+            U128(value) => value.to_be_bytes().to_vec(),
             F32(value) => value.to_be_bytes().to_vec(),
             F64(value) => value.to_be_bytes().to_vec(),
             Char(value) => Vec::from([*value as u8]),
@@ -274,10 +290,12 @@ impl DataValue {
             I16(_) => I16T,
             I32(_) => I32T,
             I64(_) => I64T,
+            I128(_) => I128T,
             U8(_) => U8T,
             U16(_) => U16T,
             U32(_) => U32T,
             U64(_) => U64T,
+            U128(_) => U128T,
             F32(_) => F32T,
             F64(_) => F64T,
             Char(_) => CharT,
@@ -291,10 +309,12 @@ impl DataValue {
             I16(value) => Some(value as u64),
             I32(value) => Some(value as u64),
             I64(value) => Some(value as u64),
+            I128(value) => Some(value as u64),
             U8(value) => Some(value as u64),
             U16(value) => Some(value as u64),
             U32(value) => Some(value as u64),
             U64(value) => Some(value as u64),
+            U128(value) => Some(value as u64),
             _ => None
         }
     }
@@ -308,10 +328,10 @@ impl DataValue {
     pub fn convert(self, type_: DataType) -> Option<Self> {
         let type_group = | t: DataType | -> u8 {
             match t {
-                I8T | I16T | I32T | I64T | U8T | U16T | U32T | U64T => 1,
+                I8T | I16T | I32T | I64T | I128T | U8T | U16T | U32T | U64T | U128T => 1,
                 F32T | F64T => 2,
-                CharT => 3,
-                BoolT => 4,
+                BoolT => 3,
+                CharT => 4,
                 _ => 0
             }
         };
@@ -323,10 +343,12 @@ impl DataValue {
             I16T => Some(I16(self.to_int().unwrap() as i16)),
             I32T => Some(I32(self.to_int().unwrap() as i32)),
             I64T => Some(I64(self.to_int().unwrap() as i64)),
+            I128T => Some(I128(self.to_int().unwrap() as i128)),
             U8T => Some(U8(self.to_int().unwrap() as u8)),
             U16T => Some(U16(self.to_int().unwrap() as u16)),
             U32T => Some(U32(self.to_int().unwrap() as u32)),
             U64T => Some(U64(self.to_int().unwrap())),
+            U128T => Some(U128(self.to_int().unwrap() as u128)),
             F32T => Some(F32(self.to_float().unwrap() as f32)),
             F64T => Some(F64(self.to_float().unwrap())),
             _ => Some(self)
@@ -347,6 +369,7 @@ impl ArrayDataValue {
                 I16T | U16T => 2,
                 I32T | U32T | F32T => 4,
                 I64T | U64T | F64T => 8,
+                I128T | U128T => 16,
                 _ => 0
             };
             if index + len > bytes.len() {
@@ -419,10 +442,12 @@ value_impl_from!(i8, ConfigValue, Int, i64);
 value_impl_from!(i16, ConfigValue, Int, i64);
 value_impl_from!(i32, ConfigValue, Int, i64);
 value_impl_from!(i64, ConfigValue, Int, i64);
+value_impl_from!(i128, ConfigValue, Int, i64);
 value_impl_from!(u8, ConfigValue, Int, i64);
 value_impl_from!(u16, ConfigValue, Int, i64);
 value_impl_from!(u32, ConfigValue, Int, i64);
 value_impl_from!(u64, ConfigValue, Int, i64);
+value_impl_from!(u128, ConfigValue, Int, i64);
 value_impl_from!(f32, ConfigValue, Float, f64);
 value_impl_from!(f64, ConfigValue, Float, f64);
 value_impl_from!(String, ConfigValue, Str);
@@ -432,10 +457,12 @@ value_impl_from!(i8, DataValue, I8);
 value_impl_from!(i16, DataValue, I16);
 value_impl_from!(i32, DataValue, I32);
 value_impl_from!(i64, DataValue, I64);
+value_impl_from!(i128, DataValue, I128);
 value_impl_from!(u8, DataValue, U8);
 value_impl_from!(u16, DataValue, U16);
 value_impl_from!(u32, DataValue, U32);
 value_impl_from!(u64, DataValue, U64);
+value_impl_from!(u128, DataValue, U128);
 value_impl_from!(f32, DataValue, F32);
 value_impl_from!(f64, DataValue, F64);
 value_impl_from!(char, DataValue, Char);
@@ -459,10 +486,12 @@ value_impl_try_into!(i8, ConfigValue, Int);
 value_impl_try_into!(i16, ConfigValue, Int);
 value_impl_try_into!(i32, ConfigValue, Int);
 value_impl_try_into!(i64, ConfigValue, Int);
+value_impl_try_into!(i128, ConfigValue, Int);
 value_impl_try_into!(u8, ConfigValue, Int);
 value_impl_try_into!(u16, ConfigValue, Int);
 value_impl_try_into!(u32, ConfigValue, Int);
 value_impl_try_into!(u64, ConfigValue, Int);
+value_impl_try_into!(u128, ConfigValue, Int);
 value_impl_try_into!(f32, ConfigValue, Float);
 value_impl_try_into!(f64, ConfigValue, Float);
 value_impl_try_into!(String, ConfigValue, Str);
@@ -471,10 +500,12 @@ value_impl_try_into!(i8, DataValue, I8);
 value_impl_try_into!(i16, DataValue, I16);
 value_impl_try_into!(i32, DataValue, I32);
 value_impl_try_into!(i64, DataValue, I64);
+value_impl_try_into!(i128, DataValue, I128);
 value_impl_try_into!(u8, DataValue, U8);
 value_impl_try_into!(u16, DataValue, U16);
 value_impl_try_into!(u32, DataValue, U32);
 value_impl_try_into!(u64, DataValue, U64);
+value_impl_try_into!(u128, DataValue, U128);
 value_impl_try_into!(f32, DataValue, F32);
 value_impl_try_into!(f64, DataValue, F64);
 value_impl_try_into!(char, DataValue, Char);
