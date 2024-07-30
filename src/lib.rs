@@ -13,6 +13,7 @@ pub use schema::device::{DeviceSchema, GatewaySchema, TypeSchema, DeviceConfigSc
 use schema::device::DeviceKind;
 pub use schema::group::{GroupModelSchema, GroupDeviceSchema, GroupGatewaySchema};
 use schema::group::GroupKind;
+pub use schema::set::{SetSchema, SetTemplateSchema};
 pub use schema::data::{DataSchema, DataModel};
 pub use schema::buffer::{BufferSchema, BufferStatus};
 pub use schema::slice::SliceSchema;
@@ -21,6 +22,7 @@ use operation::model;
 use operation::device;
 use operation::types;
 use operation::group;
+use operation::set;
 use operation::data;
 use operation::buffer;
 use operation::slice;
@@ -735,6 +737,139 @@ impl Resource {
         -> Result<(), Error>
     {
         group::delete_group_map(&self.pool, GroupKind::Gateway, id, gateway_id)
+        .await
+    }
+
+    pub async fn read_set(&self, id: Uuid)
+        -> Result<SetSchema, Error>
+    {
+        set::select_set_by_id(&self.pool, id)
+        .await
+    }
+
+    pub async fn list_set_by_ids(&self, ids: &[Uuid])
+        -> Result<Vec<SetSchema>, Error>
+    {
+        set::select_set_by_ids(&self.pool, ids)
+        .await
+    }
+
+    pub async fn list_set_by_template(&self, template_id: Uuid)
+        -> Result<Vec<SetSchema>, Error>
+    {
+        set::select_set_by_template(&self.pool, template_id)
+        .await
+    }
+
+    pub async fn list_set_by_name(&self, name: &str)
+        -> Result<Vec<SetSchema>, Error>
+    {
+        set::select_set_by_name(&self.pool, name)
+        .await
+    }
+
+    pub async fn create_set(&self, id: Uuid, template_id: Uuid, name: &str, description: Option<&str>)
+        -> Result<Uuid, Error>
+    {
+        set::insert_set(&self.pool, id, template_id, name, description)
+        .await
+    }
+
+    pub async fn update_set(&self, id: Uuid, template_id: Option<Uuid>, name: Option<&str>, description: Option<&str>)
+        -> Result<(), Error>
+    {
+        set::update_set(&self.pool, id, template_id, name, description)
+        .await
+    }
+
+    pub async fn delete_set(&self, id: Uuid)
+        -> Result<(), Error>
+    {
+        set::delete_set(&self.pool, id)
+        .await
+    }
+
+    pub async fn add_set_member(&self, id: Uuid, device_id: Uuid, model_id: Uuid, data_index: &[u8])
+        -> Result<(), Error>
+    {
+        set::insert_set_member(&self.pool, id, device_id, model_id, data_index)
+        .await
+    }
+
+    pub async fn remove_set_member(&self, id: Uuid, device_id: Uuid, model_id: Uuid)
+        -> Result<(), Error>
+    {
+        set::delete_set_member(&self.pool, id, device_id, model_id)
+        .await
+    }
+
+    pub async fn swap_set_member(&self, id: Uuid, device_id_1: Uuid, model_id_1: Uuid, device_id_2: Uuid, model_id_2: Uuid)
+        -> Result<(), Error>
+    {
+        set::swap_set_member(&self.pool, id, device_id_1, model_id_1, device_id_2, model_id_2)
+        .await
+    }
+
+    pub async fn read_set_template(&self, id: Uuid)
+        -> Result<SetTemplateSchema, Error>
+    {
+        set::select_set_template_by_id(&self.pool, id)
+        .await
+    }
+
+    pub async fn list_set_template_by_ids(&self, ids: &[Uuid])
+        -> Result<Vec<SetTemplateSchema>, Error>
+    {
+        set::select_set_template_by_ids(&self.pool, ids)
+        .await
+    }
+
+    pub async fn list_set_template_by_name(&self, name: &str)
+        -> Result<Vec<SetTemplateSchema>, Error>
+    {
+        set::select_set_template_by_name(&self.pool, name)
+        .await
+    }
+
+    pub async fn create_set_template(&self, id: Uuid, name: &str, description: Option<&str>)
+        -> Result<Uuid, Error>
+    {
+        set::insert_set_template(&self.pool, id, name, description)
+        .await
+    }
+
+    pub async fn update_set_template(&self, id: Uuid, name: Option<&str>, description: Option<&str>)
+        -> Result<(), Error>
+    {
+        set::update_set_template(&self.pool, id, name, description)
+        .await
+    }
+
+    pub async fn delete_set_template(&self, id: Uuid)
+        -> Result<(), Error>
+    {
+        set::delete_set_template(&self.pool, id)
+        .await
+    }
+
+    pub async fn add_set_template_member(&self, id: Uuid, type_id: Uuid, model_id: Uuid, data_index: &[u8])
+        -> Result<(), Error>
+    {
+        set::insert_set_template_member(&self.pool, id, type_id, model_id, data_index)
+        .await
+    }
+
+    pub async fn remove_set_template_member(&self, id: Uuid, index: usize)
+        -> Result<(), Error>
+    {
+        set::delete_set_template_member(&self.pool, id, index)
+        .await
+    }
+
+    pub async fn swap_set_template_member(&self, id: Uuid, index_1: usize, index_2: usize)
+        -> Result<(), Error>
+    {
+        set::swap_set_template_member(&self.pool, id, index_1, index_2)
         .await
     }
 

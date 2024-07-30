@@ -6,3 +6,4 @@ pub(crate) mod data;
 pub(crate) mod buffer;
 pub(crate) mod slice;
 pub(crate) mod log;
+pub(crate) mod set;
