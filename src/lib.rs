@@ -14,7 +14,7 @@ use schema::device::DeviceKind;
 pub use schema::group::{GroupModelSchema, GroupDeviceSchema, GroupGatewaySchema};
 use schema::group::GroupKind;
 pub use schema::set::{SetSchema, SetTemplateSchema};
-pub use schema::data::{DataSchema, DataModel};
+pub use schema::data::{DataSchema, DataModel, DatasetSchema};
 pub use schema::buffer::{BufferSchema, BufferStatus};
 pub use schema::slice::SliceSchema;
 pub use schema::log::{LogSchema, LogStatus};
@@ -926,6 +926,83 @@ impl Resource {
         -> Result<(), Error>
     {
         data::delete_data(&self.pool, model_id, device_id, timestamp)
+        .await
+    }
+
+    pub async fn list_data_by_set_time(&self, set_id: Uuid, timestamp: DateTime<Utc>)
+        -> Result<Vec<DataSchema>, Error>
+    {
+        data::select_data_by_set_time(&self.pool, set_id, timestamp)
+        .await
+    }
+
+    pub async fn list_data_by_set_last_time(&self, set_id: Uuid, last: DateTime<Utc>)
+        -> Result<Vec<DataSchema>, Error>
+    {
+        data::select_data_by_set_last_time(&self.pool, set_id, last)
+        .await
+    }
+
+    pub async fn list_data_by_set_range_time(&self, set_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
+        -> Result<Vec<DataSchema>, Error>
+    {
+        data::select_data_by_set_range_time(&self.pool, set_id, begin, end)
+        .await
+    }
+
+    pub async fn list_data_by_set_number_before(&self, set_id: Uuid, before: DateTime<Utc>, number: u32)
+        -> Result<Vec<DataSchema>, Error>
+    {
+        data::select_data_by_set_number_before(&self.pool, set_id, before, number)
+        .await
+    }
+
+    pub async fn list_data_by_set_number_after(&self, set_id: Uuid, after: DateTime<Utc>, number: u32)
+        -> Result<Vec<DataSchema>, Error>
+    {
+        data::select_data_by_set_number_after(&self.pool, set_id, after, number)
+        .await
+    }
+
+    pub async fn read_dataset(&self, set_id: Uuid, timestamp: DateTime<Utc>)
+        -> Result<DatasetSchema, Error>
+    {
+        data::select_dataset_by_time(&self.pool, set_id, timestamp).await?.into_iter().next()
+            .ok_or(Error::RowNotFound)
+    }
+
+    pub async fn list_dataset_by_time(&self, set_id: Uuid, timestamp: DateTime<Utc>)
+        -> Result<Vec<DatasetSchema>, Error>
+    {
+        data::select_dataset_by_time(&self.pool, set_id, timestamp)
+        .await
+    }
+
+    pub async fn list_dataset_by_last_time(&self, set_id: Uuid, last: DateTime<Utc>)
+        -> Result<Vec<DatasetSchema>, Error>
+    {
+        data::select_dataset_by_last_time(&self.pool, set_id, last)
+        .await
+    }
+
+    pub async fn list_dataset_by_range_time(&self, set_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
+        -> Result<Vec<DatasetSchema>, Error>
+    {
+        data::select_dataset_by_range_time(&self.pool, set_id, begin, end)
+        .await
+    }
+
+    pub async fn list_dataset_by_number_before(&self, set_id: Uuid, before: DateTime<Utc>, number: u32)
+        -> Result<Vec<DatasetSchema>, Error>
+    {
+        data::select_dataset_by_number_before(&self.pool, set_id, before, number)
+        .await
+    }
+
+    pub async fn list_dataset_by_number_after(&self, set_id: Uuid, after: DateTime<Utc>, number: u32)
+        -> Result<Vec<DatasetSchema>, Error>
+    {
+        data::select_dataset_by_number_after(&self.pool, set_id, after, number)
         .await
     }
 

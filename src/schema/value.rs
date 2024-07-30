@@ -375,9 +375,6 @@ impl ArrayDataValue {
             if index + len > bytes.len() {
                 break;
             }
-            if len == 0 {
-                continue;
-            }
             values.push(DataValue::from_bytes(&bytes[index..index + len], t.clone()));
             index += len;
         }
