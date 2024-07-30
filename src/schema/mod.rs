@@ -6,3 +6,4 @@ pub mod data;
 pub mod buffer;
 pub mod slice;
 pub mod log;
+pub mod set;
