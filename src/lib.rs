@@ -14,7 +14,7 @@ use schema::device::DeviceKind;
 pub use schema::group::{GroupModelSchema, GroupDeviceSchema, GroupGatewaySchema};
 use schema::group::GroupKind;
 pub use schema::set::{SetSchema, SetTemplateSchema};
-pub use schema::data::{DataSchema, DatasetSchema};
+pub use schema::data::{DataSchema, DataSetSchema};
 pub use schema::buffer::{BufferSchema, BufferStatus};
 pub use schema::slice::SliceSchema;
 pub use schema::log::{LogSchema, LogStatus};
@@ -964,45 +964,45 @@ impl Resource {
         .await
     }
 
-    pub async fn read_dataset(&self, set_id: Uuid, timestamp: DateTime<Utc>)
-        -> Result<DatasetSchema, Error>
+    pub async fn read_data_set(&self, set_id: Uuid, timestamp: DateTime<Utc>)
+        -> Result<DataSetSchema, Error>
     {
-        data::select_dataset_by_time(&self.pool, set_id, timestamp).await?.into_iter().next()
+        data::select_data_set_by_time(&self.pool, set_id, timestamp).await?.into_iter().next()
             .ok_or(Error::RowNotFound)
     }
 
-    pub async fn list_dataset_by_time(&self, set_id: Uuid, timestamp: DateTime<Utc>)
-        -> Result<Vec<DatasetSchema>, Error>
+    pub async fn list_data_set_by_time(&self, set_id: Uuid, timestamp: DateTime<Utc>)
+        -> Result<Vec<DataSetSchema>, Error>
     {
-        data::select_dataset_by_time(&self.pool, set_id, timestamp)
+        data::select_data_set_by_time(&self.pool, set_id, timestamp)
         .await
     }
 
-    pub async fn list_dataset_by_last_time(&self, set_id: Uuid, last: DateTime<Utc>)
-        -> Result<Vec<DatasetSchema>, Error>
+    pub async fn list_data_set_by_last_time(&self, set_id: Uuid, last: DateTime<Utc>)
+        -> Result<Vec<DataSetSchema>, Error>
     {
-        data::select_dataset_by_last_time(&self.pool, set_id, last)
+        data::select_data_set_by_last_time(&self.pool, set_id, last)
         .await
     }
 
-    pub async fn list_dataset_by_range_time(&self, set_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
-        -> Result<Vec<DatasetSchema>, Error>
+    pub async fn list_data_set_by_range_time(&self, set_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
+        -> Result<Vec<DataSetSchema>, Error>
     {
-        data::select_dataset_by_range_time(&self.pool, set_id, begin, end)
+        data::select_data_set_by_range_time(&self.pool, set_id, begin, end)
         .await
     }
 
-    pub async fn list_dataset_by_number_before(&self, set_id: Uuid, before: DateTime<Utc>, number: usize)
-        -> Result<Vec<DatasetSchema>, Error>
+    pub async fn list_data_set_by_number_before(&self, set_id: Uuid, before: DateTime<Utc>, number: usize)
+        -> Result<Vec<DataSetSchema>, Error>
     {
-        data::select_dataset_by_number_before(&self.pool, set_id, before, number)
+        data::select_data_set_by_number_before(&self.pool, set_id, before, number)
         .await
     }
 
-    pub async fn list_dataset_by_number_after(&self, set_id: Uuid, after: DateTime<Utc>, number: usize)
-        -> Result<Vec<DatasetSchema>, Error>
+    pub async fn list_data_set_by_number_after(&self, set_id: Uuid, after: DateTime<Utc>, number: usize)
+        -> Result<Vec<DataSetSchema>, Error>
     {
-        data::select_dataset_by_number_after(&self.pool, set_id, after, number)
+        data::select_data_set_by_number_after(&self.pool, set_id, after, number)
         .await
     }
 
@@ -1039,10 +1039,24 @@ impl Resource {
         .await
     }
 
+    pub async fn list_buffer_first_offset(&self, number: usize, offset: usize, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        buffer::select_buffer_first_offset(&self.pool, number, offset, device_id, model_id, status)
+        .await
+    }
+
     pub async fn list_buffer_last(&self, number: usize, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
         -> Result<Vec<BufferSchema>, Error>
     {
         buffer::select_buffer_last(&self.pool, number, device_id, model_id, status)
+        .await
+    }
+
+    pub async fn list_buffer_last_offset(&self, number: usize, offset: usize, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        buffer::select_buffer_last_offset(&self.pool, number, offset, device_id, model_id, status)
         .await
     }
 

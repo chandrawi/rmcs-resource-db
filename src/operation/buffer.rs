@@ -13,8 +13,8 @@ use crate::operation::data::select_data_types;
 enum BufferSelector {
     Id(i32),
     Time,
-    First(usize),
-    Last(usize)
+    First(usize, usize),
+    Last(usize, usize)
 }
 
 async fn select_buffer(pool: &Pool<Postgres>, 
@@ -25,11 +25,11 @@ async fn select_buffer(pool: &Pool<Postgres>,
     status: Option<BufferStatus>
 ) -> Result<Vec<BufferSchema>, Error>
 {
-    let (order, number) = match selector {
-        BufferSelector::Id(_) => (Order::Asc, 1),
-        BufferSelector::First(number) => (Order::Asc, number),
-        BufferSelector::Last(number) => (Order::Desc, number),
-        BufferSelector::Time => (Order::Asc, 1)
+    let (order, number, offset) = match selector {
+        BufferSelector::Id(_) => (Order::Asc, 1, 0),
+        BufferSelector::First(number, offset) => (Order::Asc, number, offset),
+        BufferSelector::Last(number, offset) => (Order::Desc, number, offset),
+        BufferSelector::Time => (Order::Asc, 1, 0)
     };
 
     let mut stmt = Query::select().to_owned();
@@ -54,6 +54,7 @@ async fn select_buffer(pool: &Pool<Postgres>,
         stmt = stmt
             .order_by((DataBuffer::Table, DataBuffer::Id), order)
             .limit(number as u64)
+            .offset(offset as u64)
             .to_owned();
     }
     if let Some(id) = device_id {
@@ -141,7 +142,20 @@ pub(crate) async fn select_buffer_first(pool: &Pool<Postgres>,
     status: Option<BufferStatus>
 ) -> Result<Vec<BufferSchema>, Error>
 {
-    let selector = BufferSelector::First(number);
+    let selector = BufferSelector::First(number, 0);
+    let buffers = select_buffer(pool, selector, device_id, model_id, None, status).await?;
+    Ok(buffers)
+}
+
+pub(crate) async fn select_buffer_first_offset(pool: &Pool<Postgres>, 
+    number: usize,
+    offset: usize,
+    device_id: Option<Uuid>,
+    model_id: Option<Uuid>,
+    status: Option<BufferStatus>
+) -> Result<Vec<BufferSchema>, Error>
+{
+    let selector = BufferSelector::First(number, offset);
     let buffers = select_buffer(pool, selector, device_id, model_id, None, status).await?;
     Ok(buffers)
 }
@@ -153,7 +167,20 @@ pub(crate) async fn select_buffer_last(pool: &Pool<Postgres>,
     status: Option<BufferStatus>
 ) -> Result<Vec<BufferSchema>, Error>
 {
-    let selector = BufferSelector::Last(number);
+    let selector = BufferSelector::Last(number, 0);
+    let buffers = select_buffer(pool, selector, device_id, model_id, None, status).await?;
+    Ok(buffers)
+}
+
+pub(crate) async fn select_buffer_last_offset(pool: &Pool<Postgres>, 
+    number: usize,
+    offset: usize,
+    device_id: Option<Uuid>,
+    model_id: Option<Uuid>,
+    status: Option<BufferStatus>
+) -> Result<Vec<BufferSchema>, Error>
+{
+    let selector = BufferSelector::Last(number, offset);
     let buffers = select_buffer(pool, selector, device_id, model_id, None, status).await?;
     Ok(buffers)
 }

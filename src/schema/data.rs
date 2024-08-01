@@ -23,7 +23,7 @@ pub struct DataSchema {
 }
 
 #[derive(Debug, Default, PartialEq, Clone)]
-pub struct DatasetSchema {
+pub struct DataSetSchema {
     pub set_id: Uuid,
     pub timestamp: DateTime<Utc>,
     pub data: Vec<DataValue>
@@ -61,8 +61,8 @@ impl Into<data::DataSchema> for DataSchema {
     }
 }
 
-impl From<data::DatasetSchema> for DatasetSchema {
-    fn from(value: data::DatasetSchema) -> Self {
+impl From<data::DataSetSchema> for DataSetSchema {
+    fn from(value: data::DataSetSchema) -> Self {
         Self {
             set_id: Uuid::from_slice(&value.set_id).unwrap_or_default(),
             timestamp: Utc.timestamp_nanos(value.timestamp * 1000),
@@ -78,9 +78,9 @@ impl From<data::DatasetSchema> for DatasetSchema {
     }
 }
 
-impl Into<data::DatasetSchema> for DatasetSchema {
-    fn into(self) -> data::DatasetSchema {
-        data::DatasetSchema {
+impl Into<data::DataSetSchema> for DataSetSchema {
+    fn into(self) -> data::DataSetSchema {
+        data::DataSetSchema {
             set_id: self.set_id.as_bytes().to_vec(),
             timestamp: self.timestamp.timestamp_micros(),
             data_bytes: ArrayDataValue::from_vec(&self.data).to_bytes(),
