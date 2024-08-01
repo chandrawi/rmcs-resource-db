@@ -14,7 +14,7 @@ use schema::device::DeviceKind;
 pub use schema::group::{GroupModelSchema, GroupDeviceSchema, GroupGatewaySchema};
 use schema::group::GroupKind;
 pub use schema::set::{SetSchema, SetTemplateSchema};
-pub use schema::data::{DataSchema, DataModel, DatasetSchema};
+pub use schema::data::{DataSchema, DatasetSchema};
 pub use schema::buffer::{BufferSchema, BufferStatus};
 pub use schema::slice::SliceSchema;
 pub use schema::log::{LogSchema, LogStatus};
@@ -36,7 +36,7 @@ pub struct Resource {
 
 #[derive(Debug, Clone)]
 pub struct ResourceOptions {
-    limit: u32,
+    limit: usize,
     with_description: bool,
     order: Vec<OrderOption>
 }
@@ -85,7 +85,7 @@ impl Resource {
         }
     }
 
-    pub fn set_limit(mut self, limit: u32) {
+    pub fn set_limit(mut self, limit: usize) {
         self.options.limit = limit;
     }
 
@@ -901,14 +901,14 @@ impl Resource {
         .await
     }
 
-    pub async fn list_data_by_number_before(&self, device_id: Uuid, model_id: Uuid, before: DateTime<Utc>, number: u32)
+    pub async fn list_data_by_number_before(&self, device_id: Uuid, model_id: Uuid, before: DateTime<Utc>, number: usize)
         -> Result<Vec<DataSchema>, Error>
     {
         data::select_data_by_number_before(&self.pool, model_id, device_id, before, number)
         .await
     }
 
-    pub async fn list_data_by_number_after(&self, device_id: Uuid, model_id: Uuid, after: DateTime<Utc>, number: u32)
+    pub async fn list_data_by_number_after(&self, device_id: Uuid, model_id: Uuid, after: DateTime<Utc>, number: usize)
         -> Result<Vec<DataSchema>, Error>
     {
         data::select_data_by_number_after(&self.pool, model_id, device_id, after, number)
@@ -950,14 +950,14 @@ impl Resource {
         .await
     }
 
-    pub async fn list_data_by_set_number_before(&self, set_id: Uuid, before: DateTime<Utc>, number: u32)
+    pub async fn list_data_by_set_number_before(&self, set_id: Uuid, before: DateTime<Utc>, number: usize)
         -> Result<Vec<DataSchema>, Error>
     {
         data::select_data_by_set_number_before(&self.pool, set_id, before, number)
         .await
     }
 
-    pub async fn list_data_by_set_number_after(&self, set_id: Uuid, after: DateTime<Utc>, number: u32)
+    pub async fn list_data_by_set_number_after(&self, set_id: Uuid, after: DateTime<Utc>, number: usize)
         -> Result<Vec<DataSchema>, Error>
     {
         data::select_data_by_set_number_after(&self.pool, set_id, after, number)
@@ -992,14 +992,14 @@ impl Resource {
         .await
     }
 
-    pub async fn list_dataset_by_number_before(&self, set_id: Uuid, before: DateTime<Utc>, number: u32)
+    pub async fn list_dataset_by_number_before(&self, set_id: Uuid, before: DateTime<Utc>, number: usize)
         -> Result<Vec<DatasetSchema>, Error>
     {
         data::select_dataset_by_number_before(&self.pool, set_id, before, number)
         .await
     }
 
-    pub async fn list_dataset_by_number_after(&self, set_id: Uuid, after: DateTime<Utc>, number: u32)
+    pub async fn list_dataset_by_number_after(&self, set_id: Uuid, after: DateTime<Utc>, number: usize)
         -> Result<Vec<DatasetSchema>, Error>
     {
         data::select_dataset_by_number_after(&self.pool, set_id, after, number)
@@ -1032,14 +1032,14 @@ impl Resource {
             .await?.into_iter().next().ok_or(Error::RowNotFound)
     }
 
-    pub async fn list_buffer_first(&self, number: u32, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
+    pub async fn list_buffer_first(&self, number: usize, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
         -> Result<Vec<BufferSchema>, Error>
     {
         buffer::select_buffer_first(&self.pool, number, device_id, model_id, status)
         .await
     }
 
-    pub async fn list_buffer_last(&self, number: u32, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
+    pub async fn list_buffer_last(&self, number: usize, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
         -> Result<Vec<BufferSchema>, Error>
     {
         buffer::select_buffer_last(&self.pool, number, device_id, model_id, status)

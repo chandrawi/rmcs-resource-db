@@ -2,7 +2,6 @@ use sea_query::Iden;
 use sqlx::types::chrono::{DateTime, Utc, TimeZone};
 use uuid::Uuid;
 use crate::schema::value::{DataValue, ArrayDataValue, DataType};
-use crate::schema::model::ModelSchema;
 use rmcs_resource_api::{common, data};
 
 #[allow(unused)]
@@ -13,21 +12,6 @@ pub(crate) enum Data {
     ModelId,
     Timestamp,
     Data
-}
-
-#[derive(Debug, Default, PartialEq, Clone)]
-pub struct DataModel {
-    pub(crate) id: Uuid,
-    pub(crate) data_type: Vec<DataType>
-}
-
-impl std::convert::From<ModelSchema> for DataModel {
-    fn from(value: ModelSchema) -> Self {
-        DataModel {
-            id: value.id,
-            data_type: value.data_type
-        }
-    }
 }
 
 #[derive(Debug, Default, PartialEq, Clone)]

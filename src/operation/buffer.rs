@@ -7,15 +7,14 @@ use uuid::Uuid;
 
 use crate::schema::value::{DataType, DataValue, ArrayDataValue};
 use crate::schema::model::Model;
-use crate::schema::data::DataModel;
 use crate::schema::buffer::{DataBuffer, BufferSchema, BufferStatus};
-use crate::operation::data::select_data_model;
+use crate::operation::data::select_data_types;
 
 enum BufferSelector {
     Id(i32),
     Time,
-    First(u32),
-    Last(u32)
+    First(usize),
+    Last(usize)
 }
 
 async fn select_buffer(pool: &Pool<Postgres>, 
@@ -54,7 +53,7 @@ async fn select_buffer(pool: &Pool<Postgres>,
     } else {
         stmt = stmt
             .order_by((DataBuffer::Table, DataBuffer::Id), order)
-            .limit(number.into())
+            .limit(number as u64)
             .to_owned();
     }
     if let Some(id) = device_id {
@@ -91,13 +90,12 @@ async fn select_buffer(pool: &Pool<Postgres>,
     Ok(rows)
 }
 
-pub(crate) async fn select_buffer_model(pool: &Pool<Postgres>,
+pub(crate) async fn select_buffer_types(pool: &Pool<Postgres>,
     buffer_id: i32
-) -> Result<DataModel, Error>
+) -> Result<Vec<DataType>, Error>
 {
     let (sql, values) = Query::select()
         .columns([
-            (Model::Table, Model::ModelId),
             (Model::Table, Model::DataType)
         ])
         .from(DataBuffer::Table)
@@ -107,15 +105,12 @@ pub(crate) async fn select_buffer_model(pool: &Pool<Postgres>,
         .and_where(Expr::col((DataBuffer::Table, DataBuffer::Id)).eq(buffer_id))
         .build_sqlx(PostgresQueryBuilder);
 
-    let (model_id, data_type) = sqlx::query_with(&sql, values)
-        .map(|row: PgRow| {(
-            row.get(0),
-            row.get::<Vec<u8>,_>(1).into_iter().map(|ty| ty.into()).collect()
-        )})
+    sqlx::query_with(&sql, values)
+        .map(|row: PgRow| {
+            row.get::<Vec<u8>,_>(0).into_iter().map(|ty| ty.into()).collect()
+        })
         .fetch_one(pool)
-        .await?;
-
-    Ok(DataModel { id: model_id, data_type })
+        .await
 }
 
 pub(crate) async fn select_buffer_by_id(pool: &Pool<Postgres>, 
@@ -140,7 +135,7 @@ pub(crate) async fn select_buffer_by_time(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn select_buffer_first(pool: &Pool<Postgres>, 
-    number: u32,
+    number: usize,
     device_id: Option<Uuid>,
     model_id: Option<Uuid>,
     status: Option<BufferStatus>
@@ -152,7 +147,7 @@ pub(crate) async fn select_buffer_first(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn select_buffer_last(pool: &Pool<Postgres>, 
-    number: u32,
+    number: usize,
     device_id: Option<Uuid>,
     model_id: Option<Uuid>,
     status: Option<BufferStatus>
@@ -171,8 +166,8 @@ pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
     status: BufferStatus
 ) -> Result<i32, Error>
 {
-    let model = select_data_model(pool, model_id).await?;
-    let converted_values = ArrayDataValue::from_vec(&data).convert(&model.data_type);
+    let types = select_data_types(pool, model_id).await?;
+    let converted_values = ArrayDataValue::from_vec(&data).convert(&types);
     let bytes = match converted_values {
         Some(value) => value.to_bytes(),
         None => return Err(Error::RowNotFound)
@@ -189,7 +184,7 @@ pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
         ])
         .values([
             device_id.into(),
-            model.id.into(),
+            model_id.into(),
             timestamp.into(),
             bytes.into(),
             i16::from(status).into()
@@ -224,8 +219,8 @@ pub(crate) async fn update_buffer(pool: &Pool<Postgres>,
         .to_owned();
 
     if let Some(value) = data {
-        let model = select_buffer_model(pool, id).await?;
-        let converted_values = ArrayDataValue::from_vec(&value).convert(&model.data_type);
+        let types = select_buffer_types(pool, id).await?;
+        let converted_values = ArrayDataValue::from_vec(&value).convert(&types);
         let bytes = match converted_values {
             Some(value) => value.to_bytes(),
             None => return Err(Error::RowNotFound)

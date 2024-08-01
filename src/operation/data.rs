@@ -7,15 +7,15 @@ use uuid::Uuid;
 
 use crate::schema::value::{DataType, DataValue, ArrayDataValue};
 use crate::schema::model::Model;
-use crate::schema::data::{Data, DataModel, DataSchema, DatasetSchema};
+use crate::schema::data::{Data, DataSchema, DatasetSchema};
 use crate::schema::set::SetMap;
 
 enum DataSelector {
     Time(DateTime<Utc>),
     Last(DateTime<Utc>),
     Range(DateTime<Utc>, DateTime<Utc>),
-    NumberBefore(DateTime<Utc>, u32),
-    NumberAfter(DateTime<Utc>, u32)
+    NumberBefore(DateTime<Utc>, usize),
+    NumberAfter(DateTime<Utc>, usize)
 }
 
 async fn select_data(pool: &Pool<Postgres>, 
@@ -57,14 +57,14 @@ async fn select_data(pool: &Pool<Postgres>,
             stmt = stmt
                 .and_where(Expr::col((Data::Table, Data::Timestamp)).lte(time))
                 .order_by((Data::Table, Data::Timestamp), Order::Desc)
-                .limit(limit.into())
+                .limit(limit as u64)
                 .to_owned();
         },
         DataSelector::NumberAfter(time, limit) => {
             stmt = stmt
                 .and_where(Expr::col((Data::Table, Data::Timestamp)).gte(time))
                 .order_by((Data::Table, Data::Timestamp), Order::Asc)
-                .limit(limit.into())
+                .limit(limit as u64)
                 .to_owned();
         }
     }
@@ -87,9 +87,9 @@ async fn select_data(pool: &Pool<Postgres>,
     Ok(rows)
 }
 
-pub(crate) async fn select_data_model(pool: &Pool<Postgres>,
+pub(crate) async fn select_data_types(pool: &Pool<Postgres>,
     model_id: Uuid
-) -> Result<DataModel, Error>
+) -> Result<Vec<DataType>, Error>
 {
     let (sql, values) = Query::select()
         .column((Model::Table, Model::DataType))
@@ -97,14 +97,12 @@ pub(crate) async fn select_data_model(pool: &Pool<Postgres>,
         .and_where(Expr::col((Model::Table, Model::ModelId)).eq(model_id))
         .build_sqlx(PostgresQueryBuilder);
 
-    let data_type = sqlx::query_with(&sql, values)
+    sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
             row.get::<Vec<u8>,_>(0).into_iter().map(|ty| ty.into()).collect()
         })
         .fetch_one(pool)
-        .await?;
-
-    Ok(DataModel { id: model_id, data_type })
+        .await
 }
 
 pub(crate) async fn select_data_by_time(pool: &Pool<Postgres>,
@@ -139,7 +137,7 @@ pub(crate) async fn select_data_by_number_before(pool: &Pool<Postgres>,
     model_id: Uuid,
     device_id: Uuid,
     before: DateTime<Utc>,
-    number: u32
+    number: usize
 ) -> Result<Vec<DataSchema>, Error>
 {
     select_data(pool, DataSelector::NumberBefore(before, number), device_id, model_id).await
@@ -149,7 +147,7 @@ pub(crate) async fn select_data_by_number_after(pool: &Pool<Postgres>,
     model_id: Uuid,
     device_id: Uuid,
     after: DateTime<Utc>,
-    number: u32
+    number: usize
 ) -> Result<Vec<DataSchema>, Error>
 {
     select_data(pool, DataSelector::NumberAfter(after, number), device_id, model_id).await
@@ -162,8 +160,8 @@ pub(crate) async fn insert_data(pool: &Pool<Postgres>,
     data: Vec<DataValue>
 ) -> Result<(), Error>
 {
-    let model = select_data_model(pool, model_id).await?;
-    let converted_values = ArrayDataValue::from_vec(&data).convert(&model.data_type);
+    let types = select_data_types(pool, model_id).await?;
+    let converted_values = ArrayDataValue::from_vec(&data).convert(&types);
     let bytes = match converted_values {
         Some(value) => value.to_bytes(),
         None => return Err(Error::RowNotFound)
@@ -265,14 +263,14 @@ async fn select_dataset(pool: &Pool<Postgres>,
             stmt = stmt
                 .and_where(Expr::col((Data::Table, Data::Timestamp)).lte(time))
                 .order_by((Data::Table, Data::Timestamp), Order::Desc)
-                .limit(limit.into())
+                .limit(limit as u64)
                 .to_owned();
         },
         DataSelector::NumberAfter(time, limit) => {
             stmt = stmt
                 .and_where(Expr::col((Data::Table, Data::Timestamp)).gte(time))
                 .order_by((Data::Table, Data::Timestamp), Order::Asc)
-                .limit(limit.into())
+                .limit(limit as u64)
                 .to_owned();
         }
     }
@@ -361,7 +359,7 @@ pub(crate) async fn select_data_by_set_range_time(pool: &Pool<Postgres>,
 pub(crate) async fn select_data_by_set_number_before(pool: &Pool<Postgres>,
     set_id: Uuid,
     before: DateTime<Utc>,
-    number: u32
+    number: usize
 ) -> Result<Vec<DataSchema>, Error>
 {
     let result = select_dataset(pool, DataSelector::NumberBefore(before, number), set_id).await;
@@ -371,7 +369,7 @@ pub(crate) async fn select_data_by_set_number_before(pool: &Pool<Postgres>,
 pub(crate) async fn select_data_by_set_number_after(pool: &Pool<Postgres>,
     set_id: Uuid,
     after: DateTime<Utc>,
-    number: u32
+    number: usize
 ) -> Result<Vec<DataSchema>, Error>
 {
     let result = select_dataset(pool, DataSelector::NumberAfter(after, number), set_id).await;
@@ -409,7 +407,7 @@ pub(crate) async fn select_dataset_by_range_time(pool: &Pool<Postgres>,
 pub(crate) async fn select_dataset_by_number_before(pool: &Pool<Postgres>,
     set_id: Uuid,
     before: DateTime<Utc>,
-    number: u32
+    number: usize
 ) -> Result<Vec<DatasetSchema>, Error>
 {
     let result = select_dataset(pool, DataSelector::NumberBefore(before, number), set_id).await;
@@ -419,7 +417,7 @@ pub(crate) async fn select_dataset_by_number_before(pool: &Pool<Postgres>,
 pub(crate) async fn select_dataset_by_number_after(pool: &Pool<Postgres>,
     set_id: Uuid,
     after: DateTime<Utc>,
-    number: u32
+    number: usize
 ) -> Result<Vec<DatasetSchema>, Error>
 {
     let result = select_dataset(pool, DataSelector::NumberAfter(after, number), set_id).await;
