@@ -207,7 +207,7 @@ mod tests {
         // create data slice
         let slice_id = resource.create_slice(device_id1, model_id, timestamp, timestamp, "Speed and compass slice", None).await.unwrap();
         // read data
-        let slices = resource.list_slice_by_name("slice").await.unwrap();
+        let slices = resource.list_slice_option(None, None, Some("slice"), None, None).await.unwrap();
         let slice = slices.iter().filter(|x| x.device_id == device_id1 && x.model_id == model_id).next().unwrap();
         assert_eq!(slice.timestamp_begin, timestamp);
         assert_eq!(slice.name, "Speed and compass slice");

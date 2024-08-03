@@ -1,2 +1,2 @@
-DROP TABLE "slice_dataset";
+DROP TABLE "slice_data_set";
 DROP TABLE "slice_data";

@@ -16,7 +16,7 @@ use schema::group::GroupKind;
 pub use schema::set::{SetSchema, SetTemplateSchema};
 pub use schema::data::{DataSchema, DataSetSchema};
 pub use schema::buffer::{BufferSchema, BufferStatus};
-pub use schema::slice::SliceSchema;
+pub use schema::slice::{SliceSchema, SliceSetSchema};
 pub use schema::log::{LogSchema, LogStatus};
 use operation::model;
 use operation::device;
@@ -1086,28 +1086,34 @@ impl Resource {
         slice::select_slice_by_id(&self.pool, id).await
     }
 
-    pub async fn list_slice_by_name(&self, name: &str)
+    pub async fn list_slice_by_time(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>)
         -> Result<Vec<SliceSchema>, Error>
     {
-        slice::select_slice_by_name(&self.pool, name).await
+        slice::select_slice_by_time(&self.pool, device_id, model_id, timestamp).await
     }
 
-    pub async fn list_slice_by_device(&self, device_id: Uuid)
+    pub async fn list_slice_by_range_time(&self, device_id: Uuid, model_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
         -> Result<Vec<SliceSchema>, Error>
     {
-        slice::select_slice_by_device(&self.pool, device_id).await
+        slice::select_slice_by_range_time(&self.pool, device_id, model_id, begin, end).await
     }
 
-    pub async fn list_slice_by_model(&self, model_id: Uuid)
+    pub async fn list_slice_by_name_time(&self, name: &str, timestamp: DateTime<Utc>)
         -> Result<Vec<SliceSchema>, Error>
     {
-        slice::select_slice_by_model(&self.pool, model_id).await
+        slice::select_slice_by_name_time(&self.pool, name, timestamp).await
     }
 
-    pub async fn list_slice_by_device_model(&self, device_id: Uuid, model_id: Uuid)
+    pub async fn list_slice_by_name_range_time(&self, name: &str, begin: DateTime<Utc>, end: DateTime<Utc>)
         -> Result<Vec<SliceSchema>, Error>
     {
-        slice::select_slice_by_device_model(&self.pool, device_id, model_id).await
+        slice::select_slice_by_name_range_time(&self.pool, name, begin, end).await
+    }
+
+    pub async fn list_slice_option(&self, device_id: Option<Uuid>, model_id: Option<Uuid>, name: Option<&str>, begin_or_timestamp: Option<DateTime<Utc>>, end: Option<DateTime<Utc>>)
+        -> Result<Vec<SliceSchema>, Error>
+    {
+        slice::select_slice_by_option(&self.pool, device_id, model_id, name, begin_or_timestamp, end).await
     }
 
     pub async fn create_slice(&self, device_id: Uuid, model_id: Uuid, timestamp_begin: DateTime<Utc>, timestamp_end: DateTime<Utc>, name: &str, description: Option<&str>)
@@ -1128,6 +1134,62 @@ impl Resource {
         -> Result<(), Error>
     {
         slice::delete_slice(&self.pool, id).await
+    }
+
+    pub async fn read_slice_set(&self, id: i32)
+        -> Result<SliceSetSchema, Error>
+    {
+        slice::select_slice_set_by_id(&self.pool, id).await
+    }
+
+    pub async fn list_slice_set_by_time(&self, set_id: Uuid, timestamp: DateTime<Utc>)
+        -> Result<Vec<SliceSetSchema>, Error>
+    {
+        slice::select_slice_set_by_time(&self.pool, set_id, timestamp).await
+    }
+
+    pub async fn list_slice_set_by_range_time(&self, set_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
+        -> Result<Vec<SliceSetSchema>, Error>
+    {
+        slice::select_slice_set_by_range_time(&self.pool, set_id, begin, end).await
+    }
+
+    pub async fn list_slice_set_by_name_time(&self, name: &str, timestamp: DateTime<Utc>)
+        -> Result<Vec<SliceSetSchema>, Error>
+    {
+        slice::select_slice_set_by_name_time(&self.pool, name, timestamp).await
+    }
+
+    pub async fn list_slice_set_by_name_range_time(&self, name: &str, begin: DateTime<Utc>, end: DateTime<Utc>)
+        -> Result<Vec<SliceSetSchema>, Error>
+    {
+        slice::select_slice_set_by_name_range_time(&self.pool, name, begin, end).await
+    }
+
+    pub async fn list_slice_set_option(&self, set_id: Option<Uuid>, name: Option<&str>, begin_or_timestamp: Option<DateTime<Utc>>, end: Option<DateTime<Utc>>)
+        -> Result<Vec<SliceSetSchema>, Error>
+    {
+        slice::select_slice_set_by_option(&self.pool, set_id, name, begin_or_timestamp, end).await
+    }
+
+    pub async fn create_slice_set(&self, set_id: Uuid, timestamp_begin: DateTime<Utc>, timestamp_end: DateTime<Utc>, name: &str, description: Option<&str>)
+        -> Result<i32, Error>
+    {
+        slice::insert_slice_set(&self.pool, set_id, timestamp_begin, timestamp_end, name, description)
+        .await
+    }
+
+    pub async fn update_slice_set(&self, id: i32, timestamp_begin: Option<DateTime<Utc>>, timestamp_end: Option<DateTime<Utc>>, name: Option<&str>, description: Option<&str>)
+        -> Result<(), Error>
+    {
+        slice::update_slice_set(&self.pool, id, timestamp_begin, timestamp_end, name, description)
+        .await
+    }
+
+    pub async fn delete_slice_set(&self, id: i32)
+        -> Result<(), Error>
+    {
+        slice::delete_slice_set(&self.pool, id).await
     }
 
     pub async fn read_log(&self, timestamp: DateTime<Utc>, device_id: Uuid)
