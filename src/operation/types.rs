@@ -6,14 +6,10 @@ use uuid::Uuid;
 
 use crate::schema::device::{DeviceType, DeviceTypeModel, TypeSchema};
 
-enum TypeSelector {
-    Id(Uuid),
-    Name(String),
-    Ids(Vec<Uuid>)
-}
-
-async fn select_device_type(pool: &Pool<Postgres>, 
-    selector: TypeSelector
+pub(crate) async fn select_device_type(pool: &Pool<Postgres>, 
+    id: Option<Uuid>,
+    ids: Option<&[Uuid]>,
+    name: Option<&str>
 ) -> Result<Vec<TypeSchema>, Error>
 {
     let mut stmt = Query::select()
@@ -32,17 +28,19 @@ async fn select_device_type(pool: &Pool<Postgres>,
         )
         .to_owned();
 
-    match selector {
-        TypeSelector::Id(id) => {
-            stmt = stmt.and_where(Expr::col((DeviceType::Table, DeviceType::TypeId)).eq(id)).to_owned();
-        },
-        TypeSelector::Name(name) => {
-            stmt = stmt.and_where(Expr::col((DeviceType::Table, DeviceType::Name)).like(name)).to_owned();
-        },
-        TypeSelector::Ids(ids) => {
-            stmt = stmt.and_where(Expr::col((DeviceType::Table, DeviceType::TypeId)).is_in(ids)).to_owned();
+    if let Some(id) = id {
+        stmt = stmt.and_where(Expr::col((DeviceType::Table, DeviceType::TypeId)).eq(id)).to_owned();
+    }
+    else if let Some(ids) = ids {
+        stmt = stmt.and_where(Expr::col((DeviceType::Table, DeviceType::TypeId)).is_in(ids.to_vec())).to_owned();
+    }
+    else {
+        if let Some(name) = name {
+            let name_like = String::from("%") + name + "%";
+            stmt = stmt.and_where(Expr::col((DeviceType::Table, DeviceType::Name)).like(name_like)).to_owned();
         }
     }
+
     let (sql, values) = stmt
         .order_by((DeviceType::Table, DeviceType::TypeId), Order::Asc)
         .order_by((DeviceTypeModel::Table, DeviceTypeModel::ModelId), Order::Asc)
@@ -80,32 +78,6 @@ async fn select_device_type(pool: &Pool<Postgres>,
         .await?;
 
     Ok(type_schema_vec)
-}
-
-pub(crate) async fn select_device_type_by_id(pool: &Pool<Postgres>, 
-    id: Uuid
-) -> Result<TypeSchema, Error>
-{
-    let results = select_device_type(pool, TypeSelector::Id(id)).await?;
-    match results.into_iter().next() {
-        Some(value) => Ok(value),
-        None => Err(Error::RowNotFound)
-    }
-}
-
-pub(crate) async fn select_device_type_by_ids(pool: &Pool<Postgres>, 
-    ids: &[Uuid]
-) -> Result<Vec<TypeSchema>, Error>
-{
-    select_device_type(pool, TypeSelector::Ids(ids.to_owned())).await
-}
-
-pub(crate) async fn select_device_type_by_name(pool: &Pool<Postgres>, 
-    name: &str
-) -> Result<Vec<TypeSchema>, Error>
-{
-    let name_like = String::from("%") + name + "%";
-    select_device_type(pool, TypeSelector::Name(name_like)).await
 }
 
 pub(crate) async fn insert_device_type(pool: &Pool<Postgres>,

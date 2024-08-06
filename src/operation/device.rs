@@ -7,25 +7,14 @@ use uuid::Uuid;
 use crate::schema::value::{ConfigValue, ConfigType};
 use crate::schema::device::{Device, DeviceType, DeviceTypeModel, DeviceConfig, DeviceKind, DeviceSchema, DeviceConfigSchema};
 
-enum DeviceSelector {
-    Id(Uuid),
-    Gateway(Uuid),
-    Type(Uuid),
-    SN(String),
-    Name(String),
-    GatewayType(Uuid, Uuid),
-    GatewayName(Uuid, String),
-    Ids(Vec<Uuid>)
-}
-
-enum ConfigSelector {
-    Id(i32),
-    Device(Uuid)
-}
-
-async fn select_device(pool: &Pool<Postgres>, 
+pub(crate) async fn select_device(pool: &Pool<Postgres>, 
     kind: DeviceKind,
-    selector: DeviceSelector
+    id: Option<Uuid>,
+    serial_number: Option<&str>,
+    ids: Option<&[Uuid]>,
+    gateway_id: Option<Uuid>,
+    type_id: Option<Uuid>,
+    name: Option<&str>
 ) -> Result<Vec<DeviceSchema>, Error>
 {
     let mut stmt = Query::select()
@@ -66,36 +55,28 @@ async fn select_device(pool: &Pool<Postgres>,
         )
         .to_owned();
 
-    match selector {
-        DeviceSelector::Id(id) => {
-            stmt = stmt.and_where(Expr::col((Device::Table, Device::DeviceId)).eq(id)).to_owned();
-        },
-        DeviceSelector::Gateway(id) => {
-            stmt = stmt.and_where(Expr::col((Device::Table, Device::GatewayId)).eq(id)).to_owned();
-        },
-        DeviceSelector::Type(ty) => {
-            stmt = stmt.and_where(Expr::col((Device::Table, Device::TypeId)).eq(ty)).to_owned();
-        },
-        DeviceSelector::SN(sn) => {
-            stmt = stmt.and_where(Expr::col((Device::Table, Device::SerialNumber)).eq(sn)).to_owned();
-        },
-        DeviceSelector::Name(name) => {
-            stmt = stmt.and_where(Expr::col((Device::Table, Device::Name)).like(name)).to_owned();
-        },
-        DeviceSelector::GatewayType(id, ty) => {
-            stmt = stmt.and_where(Expr::col((Device::Table, Device::GatewayId)).eq(id))
-                .and_where(Expr::col((Device::Table, Device::TypeId)).eq(ty))
-                .to_owned();
-        },
-        DeviceSelector::GatewayName(id, name) => {
-            stmt = stmt.and_where(Expr::col((Device::Table, Device::GatewayId)).eq(id))
-                .and_where(Expr::col((Device::Table, Device::Name)).like(name))
-                .to_owned();
-        },
-        DeviceSelector::Ids(ids) => {
-            stmt = stmt.and_where(Expr::col((Device::Table, Device::DeviceId)).is_in(ids)).to_owned();
+    if let Some(id) = id {
+        stmt = stmt.and_where(Expr::col((Device::Table, Device::DeviceId)).eq(id)).to_owned();
+    }
+    else if let Some(sn) = serial_number {
+        stmt = stmt.and_where(Expr::col((Device::Table, Device::SerialNumber)).eq(sn.to_owned())).to_owned();
+    }
+    else if let Some(ids) = ids {
+        stmt = stmt.and_where(Expr::col((Device::Table, Device::DeviceId)).is_in(ids.to_vec())).to_owned();
+    }
+    else {
+        if let Some(gateway_id) = gateway_id {
+            stmt = stmt.and_where(Expr::col((Device::Table, Device::GatewayId)).eq(gateway_id)).to_owned();
+        }
+        if let Some(type_id) = type_id {
+            stmt = stmt.and_where(Expr::col((Device::Table, Device::TypeId)).eq(type_id)).to_owned();
+        }
+        if let Some(name) = name {
+            let name_like = String::from("%") + name + "%";
+            stmt = stmt.and_where(Expr::col((Device::Table, Device::Name)).like(name_like)).to_owned();
         }
     }
+
     if let DeviceKind::Gateway = kind {
         stmt = stmt.and_where(
             Expr::col((Device::Table, Device::DeviceId)).equals((Device::Table, Device::GatewayId))
@@ -161,82 +142,6 @@ async fn select_device(pool: &Pool<Postgres>,
         .await?;
 
     Ok(device_schema_vec)
-}
-
-pub(crate) async fn select_device_by_id(pool: &Pool<Postgres>,
-    kind: DeviceKind,
-    id: Uuid
-) -> Result<DeviceSchema, Error>
-{
-    let results = select_device(pool, kind, DeviceSelector::Id(id)).await?;
-    match results.into_iter().next() {
-        Some(value) => Ok(value),
-        None => Err(Error::RowNotFound)
-    }
-}
-
-pub(crate) async fn select_device_by_sn(pool: &Pool<Postgres>,
-    kind: DeviceKind,
-    serial_number: &str
-) -> Result<DeviceSchema, Error>
-{
-    let results = select_device(pool, kind, DeviceSelector::SN(String::from(serial_number))).await?;
-    match results.into_iter().next() {
-        Some(value) => Ok(value),
-        None => Err(Error::RowNotFound)
-    }
-}
-
-pub(crate) async fn select_device_by_ids(pool: &Pool<Postgres>,
-    kind: DeviceKind,
-    ids: &[Uuid]
-) -> Result<Vec<DeviceSchema>, Error>
-{
-    select_device(pool, kind, DeviceSelector::Ids(ids.to_owned())).await
-}
-
-pub(crate) async fn select_device_by_gateway(pool: &Pool<Postgres>,
-    kind: DeviceKind,
-    gateway_id: Uuid
-) -> Result<Vec<DeviceSchema>, Error>
-{
-    select_device(pool, kind, DeviceSelector::Gateway(gateway_id)).await
-}
-
-pub(crate) async fn select_device_by_type(pool: &Pool<Postgres>,
-    kind: DeviceKind,
-    type_id: Uuid
-) -> Result<Vec<DeviceSchema>, Error>
-{
-    select_device(pool, kind, DeviceSelector::Type(type_id)).await
-}
-
-pub(crate) async fn select_device_by_name(pool: &Pool<Postgres>,
-    kind: DeviceKind,
-    name: &str
-) -> Result<Vec<DeviceSchema>, Error>
-{
-    let name_like = String::from("%") + name + "%";
-    select_device(pool, kind, DeviceSelector::Name(String::from(name_like))).await
-}
-
-pub(crate) async fn select_device_by_gateway_type(pool: &Pool<Postgres>,
-    kind: DeviceKind,
-    gateway_id: Uuid,
-    type_id: Uuid
-) -> Result<Vec<DeviceSchema>, Error>
-{
-    select_device(pool, kind, DeviceSelector::GatewayType(gateway_id, type_id)).await
-}
-
-pub(crate) async fn select_device_by_gateway_name(pool: &Pool<Postgres>,
-    kind: DeviceKind,
-    gateway_id: Uuid,
-    name: &str
-) -> Result<Vec<DeviceSchema>, Error>
-{
-    let name_like = String::from("%") + name + "%";
-    select_device(pool, kind, DeviceSelector::GatewayName(gateway_id, name_like)).await
 }
 
 pub(crate) async fn insert_device(pool: &Pool<Postgres>,
@@ -343,9 +248,10 @@ pub(crate) async fn delete_device(pool: &Pool<Postgres>,
     Ok(())
 }
 
-async fn select_device_config(pool: &Pool<Postgres>,
+pub(crate) async fn select_device_config(pool: &Pool<Postgres>,
     kind: DeviceKind,
-    selector: ConfigSelector
+    id: Option<i32>,
+    device_id: Option<Uuid>
 ) -> Result<Vec<DeviceConfigSchema>, Error>
 {
     let mut stmt = Query::select()
@@ -367,14 +273,13 @@ async fn select_device_config(pool: &Pool<Postgres>,
         )
         .to_owned();
 
-    match selector {
-        ConfigSelector::Id(id) => {
-            stmt = stmt.and_where(Expr::col((DeviceConfig::Table, DeviceConfig::Id)).eq(id)).to_owned();
-        },
-        ConfigSelector::Device(device_id) => {
-            stmt = stmt.and_where(Expr::col((DeviceConfig::Table, DeviceConfig::DeviceId)).eq(device_id)).to_owned();
-        }
+    if let Some(id) = id {
+        stmt = stmt.and_where(Expr::col((DeviceConfig::Table, DeviceConfig::Id)).eq(id)).to_owned();
     }
+    else if let Some(device_id) = device_id {
+        stmt = stmt.and_where(Expr::col((DeviceConfig::Table, DeviceConfig::DeviceId)).eq(device_id)).to_owned();
+    }
+
     if let DeviceKind::Gateway = kind {
         stmt = stmt.and_where(
             Expr::col((DeviceConfig::Table, DeviceConfig::DeviceId)).equals((Device::Table, Device::GatewayId))
@@ -401,26 +306,6 @@ async fn select_device_config(pool: &Pool<Postgres>,
         .await?;
 
     Ok(rows)
-}
-
-pub(crate) async fn select_device_config_by_id(pool: &Pool<Postgres>,
-    kind: DeviceKind,
-    id: i32
-) -> Result<DeviceConfigSchema, Error>
-{
-    let results = select_device_config(pool, kind, ConfigSelector::Id(id)).await?;
-    match results.into_iter().next() {
-        Some(value) => Ok(value),
-        None => Err(Error::RowNotFound)
-    }
-}
-
-pub(crate) async fn select_device_config_by_device(pool: &Pool<Postgres>,
-    kind: DeviceKind,
-    device_id: Uuid
-) -> Result<Vec<DeviceConfigSchema>, Error>
-{
-    select_device_config(pool, kind, ConfigSelector::Device(device_id)).await
 }
 
 pub(crate) async fn insert_device_config(pool: &Pool<Postgres>,

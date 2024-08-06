@@ -34,7 +34,7 @@ pub enum GroupDeviceMap {
     GroupId,
     DeviceId
 }
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub(crate) enum GroupKind {
     Model,
     Device,

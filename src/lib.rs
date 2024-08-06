@@ -100,42 +100,45 @@ impl Resource {
     pub async fn read_model(&self, id: Uuid)
         -> Result<ModelSchema, Error>
     {
-        model::select_model_by_id(&self.pool, id)
-        .await
+        match model::select_model(&self.pool, Some(id), None, None, None, None).await?
+        .into_iter().next() {
+            Some(value) => Ok(value),
+            None => Err(Error::RowNotFound)
+        }
     }
 
     pub async fn list_model_by_ids(&self, ids: &[Uuid])
         -> Result<Vec<ModelSchema>, Error>
     {
-        model::select_model_by_ids(&self.pool, ids)
-        .await
-    }
-
-    pub async fn list_model_by_name(&self, name: &str)
-        -> Result<Vec<ModelSchema>, Error>
-    {
-        model::select_model_by_name(&self.pool, name)
-        .await
-    }
-
-    pub async fn list_model_by_category(&self, category: &str)
-        -> Result<Vec<ModelSchema>, Error>
-    {
-        model::select_model_by_category(&self.pool, category)
-        .await
-    }
-
-    pub async fn list_model_by_name_category(&self, name: &str, category: &str)
-        -> Result<Vec<ModelSchema>, Error>
-    {
-        model::select_model_by_name_category(&self.pool, name, category)
+        model::select_model(&self.pool, None, Some(ids), None, None, None)
         .await
     }
 
     pub async fn list_model_by_type(&self, type_id: Uuid)
         -> Result<Vec<ModelSchema>, Error>
     {
-        model::select_model_by_type(&self.pool, type_id)
+        model::select_model(&self.pool, None, None, Some(type_id), None, None)
+        .await
+    }
+
+    pub async fn list_model_by_name(&self, name: &str)
+        -> Result<Vec<ModelSchema>, Error>
+    {
+        model::select_model(&self.pool, None, None, None, Some(name), None)
+        .await
+    }
+
+    pub async fn list_model_by_category(&self, category: &str)
+        -> Result<Vec<ModelSchema>, Error>
+    {
+        model::select_model(&self.pool, None, None, None, None, Some(category))
+        .await
+    }
+
+    pub async fn list_model_option(&self, type_id: Option<Uuid>, name: Option<&str>, category: Option<&str>)
+        -> Result<Vec<ModelSchema>, Error>
+    {
+        model::select_model(&self.pool, None, None, type_id, name, category)
         .await
     }
 
@@ -163,14 +166,17 @@ impl Resource {
     pub async fn read_model_config(&self, id: i32)
         -> Result<ModelConfigSchema, Error>
     {
-        model::select_model_config_by_id(&self.pool, id)
-        .await
+        match model::select_model_config(&self.pool, Some(id), None).await?
+        .into_iter().next() {
+            Some(value) => Ok(value),
+            None => Err(Error::RowNotFound)
+        }
     }
 
     pub async fn list_model_config_by_model(&self, model_id: Uuid)
         -> Result<Vec<ModelConfigSchema>, Error>
     {
-        model::select_model_config_by_model(&self.pool, model_id)
+        model::select_model_config(&self.pool, None, Some(model_id))
         .await
     }
 
@@ -198,56 +204,55 @@ impl Resource {
     pub async fn read_device(&self, id: Uuid)
         -> Result<DeviceSchema, Error>
     {
-        device::select_device_by_id(&self.pool, DeviceKind::Device, id)
-        .await
+        match device::select_device(&self.pool, DeviceKind::Device, Some(id), None, None, None, None, None).await?
+        .into_iter().next() {
+            Some(value) => Ok(value),
+            None => Err(Error::RowNotFound)
+        }
     }
 
     pub async fn read_device_by_sn(&self, serial_number: &str)
         -> Result<DeviceSchema, Error>
     {
-        device::select_device_by_sn(&self.pool, DeviceKind::Device, serial_number)
-        .await
+        match device::select_device(&self.pool, DeviceKind::Device, None, Some(serial_number), None, None, None, None).await?
+        .into_iter().next() {
+            Some(value) => Ok(value),
+            None => Err(Error::RowNotFound)
+        }
     }
 
     pub async fn list_device_by_ids(&self, ids: &[Uuid])
         -> Result<Vec<DeviceSchema>, Error>
     {
-        device::select_device_by_ids(&self.pool, DeviceKind::Device, ids)
+        device::select_device(&self.pool, DeviceKind::Device, None, None, Some(ids), None, None, None)
         .await
     }
 
     pub async fn list_device_by_gateway(&self, gateway_id: Uuid)
         -> Result<Vec<DeviceSchema>, Error>
     {
-        device::select_device_by_gateway(&self.pool, DeviceKind::Device, gateway_id)
+        device::select_device(&self.pool, DeviceKind::Device, None, None, None, Some(gateway_id), None, None)
         .await
     }
 
     pub async fn list_device_by_type(&self, type_id: Uuid)
         -> Result<Vec<DeviceSchema>, Error>
     {
-        device::select_device_by_type(&self.pool, DeviceKind::Device, type_id)
+        device::select_device(&self.pool, DeviceKind::Device, None, None, None, None, Some(type_id), None)
         .await
     }
 
     pub async fn list_device_by_name(&self, name: &str)
         -> Result<Vec<DeviceSchema>, Error>
     {
-        device::select_device_by_name(&self.pool, DeviceKind::Device, name)
+        device::select_device(&self.pool, DeviceKind::Device, None, None, None, None, None, Some(name))
         .await
     }
 
-    pub async fn list_device_by_gateway_type(&self, gateway_id: Uuid, type_id: Uuid)
+    pub async fn list_device_option(&self, gateway_id: Option<Uuid>, type_id: Option<Uuid>, name: Option<&str>)
         -> Result<Vec<DeviceSchema>, Error>
     {
-        device::select_device_by_gateway_type(&self.pool, DeviceKind::Device, gateway_id, type_id)
-        .await
-    }
-
-    pub async fn list_device_by_gateway_name(&self, gateway_id: Uuid, name: &str)
-        -> Result<Vec<DeviceSchema>, Error>
-    {
-        device::select_device_by_gateway_name(&self.pool, DeviceKind::Device, gateway_id, name)
+        device::select_device(&self.pool, DeviceKind::Device, None, None, None, gateway_id, type_id, name)
         .await
     }
 
@@ -275,28 +280,28 @@ impl Resource {
     pub async fn read_gateway(&self, id: Uuid)
         -> Result<GatewaySchema, Error>
     {
-        match device::select_device_by_id(&self.pool, DeviceKind::Gateway, id).await {
-            Ok(value) => Ok(value.into_gateway()),
-            Err(error) => Err(error)
+        match device::select_device(&self.pool, DeviceKind::Gateway, Some(id), None, None, None, None, None).await?
+        .into_iter().next() {
+            Some(value) => Ok(value.into_gateway()),
+            None => Err(Error::RowNotFound)
         }
     }
 
     pub async fn read_gateway_by_sn(&self, serial_number: &str)
         -> Result<GatewaySchema, Error>
     {
-        match device::select_device_by_sn(&self.pool, DeviceKind::Gateway, serial_number).await {
-            Ok(value) => Ok(value.into_gateway()),
-            Err(error) => Err(error)
+        match device::select_device(&self.pool, DeviceKind::Gateway, None, Some(serial_number), None, None, None, None).await?
+        .into_iter().next() {
+            Some(value) => Ok(value.into_gateway()),
+            None => Err(Error::RowNotFound)
         }
     }
 
     pub async fn list_gateway_by_ids(&self, ids: &[Uuid])
         -> Result<Vec<GatewaySchema>, Error>
     {
-        match device::select_device_by_ids(&self.pool, DeviceKind::Gateway, ids).await {
-            Ok(value) => {
-                value.into_iter().map(|el| Ok(el.into_gateway())).collect()
-            },
+        match device::select_device(&self.pool, DeviceKind::Gateway, None, None, Some(ids), None, None, None).await {
+            Ok(value) => value.into_iter().map(|el| Ok(el.into_gateway())).collect(),
             Err(error) => Err(error)
         }
     }
@@ -304,10 +309,8 @@ impl Resource {
     pub async fn list_gateway_by_type(&self, type_id: Uuid)
         -> Result<Vec<GatewaySchema>, Error>
     {
-        match device::select_device_by_type(&self.pool, DeviceKind::Gateway, type_id).await {
-            Ok(value) => {
-                value.into_iter().map(|el| Ok(el.into_gateway())).collect()
-            },
+        match device::select_device(&self.pool, DeviceKind::Gateway, None, None, None, None, Some(type_id), None).await {
+            Ok(value) => value.into_iter().map(|el| Ok(el.into_gateway())).collect(),
             Err(error) => Err(error)
         }
     }
@@ -315,10 +318,17 @@ impl Resource {
     pub async fn list_gateway_by_name(&self, name: &str)
         -> Result<Vec<GatewaySchema>, Error>
     {
-        match device::select_device_by_name(&self.pool, DeviceKind::Gateway, name).await {
-            Ok(value) => {
-                value.into_iter().map(|el| Ok(el.into_gateway())).collect()
-            },
+        match device::select_device(&self.pool, DeviceKind::Gateway, None, None, None, None, None, Some(name)).await {
+            Ok(value) => value.into_iter().map(|el| Ok(el.into_gateway())).collect(),
+            Err(error) => Err(error)
+        }
+    }
+
+    pub async fn list_gateway_option(&self, type_id: Option<Uuid>, name: Option<&str>)
+        -> Result<Vec<GatewaySchema>, Error>
+    {
+        match device::select_device(&self.pool, DeviceKind::Gateway, None, None, None, None, type_id, name).await {
+            Ok(value) => value.into_iter().map(|el| Ok(el.into_gateway())).collect(),
             Err(error) => Err(error)
         }
     }
@@ -347,14 +357,17 @@ impl Resource {
     pub async fn read_device_config(&self, id: i32)
         -> Result<DeviceConfigSchema, Error>
     {
-        device::select_device_config_by_id(&self.pool, DeviceKind::Device, id)
-        .await
+        match device::select_device_config(&self.pool, DeviceKind::Device, Some(id), None).await?
+        .into_iter().next() {
+            Some(value) => Ok(value),
+            None => Err(Error::RowNotFound)
+        }
     }
 
     pub async fn list_device_config_by_device(&self, device_id: Uuid)
         -> Result<Vec<DeviceConfigSchema>, Error>
     {
-        device::select_device_config_by_device(&self.pool, DeviceKind::Device, device_id)
+        device::select_device_config(&self.pool, DeviceKind::Device, None, Some(device_id))
         .await
     }
 
@@ -382,19 +395,18 @@ impl Resource {
     pub async fn read_gateway_config(&self, id: i32)
         -> Result<GatewayConfigSchema, Error>
     {
-        match device::select_device_config_by_id(&self.pool, DeviceKind::Gateway, id).await {
-            Ok(value) => Ok(value.into_gateway_config()),
-            Err(error) => Err(error)
+        match device::select_device_config(&self.pool, DeviceKind::Gateway, Some(id), None).await?
+        .into_iter().next() {
+            Some(value) => Ok(value.into_gateway_config()),
+            None => Err(Error::RowNotFound)
         }
     }
 
     pub async fn list_gateway_config_by_gateway(&self, gateway_id: Uuid)
         -> Result<Vec<GatewayConfigSchema>, Error>
     {
-        match device::select_device_config_by_device(&self.pool, DeviceKind::Gateway, gateway_id).await {
-            Ok(value) => {
-                value.into_iter().map(|el| Ok(el.into_gateway_config())).collect()
-            },
+        match device::select_device_config(&self.pool, DeviceKind::Gateway, None, Some(gateway_id)).await {
+            Ok(value) => value.into_iter().map(|el| Ok(el.into_gateway_config())).collect(),
             Err(error) => Err(error)
         }
     }
@@ -423,21 +435,31 @@ impl Resource {
     pub async fn read_type(&self, id: Uuid)
         -> Result<TypeSchema, Error>
     {
-        types::select_device_type_by_id(&self.pool, id)
-        .await
+        match types::select_device_type(&self.pool, Some(id), None, None).await?
+        .into_iter().next() {
+            Some(value) => Ok(value),
+            None => Err(Error::RowNotFound)
+        }
     }
 
     pub async fn list_type_by_ids(&self, ids: &[Uuid])
         -> Result<Vec<TypeSchema>, Error>
     {
-        types::select_device_type_by_ids(&self.pool, ids)
+        types::select_device_type(&self.pool, None, Some(ids), None)
         .await
     }
 
     pub async fn list_type_by_name(&self, name: &str)
         -> Result<Vec<TypeSchema>, Error>
     {
-        types::select_device_type_by_name(&self.pool, name)
+        types::select_device_type(&self.pool, None, None, Some(name))
+        .await
+    }
+
+    pub async fn list_type_option(&self, name: Option<&str>)
+        -> Result<Vec<TypeSchema>, Error>
+    {
+        types::select_device_type(&self.pool, None, None, name)
         .await
     }
 
@@ -479,19 +501,18 @@ impl Resource {
     pub async fn read_group_model(&self, id: Uuid)
         -> Result<GroupModelSchema, Error>
     {
-        match group::select_group_by_id(&self.pool, GroupKind::Model, id).await {
-            Ok(value) => Ok(value.into_group_model()),
-            Err(error) => Err(error)
+        match group::select_group(&self.pool, GroupKind::Model, Some(id), None, None, None).await?
+        .into_iter().next() {
+            Some(value) => Ok(value.into_group_model()),
+            None => Err(Error::RowNotFound)
         }
     }
 
     pub async fn list_group_model_by_ids(&self, ids: &[Uuid])
         -> Result<Vec<GroupModelSchema>, Error>
     {
-        match group::select_group_by_ids(&self.pool, GroupKind::Model, ids).await {
-            Ok(value) => {
-                value.into_iter().map(|el| Ok(el.into_group_model())).collect()
-            },
+        match group::select_group(&self.pool, GroupKind::Model, None, Some(ids), None, None).await {
+            Ok(value) => value.into_iter().map(|el| Ok(el.into_group_model())).collect(),
             Err(error) => Err(error)
         }
     }
@@ -499,10 +520,8 @@ impl Resource {
     pub async fn list_group_model_by_name(&self, name: &str)
         -> Result<Vec<GroupModelSchema>, Error>
     {
-        match group::select_group_by_name(&self.pool, GroupKind::Model, name).await {
-            Ok(value) => {
-                value.into_iter().map(|el| Ok(el.into_group_model())).collect()
-            },
+        match group::select_group(&self.pool, GroupKind::Model, None, None, Some(name), None).await {
+            Ok(value) => value.into_iter().map(|el| Ok(el.into_group_model())).collect(),
             Err(error) => Err(error)
         }
     }
@@ -510,21 +529,17 @@ impl Resource {
     pub async fn list_group_model_by_category(&self, category: &str)
         -> Result<Vec<GroupModelSchema>, Error>
     {
-        match group::select_group_by_category(&self.pool, GroupKind::Model, category).await {
-            Ok(value) => {
-                value.into_iter().map(|el| Ok(el.into_group_model())).collect()
-            },
+        match group::select_group(&self.pool, GroupKind::Model, None, None, None, Some(category)).await {
+            Ok(value) => value.into_iter().map(|el| Ok(el.into_group_model())).collect(),
             Err(error) => Err(error)
         }
     }
 
-    pub async fn list_group_model_by_name_category(&self, name: &str, category: &str)
+    pub async fn list_group_model_option(&self, name: Option<&str>, category: Option<&str>)
         -> Result<Vec<GroupModelSchema>, Error>
     {
-        match group::select_group_by_name_category(&self.pool, GroupKind::Model, name, category).await {
-            Ok(value) => {
-                value.into_iter().map(|el| Ok(el.into_group_model())).collect()
-            },
+        match group::select_group(&self.pool, GroupKind::Model, None, None, name, category).await {
+            Ok(value) => value.into_iter().map(|el| Ok(el.into_group_model())).collect(),
             Err(error) => Err(error)
         }
     }
@@ -567,19 +582,18 @@ impl Resource {
     pub async fn read_group_device(&self, id: Uuid)
         -> Result<GroupDeviceSchema, Error>
     {
-        match group::select_group_by_id(&self.pool, GroupKind::Device, id).await {
-            Ok(value) => Ok(value.into_group_device()),
-            Err(error) => Err(error)
+        match group::select_group(&self.pool, GroupKind::Device, Some(id), None, None, None).await?
+        .into_iter().next() {
+            Some(value) => Ok(value.into_group_device()),
+            None => Err(Error::RowNotFound)
         }
     }
 
     pub async fn list_group_device_by_ids(&self, ids: &[Uuid])
         -> Result<Vec<GroupDeviceSchema>, Error>
     {
-        match group::select_group_by_ids(&self.pool, GroupKind::Device, ids).await {
-            Ok(value) => {
-                value.into_iter().map(|el| Ok(el.into_group_device())).collect()
-            },
+        match group::select_group(&self.pool, GroupKind::Device, None, Some(ids), None, None).await {
+            Ok(value) => value.into_iter().map(|el| Ok(el.into_group_device())).collect(),
             Err(error) => Err(error)
         }
     }
@@ -587,10 +601,8 @@ impl Resource {
     pub async fn list_group_device_by_name(&self, name: &str)
         -> Result<Vec<GroupDeviceSchema>, Error>
     {
-        match group::select_group_by_name(&self.pool, GroupKind::Device, name).await {
-            Ok(value) => {
-                value.into_iter().map(|el| Ok(el.into_group_device())).collect()
-            },
+        match group::select_group(&self.pool, GroupKind::Device, None, None, Some(name), None).await {
+            Ok(value) => value.into_iter().map(|el| Ok(el.into_group_device())).collect(),
             Err(error) => Err(error)
         }
     }
@@ -598,21 +610,17 @@ impl Resource {
     pub async fn list_group_device_by_category(&self, category: &str)
         -> Result<Vec<GroupDeviceSchema>, Error>
     {
-        match group::select_group_by_category(&self.pool, GroupKind::Device, category).await {
-            Ok(value) => {
-                value.into_iter().map(|el| Ok(el.into_group_device())).collect()
-            },
+        match group::select_group(&self.pool, GroupKind::Device, None, None, None, Some(category)).await {
+            Ok(value) => value.into_iter().map(|el| Ok(el.into_group_device())).collect(),
             Err(error) => Err(error)
         }
     }
 
-    pub async fn list_group_device_by_name_category(&self, name: &str, category: &str)
+    pub async fn list_group_device_option(&self, name: Option<&str>, category: Option<&str>)
         -> Result<Vec<GroupDeviceSchema>, Error>
     {
-        match group::select_group_by_name_category(&self.pool, GroupKind::Device, name, category).await {
-            Ok(value) => {
-                value.into_iter().map(|el| Ok(el.into_group_device())).collect()
-            },
+        match group::select_group(&self.pool, GroupKind::Device, None, None, name, category).await {
+            Ok(value) => value.into_iter().map(|el| Ok(el.into_group_device())).collect(),
             Err(error) => Err(error)
         }
     }
@@ -655,19 +663,18 @@ impl Resource {
     pub async fn read_group_gateway(&self, id: Uuid)
         -> Result<GroupGatewaySchema, Error>
     {
-        match group::select_group_by_id(&self.pool, GroupKind::Gateway, id).await {
-            Ok(value) => Ok(value.into_group_gateway()),
-            Err(error) => Err(error)
+        match group::select_group(&self.pool, GroupKind::Gateway, Some(id), None, None, None).await?
+        .into_iter().next() {
+            Some(value) => Ok(value.into_group_gateway()),
+            None => Err(Error::RowNotFound)
         }
     }
 
     pub async fn list_group_gateway_by_ids(&self, ids: &[Uuid])
         -> Result<Vec<GroupGatewaySchema>, Error>
     {
-        match group::select_group_by_ids(&self.pool, GroupKind::Gateway, ids).await {
-            Ok(value) => {
-                value.into_iter().map(|el| Ok(el.into_group_gateway())).collect()
-            },
+        match group::select_group(&self.pool, GroupKind::Gateway, None, Some(ids), None, None).await {
+            Ok(value) => value.into_iter().map(|el| Ok(el.into_group_gateway())).collect(),
             Err(error) => Err(error)
         }
     }
@@ -675,10 +682,8 @@ impl Resource {
     pub async fn list_group_gateway_by_name(&self, name: &str)
         -> Result<Vec<GroupGatewaySchema>, Error>
     {
-        match group::select_group_by_name(&self.pool, GroupKind::Gateway, name).await {
-            Ok(value) => {
-                value.into_iter().map(|el| Ok(el.into_group_gateway())).collect()
-            },
+        match group::select_group(&self.pool, GroupKind::Gateway, None, None, Some(name), None).await {
+            Ok(value) => value.into_iter().map(|el| Ok(el.into_group_gateway())).collect(),
             Err(error) => Err(error)
         }
     }
@@ -686,21 +691,17 @@ impl Resource {
     pub async fn list_group_gateway_by_category(&self, category: &str)
         -> Result<Vec<GroupGatewaySchema>, Error>
     {
-        match group::select_group_by_category(&self.pool, GroupKind::Gateway, category).await {
-            Ok(value) => {
-                value.into_iter().map(|el| Ok(el.into_group_gateway())).collect()
-            },
+        match group::select_group(&self.pool, GroupKind::Gateway, None, None, None, Some(category)).await {
+            Ok(value) => value.into_iter().map(|el| Ok(el.into_group_gateway())).collect(),
             Err(error) => Err(error)
         }
     }
 
-    pub async fn list_group_gateway_by_name_category(&self, name: &str, category: &str)
+    pub async fn list_group_gateway_option(&self, name: Option<&str>, category: Option<&str>)
         -> Result<Vec<GroupGatewaySchema>, Error>
     {
-        match group::select_group_by_name_category(&self.pool, GroupKind::Gateway, name, category).await {
-            Ok(value) => {
-                value.into_iter().map(|el| Ok(el.into_group_gateway())).collect()
-            },
+        match group::select_group(&self.pool, GroupKind::Gateway, None, None, name, category).await {
+            Ok(value) => value.into_iter().map(|el| Ok(el.into_group_gateway())).collect(),
             Err(error) => Err(error)
         }
     }
@@ -743,28 +744,38 @@ impl Resource {
     pub async fn read_set(&self, id: Uuid)
         -> Result<SetSchema, Error>
     {
-        set::select_set_by_id(&self.pool, id)
-        .await
+        match set::select_set(&self.pool, Some(id), None, None, None).await?
+        .into_iter().next() {
+            Some(value) => Ok(value),
+            None => Err(Error::RowNotFound)
+        }
     }
 
     pub async fn list_set_by_ids(&self, ids: &[Uuid])
         -> Result<Vec<SetSchema>, Error>
     {
-        set::select_set_by_ids(&self.pool, ids)
+        set::select_set(&self.pool, None, Some(ids), None, None)
         .await
     }
 
     pub async fn list_set_by_template(&self, template_id: Uuid)
         -> Result<Vec<SetSchema>, Error>
     {
-        set::select_set_by_template(&self.pool, template_id)
+        set::select_set(&self.pool, None, None, Some(template_id), None)
         .await
     }
 
     pub async fn list_set_by_name(&self, name: &str)
         -> Result<Vec<SetSchema>, Error>
     {
-        set::select_set_by_name(&self.pool, name)
+        set::select_set(&self.pool, None, None, None, Some(name))
+        .await
+    }
+
+    pub async fn list_set_option(&self, template_id: Option<Uuid>, name: Option<&str>)
+        -> Result<Vec<SetSchema>, Error>
+    {
+        set::select_set(&self.pool, None, None, template_id, name)
         .await
     }
 
@@ -813,21 +824,31 @@ impl Resource {
     pub async fn read_set_template(&self, id: Uuid)
         -> Result<SetTemplateSchema, Error>
     {
-        set::select_set_template_by_id(&self.pool, id)
-        .await
+        match set::select_set_template(&self.pool, Some(id), None, None).await?
+        .into_iter().next() {
+            Some(value) => Ok(value),
+            None => Err(Error::RowNotFound)
+        }
     }
 
     pub async fn list_set_template_by_ids(&self, ids: &[Uuid])
         -> Result<Vec<SetTemplateSchema>, Error>
     {
-        set::select_set_template_by_ids(&self.pool, ids)
+        set::select_set_template(&self.pool, None, Some(ids), None)
         .await
     }
 
     pub async fn list_set_template_by_name(&self, name: &str)
         -> Result<Vec<SetTemplateSchema>, Error>
     {
-        set::select_set_template_by_name(&self.pool, name)
+        set::select_set_template(&self.pool, None, None, Some(name))
+        .await
+    }
+
+    pub async fn list_set_template_option(&self, name: Option<&str>)
+        -> Result<Vec<SetTemplateSchema>, Error>
+    {
+        set::select_set_template(&self.pool, None, None, name)
         .await
     }
 

@@ -98,7 +98,7 @@ mod tests {
         let device1 = resource.read_device(device_id1).await.unwrap();
         let devices = resource.list_device_by_gateway(gateway_id).await.unwrap();
         let device_ids: Vec<Uuid> = devices.iter().map(|u| u.id).collect();
-        assert!(device_ids.contains(&device_id1)); // device_id1 > device_id2, so device1 in second (last) order
+        assert!(device_ids.contains(&device_id1));
         assert_eq!(device1.serial_number, "TEST01");
         assert_eq!(device1.name, "Speedometer Compass 1");
         // read type
@@ -117,7 +117,7 @@ mod tests {
         // read group device
         let groups = resource.list_group_device_by_name("sensor").await.unwrap();
         let group_device = groups.iter().filter(|x| x.devices.contains(&device_id1)).next().unwrap();
-        assert_eq!(group_device.devices, [device_id1, device_id2]);
+        assert_eq!(group_device.devices, [device_id2, device_id1]); // device_id1 > device_id2, so device1 in second (last) order
         assert_eq!(group_device.name, "sensor");
         assert_eq!(group_device.category, "APPLICATION");
 

@@ -6,17 +6,12 @@ use uuid::Uuid;
 
 use crate::schema::group::{GroupModel, GroupModelMap, GroupDevice, GroupDeviceMap, GroupKind, GroupSchema};
 
-enum GroupSelector {
-    Id(Uuid),
-    Name(String),
-    Category(String),
-    NameCategory(String, String),
-    Ids(Vec<Uuid>)
-}
-
-async fn select_group(pool: &Pool<Postgres>, 
+pub(crate) async fn select_group(pool: &Pool<Postgres>, 
     kind: GroupKind,
-    selector: GroupSelector
+    id: Option<Uuid>,
+    ids: Option<&[Uuid]>,
+    name: Option<&str>,
+    category: Option<&str>
 ) -> Result<Vec<GroupSchema>, Error>
 {
     let mut stmt = Query::select().to_owned();
@@ -38,28 +33,26 @@ async fn select_group(pool: &Pool<Postgres>,
                     .equals((GroupModelMap::Table, GroupModelMap::GroupId))
                 )
                 .to_owned();
-            match selector {
-                GroupSelector::Id(id) => {
-                    stmt = stmt.and_where(Expr::col((GroupModel::Table, GroupModel::GroupId)).eq(id)).to_owned();
-                },
-                GroupSelector::Name(name) => {
-                    stmt = stmt.and_where(Expr::col((GroupModel::Table, GroupModel::Name)).like(name)).to_owned();
-                },
-                GroupSelector::Category(category) => {
-                    stmt = stmt.and_where(Expr::col((GroupModel::Table, GroupModel::Category)).eq(category)).to_owned();
-                },
-                GroupSelector::NameCategory(name, category) => {
-                    stmt = stmt
-                        .and_where(Expr::col((GroupModel::Table, GroupModel::Name)).like(name))
-                        .and_where(Expr::col((GroupModel::Table, GroupModel::Category)).eq(category))
-                        .order_by((GroupModel::Table, GroupModel::GroupId), Order::Asc)
-                        .order_by((GroupModelMap::Table, GroupModelMap::ModelId), Order::Asc)
-                        .to_owned();
-                },
-                GroupSelector::Ids(ids) => {
-                    stmt = stmt.and_where(Expr::col((GroupModel::Table, GroupModel::GroupId)).is_in(ids)).to_owned();
+            if let Some(id) = id {
+                stmt = stmt.and_where(Expr::col((GroupModel::Table, GroupModel::GroupId)).eq(id)).to_owned();
+            }
+            else if let Some(ids) = ids {
+                stmt = stmt.and_where(Expr::col((GroupModel::Table, GroupModel::GroupId)).is_in(ids.to_vec())).to_owned();
+            }
+            else {
+                if let Some(name) = name {
+                    let name_like = String::from("%") + name + "%";
+                    stmt = stmt.and_where(Expr::col((GroupModel::Table, GroupModel::Name)).like(name_like)).to_owned();
+                }
+                if let Some(category) = category {
+                    let category_like = String::from("%") + category + "%";
+                    stmt = stmt.and_where(Expr::col((GroupModel::Table, GroupModel::Category)).like(category_like)).to_owned();
                 }
             }
+            stmt = stmt
+                .order_by((GroupModel::Table, GroupModel::GroupId), Order::Asc)
+                .order_by((GroupModelMap::Table, GroupModelMap::ModelId), Order::Asc)
+                .to_owned();
         },
         GroupKind::Device | GroupKind::Gateway => {
             stmt = stmt
@@ -77,30 +70,28 @@ async fn select_group(pool: &Pool<Postgres>,
                     Expr::col((GroupDevice::Table, GroupDevice::GroupId))
                     .equals((GroupDeviceMap::Table, GroupDeviceMap::GroupId))
                 )
-                .and_where(Expr::col((GroupDevice::Table, GroupDevice::Kind)).eq(bool::from(kind))).to_owned()
+                .and_where(Expr::col((GroupDevice::Table, GroupDevice::Kind)).eq(kind == GroupKind::Gateway)).to_owned()
                 .to_owned();
-            match selector {
-                GroupSelector::Id(id) => {
-                    stmt = stmt.and_where(Expr::col((GroupDevice::Table, GroupDevice::GroupId)).eq(id)).to_owned();
-                },
-                GroupSelector::Name(name) => {
-                    stmt = stmt.and_where(Expr::col((GroupDevice::Table, GroupDevice::Name)).like(name)).to_owned();
-                },
-                GroupSelector::Category(category) => {
-                    stmt = stmt.and_where(Expr::col((GroupDevice::Table, GroupDevice::Category)).eq(category)).to_owned();
-                },
-                GroupSelector::NameCategory(name, category) => {
-                    stmt = stmt
-                        .and_where(Expr::col((GroupDevice::Table, GroupDevice::Name)).like(name))
-                        .and_where(Expr::col((GroupDevice::Table, GroupDevice::Category)).eq(category))
-                        .order_by((GroupDevice::Table, GroupDevice::GroupId), Order::Asc)
-                        .order_by((GroupDeviceMap::Table, GroupDeviceMap::DeviceId), Order::Asc)
-                        .to_owned();
-                },
-                GroupSelector::Ids(ids) => {
-                    stmt = stmt.and_where(Expr::col((GroupDevice::Table, GroupDevice::GroupId)).is_in(ids)).to_owned();
+            if let Some(id) = id {
+                stmt = stmt.and_where(Expr::col((GroupDevice::Table, GroupDevice::GroupId)).eq(id)).to_owned();
+            }
+            else if let Some(ids) = ids {
+                stmt = stmt.and_where(Expr::col((GroupDevice::Table, GroupDevice::GroupId)).is_in(ids.to_vec())).to_owned();
+            }
+            else {
+                if let Some(name) = name {
+                    let name_like = String::from("%") + name + "%";
+                    stmt = stmt.and_where(Expr::col((GroupDevice::Table, GroupDevice::Name)).like(name_like)).to_owned();
+                }
+                if let Some(category) = category {
+                    let category_like = String::from("%") + category + "%";
+                    stmt = stmt.and_where(Expr::col((GroupDevice::Table, GroupDevice::Category)).like(category_like)).to_owned();
                 }
             }
+            stmt = stmt
+                .order_by((GroupDevice::Table, GroupDevice::GroupId), Order::Asc)
+                .order_by((GroupDeviceMap::Table, GroupDeviceMap::DeviceId), Order::Asc)
+                .to_owned();
         }
     }
     let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
@@ -139,53 +130,6 @@ async fn select_group(pool: &Pool<Postgres>,
         .await?;
 
     Ok(group_schema_vec)
-}
-
-pub(crate) async fn select_group_by_id(pool: &Pool<Postgres>,
-    kind: GroupKind,
-    id: Uuid
-) -> Result<GroupSchema, Error>
-{
-    let results = select_group(pool, kind, GroupSelector::Id(id)).await?;
-    match results.into_iter().next() {
-        Some(value) => Ok(value),
-        None => Err(Error::RowNotFound)
-    }
-}
-
-pub(crate) async fn select_group_by_ids(pool: &Pool<Postgres>,
-    kind: GroupKind,
-    ids: &[Uuid]
-) -> Result<Vec<GroupSchema>, Error>
-{
-    select_group(pool, kind, GroupSelector::Ids(ids.to_owned())).await
-}
-
-pub(crate) async fn select_group_by_name(pool: &Pool<Postgres>,
-    kind: GroupKind,
-    name: &str
-) -> Result<Vec<GroupSchema>, Error>
-{
-    let name_like = String::from("%") + name + "%";
-    select_group(pool, kind, GroupSelector::Name(name_like)).await
-}
-
-pub(crate) async fn select_group_by_category(pool: &Pool<Postgres>,
-    kind: GroupKind,
-    category: &str
-) -> Result<Vec<GroupSchema>, Error>
-{
-    select_group(pool, kind, GroupSelector::Category(String::from(category))).await
-}
-
-pub(crate) async fn select_group_by_name_category(pool: &Pool<Postgres>,
-    kind: GroupKind,
-    name: &str,
-    category: &str
-) -> Result<Vec<GroupSchema>, Error>
-{
-    let name_like = String::from("%") + name + "%";
-    select_group(pool, kind, GroupSelector::NameCategory(name_like, String::from(category))).await
 }
 
 pub(crate) async fn insert_group(pool: &Pool<Postgres>,
@@ -229,7 +173,7 @@ pub(crate) async fn insert_group(pool: &Pool<Postgres>,
                 .values([
                     id.into(),
                     name.into(),
-                    bool::from(kind.clone()).into(),
+                    (kind == GroupKind::Gateway).into(),
                     category.into(),
                     description.unwrap_or_default().into()
                 ])

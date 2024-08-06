@@ -6,21 +6,11 @@ use uuid::Uuid;
 
 use crate::schema::set::{Set, SetMap, SetTemplate, SetTemplateMap, SetSchema, SetMember, SetTemplateSchema, SetTemplateMember};
 
-enum SetSelector {
-    Id(Uuid),
-    Template(Uuid),
-    Name(String),
-    Ids(Vec<Uuid>)
-}
-
-enum TemplateSelector {
-    Id(Uuid),
-    Name(String),
-    Ids(Vec<Uuid>)
-}
-
-async fn select_set(pool: &Pool<Postgres>, 
-    selector: SetSelector
+pub(crate) async fn select_set(pool: &Pool<Postgres>, 
+    id: Option<Uuid>,
+    ids: Option<&[Uuid]>,
+    template_id: Option<Uuid>,
+    name: Option<&str>
 ) -> Result<Vec<SetSchema>, Error>
 {
     let mut stmt = Query::select()
@@ -42,20 +32,22 @@ async fn select_set(pool: &Pool<Postgres>,
         )
         .to_owned();
 
-    match selector {
-        SetSelector::Id(id) => {
-            stmt = stmt.and_where(Expr::col((Set::Table, Set::SetId)).eq(id)).to_owned();
-        },
-        SetSelector::Template(ty) => {
-            stmt = stmt.and_where(Expr::col((Set::Table, Set::TemplateId)).eq(ty)).to_owned();
-        },
-        SetSelector::Name(name) => {
-            stmt = stmt.and_where(Expr::col((Set::Table, Set::Name)).like(name)).to_owned();
-        },
-        SetSelector::Ids(ids) => {
-            stmt = stmt.and_where(Expr::col((Set::Table, Set::SetId)).is_in(ids)).to_owned();
+    if let Some(id) = id {
+        stmt = stmt.and_where(Expr::col((Set::Table, Set::SetId)).eq(id)).to_owned();
+    }
+    else if let Some(ids) = ids {
+        stmt = stmt.and_where(Expr::col((Set::Table, Set::SetId)).is_in(ids.to_vec())).to_owned();
+    }
+    else {
+        if let Some(template_id) = template_id {
+            stmt = stmt.and_where(Expr::col((Set::Table, Set::Name)).eq(template_id)).to_owned();
+        }
+        if let Some(name) = name {
+            let name_like = String::from("%") + name + "%";
+            stmt = stmt.and_where(Expr::col((Set::Table, Set::Name)).like(name_like)).to_owned();
         }
     }
+
     let (sql, values) = stmt
         .order_by((Set::Table, Set::SetId), Order::Asc)
         .order_by((SetMap::Table, SetMap::SetPosition), Order::Asc)
@@ -97,38 +89,6 @@ async fn select_set(pool: &Pool<Postgres>,
         .await?;
 
     Ok(set_schema_vec)
-}
-
-pub(crate) async fn select_set_by_id(pool: &Pool<Postgres>, 
-    id: Uuid
-) -> Result<SetSchema, Error>
-{
-    let results = select_set(pool, SetSelector::Id(id)).await?;
-    match results.into_iter().next() {
-        Some(value) => Ok(value),
-        None => Err(Error::RowNotFound)
-    }
-}
-
-pub(crate) async fn select_set_by_ids(pool: &Pool<Postgres>, 
-    ids: &[Uuid]
-) -> Result<Vec<SetSchema>, Error>
-{
-    select_set(pool, SetSelector::Ids(ids.to_owned())).await
-}
-
-pub(crate) async fn select_set_by_template(pool: &Pool<Postgres>, 
-    template_id: Uuid
-) -> Result<Vec<SetSchema>, Error>
-{
-    select_set(pool, SetSelector::Template(template_id)).await
-}
-
-pub(crate) async fn select_set_by_name(pool: &Pool<Postgres>, 
-    name: &str
-) -> Result<Vec<SetSchema>, Error>
-{
-    select_set(pool, SetSelector::Name(name.to_owned())).await
 }
 
 pub(crate) async fn insert_set(pool: &Pool<Postgres>,
@@ -376,8 +336,10 @@ pub(crate) async fn swap_set_member(pool: &Pool<Postgres>,
     Ok(())
 }
 
-async fn select_set_template(pool: &Pool<Postgres>, 
-    selector: TemplateSelector
+pub(crate) async fn select_set_template(pool: &Pool<Postgres>, 
+    id: Option<Uuid>,
+    ids: Option<&[Uuid]>,
+    name: Option<&str>
 ) -> Result<Vec<SetTemplateSchema>, Error>
 {
     let mut stmt = Query::select()
@@ -398,17 +360,19 @@ async fn select_set_template(pool: &Pool<Postgres>,
         )
         .to_owned();
 
-    match selector {
-        TemplateSelector::Id(id) => {
-            stmt = stmt.and_where(Expr::col((SetTemplate::Table, SetTemplate::TemplateId)).eq(id)).to_owned();
-        },
-        TemplateSelector::Name(name) => {
-            stmt = stmt.and_where(Expr::col((SetTemplate::Table, SetTemplate::Name)).like(name)).to_owned();
-        },
-        TemplateSelector::Ids(ids) => {
-            stmt = stmt.and_where(Expr::col((SetTemplate::Table, SetTemplate::TemplateId)).is_in(ids)).to_owned();
+    if let Some(id) = id {
+        stmt = stmt.and_where(Expr::col((SetTemplate::Table, SetTemplate::TemplateId)).eq(id)).to_owned();
+    }
+    else if let Some(ids) = ids {
+        stmt = stmt.and_where(Expr::col((SetTemplate::Table, SetTemplate::TemplateId)).is_in(ids.to_vec())).to_owned();
+    }
+    else {
+        if let Some(name) = name {
+            let name_like = String::from("%") + name + "%";
+            stmt = stmt.and_where(Expr::col((SetTemplate::Table, SetTemplate::Name)).like(name_like)).to_owned();
         }
     }
+
     let (sql, values) = stmt
         .order_by((SetTemplate::Table, SetTemplate::TemplateId), Order::Asc)
         .order_by((SetTemplateMap::Table, SetTemplateMap::TemplateIndex), Order::Asc)
@@ -449,31 +413,6 @@ async fn select_set_template(pool: &Pool<Postgres>,
         .await?;
 
     Ok(template_schema_vec)
-}
-
-pub(crate) async fn select_set_template_by_id(pool: &Pool<Postgres>, 
-    id: Uuid
-) -> Result<SetTemplateSchema, Error>
-{
-    let results = select_set_template(pool, TemplateSelector::Id(id)).await?;
-    match results.into_iter().next() {
-        Some(value) => Ok(value),
-        None => Err(Error::RowNotFound)
-    }
-}
-
-pub(crate) async fn select_set_template_by_ids(pool: &Pool<Postgres>, 
-    ids: &[Uuid]
-) -> Result<Vec<SetTemplateSchema>, Error>
-{
-    select_set_template(pool, TemplateSelector::Ids(ids.to_owned())).await
-}
-
-pub(crate) async fn select_set_template_by_name(pool: &Pool<Postgres>, 
-    name: &str
-) -> Result<Vec<SetTemplateSchema>, Error>
-{
-    select_set_template(pool, TemplateSelector::Name(name.to_owned())).await
 }
 
 pub(crate) async fn insert_set_template(pool: &Pool<Postgres>,

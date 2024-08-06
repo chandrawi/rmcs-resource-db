@@ -8,22 +8,12 @@ use crate::schema::value::{ConfigType, ConfigValue, DataType};
 use crate::schema::model::{Model, ModelConfig, ModelSchema, ModelConfigSchema};
 use crate::schema::device::DeviceTypeModel;
 
-enum ModelSelector {
-    Id(Uuid),
-    Name(String),
-    Category(String),
-    NameCategory(String, String),
-    TypeId(Uuid),
-    Ids(Vec<Uuid>)
-}
-
-enum ConfigSelector {
-    Id(i32),
-    Model(Uuid)
-}
-
-async fn select_model(pool: &Pool<Postgres>, 
-    selector: ModelSelector
+pub(crate) async fn select_model(pool: &Pool<Postgres>, 
+    id: Option<Uuid>,
+    ids: Option<&[Uuid]>,
+    type_id: Option<Uuid>,
+    name: Option<&str>,
+    category: Option<&str>
 ) -> Result<Vec<ModelSchema>, Error>
 {
     let mut stmt = Query::select()
@@ -49,33 +39,30 @@ async fn select_model(pool: &Pool<Postgres>,
         )
         .to_owned();
 
-    match selector {
-        ModelSelector::Id(id) => {
-            stmt = stmt.and_where(Expr::col((Model::Table, Model::ModelId)).eq(id)).to_owned();
-        },
-        ModelSelector::Name(name) => {
-            stmt = stmt.and_where(Expr::col((Model::Table, Model::Name)).like(name)).to_owned();
-        },
-        ModelSelector::Category(category) => {
-            stmt = stmt.and_where(Expr::col((Model::Table, Model::Category)).eq(category)).to_owned();
-        },
-        ModelSelector::NameCategory(name, category) => {
-            stmt = stmt
-                .and_where(Expr::col((Model::Table, Model::Name)).like(name))
-                .and_where(Expr::col((Model::Table, Model::Category)).eq(category))
-                .to_owned();
-        },
-        ModelSelector::TypeId(id) => {
+    if let Some(id) = id {
+        stmt = stmt.and_where(Expr::col((Model::Table, Model::ModelId)).eq(id)).to_owned()
+    }
+    else if let Some(ids) = ids {
+        stmt = stmt.and_where(Expr::col((Model::Table, Model::ModelId)).is_in(ids.to_vec())).to_owned()
+    }
+    else {
+        if let Some(type_id) = type_id {
             stmt = stmt.inner_join(DeviceTypeModel::Table, 
                     Expr::col((Model::Table, Model::ModelId))
                     .equals((DeviceTypeModel::Table, DeviceTypeModel::ModelId)))
-                .and_where(Expr::col((DeviceTypeModel::Table, DeviceTypeModel::TypeId)).eq(id))
+                .and_where(Expr::col((DeviceTypeModel::Table, DeviceTypeModel::TypeId)).eq(type_id))
                 .to_owned();
-        },
-        ModelSelector::Ids(ids) => {
-            stmt = stmt.and_where(Expr::col((Model::Table, Model::ModelId)).is_in(ids)).to_owned();
+        }
+        if let Some(name) = name {
+            let name_like = String::from("%") + name + "%";
+            stmt = stmt.and_where(Expr::col((Model::Table, Model::Name)).like(name_like)).to_owned();
+        }
+        if let Some(category) = category {
+            let category_like = String::from("%") + category + "%";
+            stmt = stmt.and_where(Expr::col((Model::Table, Model::Category)).like(category_like)).to_owned();
         }
     }
+
     let (sql, values) = stmt
         .order_by((Model::Table, Model::ModelId), Order::Asc)
         .order_by((ModelConfig::Table, ModelConfig::Index), Order::Asc)
@@ -135,55 +122,6 @@ async fn select_model(pool: &Pool<Postgres>,
         .await?;
 
     Ok(model_schema_vec)
-}
-
-pub(crate) async fn select_model_by_id(pool: &Pool<Postgres>, 
-    id: Uuid
-) -> Result<ModelSchema, Error>
-{
-    let results = select_model(pool, ModelSelector::Id(id)).await?;
-    match results.into_iter().next() {
-        Some(value) => Ok(value),
-        None => Err(Error::RowNotFound)
-    }
-}
-
-pub(crate) async fn select_model_by_ids(pool: &Pool<Postgres>, 
-    ids: &[Uuid]
-) -> Result<Vec<ModelSchema>, Error>
-{
-    select_model(pool, ModelSelector::Ids(ids.to_owned())).await
-}
-
-pub(crate) async fn select_model_by_name(pool: &Pool<Postgres>, 
-    name: &str
-) -> Result<Vec<ModelSchema>, Error>
-{
-    let name_like = String::from("%") + name + "%";
-    select_model(pool, ModelSelector::Name(name_like)).await
-}
-
-pub(crate) async fn select_model_by_category(pool: &Pool<Postgres>, 
-    category: &str
-) -> Result<Vec<ModelSchema>, Error>
-{
-    select_model(pool, ModelSelector::Category(String::from(category))).await
-}
-
-pub(crate) async fn select_model_by_name_category(pool: &Pool<Postgres>, 
-    name: &str,
-    category: &str
-) -> Result<Vec<ModelSchema>, Error>
-{
-    let name_like = String::from("%") + name + "%";
-    select_model(pool, ModelSelector::NameCategory(String::from(name_like), String::from(category))).await
-}
-
-pub(crate) async fn select_model_by_type(pool: &Pool<Postgres>, 
-    type_id: Uuid
-) -> Result<Vec<ModelSchema>, Error>
-{
-    select_model(pool, ModelSelector::TypeId(type_id)).await
 }
 
 pub(crate) async fn insert_model(pool: &Pool<Postgres>,
@@ -276,8 +214,9 @@ pub(crate) async fn delete_model(pool: &Pool<Postgres>,
     Ok(())
 }
 
-async fn select_model_config(pool: &Pool<Postgres>,
-    selector: ConfigSelector
+pub(crate) async fn select_model_config(pool: &Pool<Postgres>,
+    id: Option<i32>,
+    model_id: Option<Uuid>
 ) -> Result<Vec<ModelConfigSchema>, Error>
 {
     let mut stmt = Query::select()
@@ -293,14 +232,13 @@ async fn select_model_config(pool: &Pool<Postgres>,
         .from(ModelConfig::Table)
         .to_owned();
 
-    match selector {
-        ConfigSelector::Id(id) => {
-            stmt = stmt.and_where(Expr::col(ModelConfig::Id).eq(id)).to_owned();
-        },
-        ConfigSelector::Model(model_id) => {
-            stmt = stmt.and_where(Expr::col(ModelConfig::ModelId).eq(model_id)).to_owned();
-        }
+    if let Some(id) = id {
+        stmt = stmt.and_where(Expr::col(ModelConfig::Id).eq(id)).to_owned();
     }
+    else if let Some(model_id) = model_id {
+        stmt = stmt.and_where(Expr::col(ModelConfig::ModelId).eq(model_id)).to_owned();
+    }
+
     let (sql, values) = stmt
         .order_by(ModelConfig::ModelId, Order::Asc)
         .order_by(ModelConfig::Index, Order::Asc)
@@ -324,24 +262,6 @@ async fn select_model_config(pool: &Pool<Postgres>,
         .await?;
 
     Ok(rows)
-}
-
-pub(crate) async fn select_model_config_by_id(pool: &Pool<Postgres>,
-    id: i32
-) -> Result<ModelConfigSchema, Error>
-{
-    let results = select_model_config(pool, ConfigSelector::Id(id)).await?;
-    match results.into_iter().next() {
-        Some(value) => Ok(value),
-        None => Err(Error::RowNotFound)
-    }
-}
-
-pub(crate) async fn select_model_config_by_model(pool: &Pool<Postgres>,
-    model_id: Uuid
-) -> Result<Vec<ModelConfigSchema>, Error>
-{
-    select_model_config(pool, ConfigSelector::Model(model_id)).await
 }
 
 pub(crate) async fn insert_model_config(pool: &Pool<Postgres>,
