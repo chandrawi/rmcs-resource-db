@@ -10,7 +10,7 @@ use crate::schema::model::Model;
 use crate::schema::data::{Data, DataSchema, DataSetSchema};
 use crate::schema::set::SetMap;
 
-enum DataSelector {
+pub(crate) enum DataSelector {
     Time(DateTime<Utc>),
     Last(DateTime<Utc>),
     Range(DateTime<Utc>, DateTime<Utc>),
@@ -18,7 +18,7 @@ enum DataSelector {
     NumberAfter(DateTime<Utc>, usize)
 }
 
-async fn select_data(pool: &Pool<Postgres>, 
+pub(crate) async fn select_data(pool: &Pool<Postgres>, 
     selector: DataSelector,
     device_id: Uuid,
     model_id: Uuid
@@ -105,54 +105,6 @@ pub(crate) async fn select_data_types(pool: &Pool<Postgres>,
         .await
 }
 
-pub(crate) async fn select_data_by_time(pool: &Pool<Postgres>,
-    model_id: Uuid,
-    device_id: Uuid,
-    timestamp: DateTime<Utc>
-) -> Result<Vec<DataSchema>, Error>
-{
-    select_data(pool, DataSelector::Time(timestamp), device_id, model_id).await
-}
-
-pub(crate) async fn select_data_by_last_time(pool: &Pool<Postgres>,
-    model_id: Uuid,
-    device_id: Uuid,
-    last: DateTime<Utc>
-) -> Result<Vec<DataSchema>, Error>
-{
-    select_data(pool, DataSelector::Last(last), device_id, model_id).await
-}
-
-pub(crate) async fn select_data_by_range_time(pool: &Pool<Postgres>,
-    model_id: Uuid,
-    device_id: Uuid,
-    begin: DateTime<Utc>,
-    end: DateTime<Utc>
-) -> Result<Vec<DataSchema>, Error>
-{
-    select_data(pool, DataSelector::Range(begin, end), device_id, model_id).await
-}
-
-pub(crate) async fn select_data_by_number_before(pool: &Pool<Postgres>,
-    model_id: Uuid,
-    device_id: Uuid,
-    before: DateTime<Utc>,
-    number: usize
-) -> Result<Vec<DataSchema>, Error>
-{
-    select_data(pool, DataSelector::NumberBefore(before, number), device_id, model_id).await
-}
-
-pub(crate) async fn select_data_by_number_after(pool: &Pool<Postgres>,
-    model_id: Uuid,
-    device_id: Uuid,
-    after: DateTime<Utc>,
-    number: usize
-) -> Result<Vec<DataSchema>, Error>
-{
-    select_data(pool, DataSelector::NumberAfter(after, number), device_id, model_id).await
-}
-
 pub(crate) async fn insert_data(pool: &Pool<Postgres>,
     model_id: Uuid,
     device_id: Uuid,
@@ -213,7 +165,7 @@ pub(crate) async fn delete_data(pool: &Pool<Postgres>,
     Ok(())
 }
 
-async fn select_data_set(pool: &Pool<Postgres>, 
+pub(crate) async fn select_data_set(pool: &Pool<Postgres>, 
     selector: DataSelector,
     set_id: Uuid
 ) -> Result<(Vec<DataSchema>, Vec<DataSetSchema>), Error>
@@ -326,100 +278,4 @@ async fn select_data_set(pool: &Pool<Postgres>,
         .await?;
 
     Ok((data_schema_vec, data_set_schema_vec))
-}
-
-pub(crate) async fn select_data_by_set_time(pool: &Pool<Postgres>,
-    set_id: Uuid,
-    timestamp: DateTime<Utc>
-) -> Result<Vec<DataSchema>, Error>
-{
-    let result = select_data_set(pool, DataSelector::Time(timestamp), set_id).await;
-    result.map(|schemas| schemas.0)
-}
-
-pub(crate) async fn select_data_by_set_last_time(pool: &Pool<Postgres>,
-    set_id: Uuid,
-    last: DateTime<Utc>
-) -> Result<Vec<DataSchema>, Error>
-{
-    let result = select_data_set(pool, DataSelector::Last(last), set_id).await;
-    result.map(|schemas| schemas.0)
-}
-
-pub(crate) async fn select_data_by_set_range_time(pool: &Pool<Postgres>,
-    set_id: Uuid,
-    begin: DateTime<Utc>,
-    end: DateTime<Utc>
-) -> Result<Vec<DataSchema>, Error>
-{
-    let result = select_data_set(pool, DataSelector::Range(begin, end), set_id).await;
-    result.map(|schemas| schemas.0)
-}
-
-pub(crate) async fn select_data_by_set_number_before(pool: &Pool<Postgres>,
-    set_id: Uuid,
-    before: DateTime<Utc>,
-    number: usize
-) -> Result<Vec<DataSchema>, Error>
-{
-    let result = select_data_set(pool, DataSelector::NumberBefore(before, number), set_id).await;
-    result.map(|schemas| schemas.0)
-}
-
-pub(crate) async fn select_data_by_set_number_after(pool: &Pool<Postgres>,
-    set_id: Uuid,
-    after: DateTime<Utc>,
-    number: usize
-) -> Result<Vec<DataSchema>, Error>
-{
-    let result = select_data_set(pool, DataSelector::NumberAfter(after, number), set_id).await;
-    result.map(|schemas| schemas.0)
-}
-
-pub(crate) async fn select_data_set_by_time(pool: &Pool<Postgres>,
-    set_id: Uuid,
-    timestamp: DateTime<Utc>
-) -> Result<Vec<DataSetSchema>, Error>
-{
-    let result = select_data_set(pool, DataSelector::Time(timestamp), set_id).await;
-    result.map(|schemas| schemas.1)
-}
-
-pub(crate) async fn select_data_set_by_last_time(pool: &Pool<Postgres>,
-    set_id: Uuid,
-    last: DateTime<Utc>
-) -> Result<Vec<DataSetSchema>, Error>
-{
-    let result = select_data_set(pool, DataSelector::Last(last), set_id).await;
-    result.map(|schemas| schemas.1)
-}
-
-pub(crate) async fn select_data_set_by_range_time(pool: &Pool<Postgres>,
-    set_id: Uuid,
-    begin: DateTime<Utc>,
-    end: DateTime<Utc>
-) -> Result<Vec<DataSetSchema>, Error>
-{
-    let result = select_data_set(pool, DataSelector::Range(begin, end), set_id).await;
-    result.map(|schemas| schemas.1)
-}
-
-pub(crate) async fn select_data_set_by_number_before(pool: &Pool<Postgres>,
-    set_id: Uuid,
-    before: DateTime<Utc>,
-    number: usize
-) -> Result<Vec<DataSetSchema>, Error>
-{
-    let result = select_data_set(pool, DataSelector::NumberBefore(before, number), set_id).await;
-    result.map(|schemas| schemas.1)
-}
-
-pub(crate) async fn select_data_set_by_number_after(pool: &Pool<Postgres>,
-    set_id: Uuid,
-    after: DateTime<Utc>,
-    number: usize
-) -> Result<Vec<DataSetSchema>, Error>
-{
-    let result = select_data_set(pool, DataSelector::NumberAfter(after, number), set_id).await;
-    result.map(|schemas| schemas.1)
 }

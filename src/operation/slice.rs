@@ -7,18 +7,18 @@ use uuid::Uuid;
 
 use crate::schema::slice::{SliceData, SliceDataSet, SliceSchema, SliceSetSchema};
 
-enum SliceSelector {
-    Id(i32),
+pub(crate) enum SliceSelector {
     Time(DateTime<Utc>),
     Range(DateTime<Utc>, DateTime<Utc>),
     None
 }
 
-async fn select_slice(pool: &Pool<Postgres>,
+pub(crate) async fn select_slice(pool: &Pool<Postgres>,
     selector: SliceSelector,
+    id: Option<i32>,
     device_id: Option<Uuid>,
     model_id: Option<Uuid>,
-    name: Option<String>
+    name: Option<&str>
 ) -> Result<Vec<SliceSchema>, Error>
 {
     let mut stmt = Query::select()
@@ -33,36 +33,40 @@ async fn select_slice(pool: &Pool<Postgres>,
         ])
         .from(SliceData::Table)
         .to_owned();
-    if let Some(id) = device_id {
-        stmt = stmt.and_where(Expr::col(SliceData::DeviceId).eq(id)).to_owned();
+
+    if let Some(id) = id {
+        stmt = stmt.and_where(Expr::col(SliceData::Id).eq(id)).to_owned();
     }
-    if let Some(id) = model_id {
-        stmt = stmt.and_where(Expr::col(SliceData::ModelId).eq(id)).to_owned();
-    }
-    if let Some(name) = name {
-        stmt = stmt.and_where(Expr::col(SliceData::Name).like(name)).to_owned();
-    }
-    match selector {
-        SliceSelector::Id(id) => {
-            stmt = stmt.and_where(Expr::col(SliceData::Id).eq(id)).to_owned();
-        },
-        SliceSelector::Time(time) => {
-            stmt = stmt
-                .and_where(Expr::col(SliceData::TimestampBegin).lte(time))
-                .and_where(Expr::col(SliceData::TimestampEnd).gte(time))
-                .to_owned();
-        },
-        SliceSelector::Range(begin, end) => {
-            stmt = stmt
-                .and_where(Expr::col(SliceData::TimestampBegin).gte(begin))
-                .and_where(Expr::col(SliceData::TimestampEnd).lte(end))
-                .to_owned();
+    else {
+        if let Some(id) = device_id {
+            stmt = stmt.and_where(Expr::col(SliceData::DeviceId).eq(id)).to_owned();
         }
-        SliceSelector::None => {}
+        if let Some(id) = model_id {
+            stmt = stmt.and_where(Expr::col(SliceData::ModelId).eq(id)).to_owned();
+        }
+        if let Some(name) = name {
+            let name_like = String::from("%") + name + "%";
+            stmt = stmt.and_where(Expr::col(SliceData::Name).like(name_like)).to_owned();
+        }
+        match selector {
+            SliceSelector::Time(time) => {
+                stmt = stmt
+                    .and_where(Expr::col(SliceData::TimestampBegin).lte(time))
+                    .and_where(Expr::col(SliceData::TimestampEnd).gte(time))
+                    .to_owned();
+            },
+            SliceSelector::Range(begin, end) => {
+                stmt = stmt
+                    .and_where(Expr::col(SliceData::TimestampBegin).gte(begin))
+                    .and_where(Expr::col(SliceData::TimestampEnd).lte(end))
+                    .to_owned();
+            }
+            SliceSelector::None => {}
+        }
+        stmt = stmt.order_by(SliceData::Id, Order::Asc).to_owned();
     }
-    let (sql, values) = stmt
-        .order_by(SliceData::Id, Order::Asc)
-        .build_sqlx(PostgresQueryBuilder);
+
+    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     let rows = sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
@@ -80,69 +84,6 @@ async fn select_slice(pool: &Pool<Postgres>,
         .await?;
 
     Ok(rows)
-}
-
-pub(crate) async fn select_slice_by_id(pool: &Pool<Postgres>,
-    id: i32
-) -> Result<SliceSchema, Error>
-{
-    select_slice(pool, SliceSelector::Id(id), None, None, None).await?.into_iter().next()
-        .ok_or(Error::RowNotFound)
-}
-
-pub(crate) async fn select_slice_by_time(pool: &Pool<Postgres>,
-    device_id: Uuid,
-    model_id: Uuid,
-    timestamp: DateTime<Utc>
-) -> Result<Vec<SliceSchema>, Error>
-{
-    select_slice(pool, SliceSelector::Time(timestamp), Some(device_id), Some(model_id), None).await
-}
-
-pub(crate) async fn select_slice_by_range_time(pool: &Pool<Postgres>,
-    device_id: Uuid,
-    model_id: Uuid,
-    begin: DateTime<Utc>,
-    end: DateTime<Utc>
-) -> Result<Vec<SliceSchema>, Error>
-{
-    select_slice(pool, SliceSelector::Range(begin, end), Some(device_id), Some(model_id), None).await
-}
-
-pub(crate) async fn select_slice_by_name_time(pool: &Pool<Postgres>,
-    name: &str,
-    timestamp: DateTime<Utc>
-) -> Result<Vec<SliceSchema>, Error>
-{
-    let name_like = String::from("%") + name + "%";
-    select_slice(pool, SliceSelector::Time(timestamp), None, None, Some(name_like)).await
-}
-
-pub(crate) async fn select_slice_by_name_range_time(pool: &Pool<Postgres>,
-    name: &str,
-    begin: DateTime<Utc>,
-    end: DateTime<Utc>
-) -> Result<Vec<SliceSchema>, Error>
-{
-    let name_like = String::from("%") + name + "%";
-    select_slice(pool, SliceSelector::Range(begin, end), None, None, Some(name_like)).await
-}
-
-pub(crate) async fn select_slice_by_option(pool: &Pool<Postgres>,
-    device_id: Option<Uuid>,
-    model_id: Option<Uuid>,
-    name: Option<&str>,
-    begin_or_timestamp: Option<DateTime<Utc>>,
-    end: Option<DateTime<Utc>>
-) -> Result<Vec<SliceSchema>, Error>
-{
-    let name_like = name.map(|s| String::from("%") + s + "%");
-    let selector = match (begin_or_timestamp, end) {
-        (Some(begin), Some(end)) => SliceSelector::Range(begin, end),
-        (Some(timestamp), None) => SliceSelector::Time(timestamp),
-        _ => SliceSelector::None
-    };
-    select_slice(pool, selector, device_id, model_id, name_like).await
 }
 
 pub(crate) async fn insert_slice(pool: &Pool<Postgres>,
@@ -242,10 +183,11 @@ pub(crate) async fn delete_slice(pool: &Pool<Postgres>,
     Ok(())
 }
 
-async fn select_slice_set(pool: &Pool<Postgres>,
+pub(crate) async fn select_slice_set(pool: &Pool<Postgres>,
     selector: SliceSelector,
+    id: Option<i32>,
     set_id: Option<Uuid>,
-    name: Option<String>
+    name: Option<&str>
 ) -> Result<Vec<SliceSetSchema>, Error>
 {
     let mut stmt = Query::select()
@@ -259,33 +201,37 @@ async fn select_slice_set(pool: &Pool<Postgres>,
         ])
         .from(SliceDataSet::Table)
         .to_owned();
-    if let Some(id) = set_id {
-        stmt = stmt.and_where(Expr::col(SliceDataSet::SetId).eq(id)).to_owned();
+
+    if let Some(id) = id {
+        stmt = stmt.and_where(Expr::col(SliceDataSet::Id).eq(id)).to_owned();
     }
-    if let Some(name) = name {
-        stmt = stmt.and_where(Expr::col(SliceDataSet::Name).like(name)).to_owned();
-    }
-    match selector {
-        SliceSelector::Id(id) => {
-            stmt = stmt.and_where(Expr::col(SliceDataSet::Id).eq(id)).to_owned();
-        },
-        SliceSelector::Time(time) => {
-            stmt = stmt
-                .and_where(Expr::col(SliceDataSet::TimestampBegin).lte(time))
-                .and_where(Expr::col(SliceDataSet::TimestampEnd).gte(time))
-                .to_owned();
-        },
-        SliceSelector::Range(begin, end) => {
-            stmt = stmt
-                .and_where(Expr::col(SliceDataSet::TimestampBegin).gte(begin))
-                .and_where(Expr::col(SliceDataSet::TimestampEnd).lte(end))
-                .to_owned();
+    else {
+        if let Some(id) = set_id {
+            stmt = stmt.and_where(Expr::col(SliceDataSet::SetId).eq(id)).to_owned();
         }
-        SliceSelector::None => {}
+        if let Some(name) = name {
+            let name_like = String::from("%") + name + "%";
+            stmt = stmt.and_where(Expr::col(SliceDataSet::Name).like(name_like)).to_owned();
+        }
+        match selector {
+            SliceSelector::Time(time) => {
+                stmt = stmt
+                    .and_where(Expr::col(SliceDataSet::TimestampBegin).lte(time))
+                    .and_where(Expr::col(SliceDataSet::TimestampEnd).gte(time))
+                    .to_owned();
+            },
+            SliceSelector::Range(begin, end) => {
+                stmt = stmt
+                    .and_where(Expr::col(SliceDataSet::TimestampBegin).gte(begin))
+                    .and_where(Expr::col(SliceDataSet::TimestampEnd).lte(end))
+                    .to_owned();
+            }
+            SliceSelector::None => {}
+        }
+        stmt = stmt.order_by(SliceDataSet::Id, Order::Asc).to_owned();
     }
-    let (sql, values) = stmt
-        .order_by(SliceData::Id, Order::Asc)
-        .build_sqlx(PostgresQueryBuilder);
+
+    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     let rows = sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
@@ -302,66 +248,6 @@ async fn select_slice_set(pool: &Pool<Postgres>,
         .await?;
 
     Ok(rows)
-}
-
-pub(crate) async fn select_slice_set_by_id(pool: &Pool<Postgres>,
-    id: i32
-) -> Result<SliceSetSchema, Error>
-{
-    select_slice_set(pool, SliceSelector::Id(id), None, None).await?.into_iter().next()
-        .ok_or(Error::RowNotFound)
-}
-
-pub(crate) async fn select_slice_set_by_time(pool: &Pool<Postgres>,
-    set_id: Uuid,
-    timestamp: DateTime<Utc>
-) -> Result<Vec<SliceSetSchema>, Error>
-{
-    select_slice_set(pool, SliceSelector::Time(timestamp), Some(set_id), None).await
-}
-
-pub(crate) async fn select_slice_set_by_range_time(pool: &Pool<Postgres>,
-    set_id: Uuid,
-    begin: DateTime<Utc>,
-    end: DateTime<Utc>
-) -> Result<Vec<SliceSetSchema>, Error>
-{
-    select_slice_set(pool, SliceSelector::Range(begin, end), Some(set_id), None).await
-}
-
-pub(crate) async fn select_slice_set_by_name_time(pool: &Pool<Postgres>,
-    name: &str,
-    timestamp: DateTime<Utc>
-) -> Result<Vec<SliceSetSchema>, Error>
-{
-    let name_like = String::from("%") + name + "%";
-    select_slice_set(pool, SliceSelector::Time(timestamp), None, Some(name_like)).await
-}
-
-pub(crate) async fn select_slice_set_by_name_range_time(pool: &Pool<Postgres>,
-    name: &str,
-    begin: DateTime<Utc>,
-    end: DateTime<Utc>
-) -> Result<Vec<SliceSetSchema>, Error>
-{
-    let name_like = String::from("%") + name + "%";
-    select_slice_set(pool, SliceSelector::Range(begin, end), None, Some(name_like)).await
-}
-
-pub(crate) async fn select_slice_set_by_option(pool: &Pool<Postgres>,
-    set_id: Option<Uuid>,
-    name: Option<&str>,
-    begin_or_timestamp: Option<DateTime<Utc>>,
-    end: Option<DateTime<Utc>>
-) -> Result<Vec<SliceSetSchema>, Error>
-{
-    let name_like = name.map(|s| String::from("%") + s + "%");
-    let selector = match (begin_or_timestamp, end) {
-        (Some(begin), Some(end)) => SliceSelector::Range(begin, end),
-        (Some(timestamp), None) => SliceSelector::Time(timestamp),
-        _ => SliceSelector::None
-    };
-    select_slice_set(pool, selector, set_id, name_like).await
 }
 
 pub(crate) async fn insert_slice_set(pool: &Pool<Postgres>,
@@ -396,8 +282,8 @@ pub(crate) async fn insert_slice_set(pool: &Pool<Postgres>,
         .await?;
 
     let sql = Query::select()
-        .expr(Func::max(Expr::col(SliceData::Id)))
-        .from(SliceData::Table)
+        .expr(Func::max(Expr::col(SliceDataSet::Id)))
+        .from(SliceDataSet::Table)
         .to_string(PostgresQueryBuilder);
     let id: i32 = sqlx::query(&sql)
         .map(|row: PgRow| row.get(0))

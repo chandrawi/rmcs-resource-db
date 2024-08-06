@@ -10,26 +10,26 @@ use crate::schema::model::Model;
 use crate::schema::buffer::{DataBuffer, BufferSchema, BufferStatus};
 use crate::operation::data::select_data_types;
 
-enum BufferSelector {
-    Id(i32),
-    Time,
+pub(crate) enum BufferSelector {
+    Time(DateTime<Utc>),
     First(usize, usize),
-    Last(usize, usize)
+    Last(usize, usize),
+    None
 }
 
-async fn select_buffer(pool: &Pool<Postgres>, 
+pub(crate) async fn select_buffer(pool: &Pool<Postgres>, 
     selector: BufferSelector,
+    id: Option<i32>,
     device_id: Option<Uuid>,
     model_id: Option<Uuid>,
-    timestamp: Option<DateTime<Utc>>,
     status: Option<BufferStatus>
 ) -> Result<Vec<BufferSchema>, Error>
 {
-    let (order, number, offset) = match selector {
-        BufferSelector::Id(_) => (Order::Asc, 1, 0),
-        BufferSelector::First(number, offset) => (Order::Asc, number, offset),
-        BufferSelector::Last(number, offset) => (Order::Desc, number, offset),
-        BufferSelector::Time => (Order::Asc, 1, 0)
+    let (timestamp, order, number, offset) = match selector {
+        BufferSelector::First(number, offset) => (None, Order::Asc, number, offset),
+        BufferSelector::Last(number, offset) => (None, Order::Desc, number, offset),
+        BufferSelector::Time(ts) => (Some(ts), Order::Asc, 1, 0),
+        _ => (None, Order::Asc, 1, 0)
     };
 
     let mut stmt = Query::select().to_owned();
@@ -48,27 +48,28 @@ async fn select_buffer(pool: &Pool<Postgres>,
             Expr::col((DataBuffer::Table, DataBuffer::ModelId))
             .equals((Model::Table, Model::ModelId)))
         .to_owned();
-    if let BufferSelector::Id(id) = selector {
+
+    if let Some(id) = id {
         stmt = stmt.and_where(Expr::col(DataBuffer::Id).eq(id)).to_owned();
     } else {
+        if let Some(id) = device_id {
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).eq(id)).to_owned();
+        }
+        if let Some(id) = model_id {
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).eq(id)).to_owned();
+        }
+        if let Some(ts) = timestamp {
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).eq(ts)).to_owned();
+        }
+        if let Some(stat) = status {
+            let status = i16::from(stat);
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Status)).eq(status)).to_owned();
+        }
         stmt = stmt
             .order_by((DataBuffer::Table, DataBuffer::Id), order)
             .limit(number as u64)
             .offset(offset as u64)
             .to_owned();
-    }
-    if let Some(id) = device_id {
-        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).eq(id)).to_owned();
-    }
-    if let Some(id) = model_id {
-        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).eq(id)).to_owned();
-    }
-    if let Some(ts) = timestamp {
-        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).eq(ts)).to_owned();
-    }
-    if let Some(stat) = status {
-        let status = i16::from(stat);
-        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Status)).eq(status)).to_owned();
     }
     let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
@@ -112,77 +113,6 @@ pub(crate) async fn select_buffer_types(pool: &Pool<Postgres>,
         })
         .fetch_one(pool)
         .await
-}
-
-pub(crate) async fn select_buffer_by_id(pool: &Pool<Postgres>, 
-    id: i32
-) -> Result<BufferSchema, Error>
-{
-    let selector = BufferSelector::Id(id);
-    let buffers = select_buffer(pool, selector, None, None, None, None).await?;
-    Ok(buffers.into_iter().next().ok_or(Error::RowNotFound)?)
-}
-
-pub(crate) async fn select_buffer_by_time(pool: &Pool<Postgres>, 
-    device_id: Uuid,
-    model_id: Uuid,
-    timestamp: DateTime<Utc>,
-    status: Option<BufferStatus>
-) -> Result<BufferSchema, Error>
-{
-    let selector = BufferSelector::Time;
-    let buffers = select_buffer(pool, selector, Some(device_id), Some(model_id), Some(timestamp), status).await?;
-    Ok(buffers.into_iter().next().ok_or(Error::RowNotFound)?)
-}
-
-pub(crate) async fn select_buffer_first(pool: &Pool<Postgres>, 
-    number: usize,
-    device_id: Option<Uuid>,
-    model_id: Option<Uuid>,
-    status: Option<BufferStatus>
-) -> Result<Vec<BufferSchema>, Error>
-{
-    let selector = BufferSelector::First(number, 0);
-    let buffers = select_buffer(pool, selector, device_id, model_id, None, status).await?;
-    Ok(buffers)
-}
-
-pub(crate) async fn select_buffer_first_offset(pool: &Pool<Postgres>, 
-    number: usize,
-    offset: usize,
-    device_id: Option<Uuid>,
-    model_id: Option<Uuid>,
-    status: Option<BufferStatus>
-) -> Result<Vec<BufferSchema>, Error>
-{
-    let selector = BufferSelector::First(number, offset);
-    let buffers = select_buffer(pool, selector, device_id, model_id, None, status).await?;
-    Ok(buffers)
-}
-
-pub(crate) async fn select_buffer_last(pool: &Pool<Postgres>, 
-    number: usize,
-    device_id: Option<Uuid>,
-    model_id: Option<Uuid>,
-    status: Option<BufferStatus>
-) -> Result<Vec<BufferSchema>, Error>
-{
-    let selector = BufferSelector::Last(number, 0);
-    let buffers = select_buffer(pool, selector, device_id, model_id, None, status).await?;
-    Ok(buffers)
-}
-
-pub(crate) async fn select_buffer_last_offset(pool: &Pool<Postgres>, 
-    number: usize,
-    offset: usize,
-    device_id: Option<Uuid>,
-    model_id: Option<Uuid>,
-    status: Option<BufferStatus>
-) -> Result<Vec<BufferSchema>, Error>
-{
-    let selector = BufferSelector::Last(number, offset);
-    let buffers = select_buffer(pool, selector, device_id, model_id, None, status).await?;
-    Ok(buffers)
 }
 
 pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,

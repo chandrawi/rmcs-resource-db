@@ -8,13 +8,13 @@ use uuid::Uuid;
 use crate::schema::value::{ConfigType, ConfigValue};
 use crate::schema::log::{SystemLog, LogSchema, LogStatus};
 
-enum LogSelector {
+pub(crate) enum LogSelector {
     Time(DateTime<Utc>),
     Last(DateTime<Utc>),
     Range(DateTime<Utc>, DateTime<Utc>)
 }
 
-async fn select_log(pool: &Pool<Postgres>,
+pub(crate) async fn select_log(pool: &Pool<Postgres>,
     selector: LogSelector,
     device_id: Option<Uuid>,
     status: Option<LogStatus>
@@ -71,43 +71,6 @@ async fn select_log(pool: &Pool<Postgres>,
         .await?;
 
     Ok(rows)
-}
-
-pub(crate) async fn select_log_by_id(pool: &Pool<Postgres>,
-    timestamp: DateTime<Utc>,
-    device_id: Uuid
-) -> Result<LogSchema, Error>
-{
-    select_log(pool, LogSelector::Time(timestamp), Some(device_id), None).await?.into_iter().next()
-        .ok_or(Error::RowNotFound)
-}
-
-pub(crate) async fn select_log_by_time(pool: &Pool<Postgres>,
-    timestamp: DateTime<Utc>,
-    device_id: Option<Uuid>,
-    status: Option<LogStatus>
-) -> Result<Vec<LogSchema>, Error>
-{
-    select_log(pool, LogSelector::Time(timestamp), device_id, status).await
-}
-
-pub(crate) async fn select_log_by_last_time(pool: &Pool<Postgres>,
-    last: DateTime<Utc>,
-    device_id: Option<Uuid>,
-    status: Option<LogStatus>
-) -> Result<Vec<LogSchema>, Error>
-{
-    select_log(pool, LogSelector::Last(last), device_id, status).await
-}
-
-pub(crate) async fn select_log_by_range_time(pool: &Pool<Postgres>,
-    begin: DateTime<Utc>,
-    end: DateTime<Utc>,
-    device_id: Option<Uuid>,
-    status: Option<LogStatus>
-) -> Result<Vec<LogSchema>, Error>
-{
-    select_log(pool, LogSelector::Range(begin, end), device_id, status).await
 }
 
 pub(crate) async fn insert_log(pool: &Pool<Postgres>,

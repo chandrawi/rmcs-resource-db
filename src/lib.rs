@@ -7,17 +7,6 @@ use sqlx::postgres::{Postgres, PgPoolOptions};
 use sqlx::types::chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-pub use schema::value::{ConfigType, ConfigValue, LogType, LogValue, DataType, DataValue, ArrayDataValue};
-pub use schema::model::{ModelSchema, ModelConfigSchema};
-pub use schema::device::{DeviceSchema, GatewaySchema, TypeSchema, DeviceConfigSchema, GatewayConfigSchema};
-use schema::device::DeviceKind;
-pub use schema::group::{GroupModelSchema, GroupDeviceSchema, GroupGatewaySchema};
-use schema::group::GroupKind;
-pub use schema::set::{SetSchema, SetTemplateSchema};
-pub use schema::data::{DataSchema, DataSetSchema};
-pub use schema::buffer::{BufferSchema, BufferStatus};
-pub use schema::slice::{SliceSchema, SliceSetSchema};
-pub use schema::log::{LogSchema, LogStatus};
 use operation::model;
 use operation::device;
 use operation::types;
@@ -27,6 +16,21 @@ use operation::data;
 use operation::buffer;
 use operation::slice;
 use operation::log;
+pub use schema::value::{ConfigType, ConfigValue, LogType, LogValue, DataType, DataValue, ArrayDataValue};
+pub use schema::model::{ModelSchema, ModelConfigSchema};
+pub use schema::device::{DeviceSchema, GatewaySchema, TypeSchema, DeviceConfigSchema, GatewayConfigSchema};
+use schema::device::DeviceKind;
+pub use schema::group::{GroupModelSchema, GroupDeviceSchema, GroupGatewaySchema};
+use schema::group::GroupKind;
+pub use schema::set::{SetSchema, SetTemplateSchema};
+pub use schema::data::{DataSchema, DataSetSchema};
+use data::DataSelector;
+pub use schema::buffer::{BufferSchema, BufferStatus};
+use buffer::BufferSelector;
+pub use schema::slice::{SliceSchema, SliceSetSchema};
+use slice::SliceSelector;
+pub use schema::log::{LogSchema, LogStatus};
+use log::LogSelector;
 
 #[derive(Debug, Clone)]
 pub struct Resource {
@@ -897,42 +901,48 @@ impl Resource {
     pub async fn read_data(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>)
         -> Result<DataSchema, Error>
     {
-        data::select_data_by_time(&self.pool, model_id, device_id, timestamp).await?.into_iter().next()
+        let selector = DataSelector::Time(timestamp);
+        data::select_data(&self.pool, selector, device_id, model_id).await?.into_iter().next()
             .ok_or(Error::RowNotFound)
     }
 
     pub async fn list_data_by_time(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>)
         -> Result<Vec<DataSchema>, Error>
     {
-        data::select_data_by_time(&self.pool, model_id, device_id, timestamp)
+        let selector = DataSelector::Time(timestamp);
+        data::select_data(&self.pool, selector, device_id, model_id)
         .await
     }
 
     pub async fn list_data_by_last_time(&self, device_id: Uuid, model_id: Uuid, last: DateTime<Utc>)
         -> Result<Vec<DataSchema>, Error>
     {
-        data::select_data_by_last_time(&self.pool, model_id, device_id, last)
+        let selector = DataSelector::Last(last);
+        data::select_data(&self.pool, selector, device_id, model_id)
         .await
     }
 
     pub async fn list_data_by_range_time(&self, device_id: Uuid, model_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
         -> Result<Vec<DataSchema>, Error>
     {
-        data::select_data_by_range_time(&self.pool, model_id, device_id, begin, end)
+        let selector = DataSelector::Range(begin, end);
+        data::select_data(&self.pool, selector, device_id, model_id)
         .await
     }
 
     pub async fn list_data_by_number_before(&self, device_id: Uuid, model_id: Uuid, before: DateTime<Utc>, number: usize)
         -> Result<Vec<DataSchema>, Error>
     {
-        data::select_data_by_number_before(&self.pool, model_id, device_id, before, number)
+        let selector = DataSelector::NumberBefore(before, number);
+        data::select_data(&self.pool, selector, device_id, model_id)
         .await
     }
 
     pub async fn list_data_by_number_after(&self, device_id: Uuid, model_id: Uuid, after: DateTime<Utc>, number: usize)
         -> Result<Vec<DataSchema>, Error>
     {
-        data::select_data_by_number_after(&self.pool, model_id, device_id, after, number)
+        let selector = DataSelector::NumberAfter(after, number);
+        data::select_data(&self.pool, selector, device_id, model_id)
         .await
     }
 
@@ -953,131 +963,151 @@ impl Resource {
     pub async fn list_data_by_set_time(&self, set_id: Uuid, timestamp: DateTime<Utc>)
         -> Result<Vec<DataSchema>, Error>
     {
-        data::select_data_by_set_time(&self.pool, set_id, timestamp)
-        .await
+        let selector = DataSelector::Time(timestamp);
+        data::select_data_set(&self.pool, selector, set_id).await
+        .map(|el| el.0)
     }
 
     pub async fn list_data_by_set_last_time(&self, set_id: Uuid, last: DateTime<Utc>)
         -> Result<Vec<DataSchema>, Error>
     {
-        data::select_data_by_set_last_time(&self.pool, set_id, last)
-        .await
+        let selector = DataSelector::Last(last);
+        data::select_data_set(&self.pool, selector, set_id).await
+        .map(|el| el.0)
     }
 
     pub async fn list_data_by_set_range_time(&self, set_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
         -> Result<Vec<DataSchema>, Error>
     {
-        data::select_data_by_set_range_time(&self.pool, set_id, begin, end)
-        .await
+        let selector = DataSelector::Range(begin, end);
+        data::select_data_set(&self.pool, selector, set_id).await
+        .map(|el| el.0)
     }
 
     pub async fn list_data_by_set_number_before(&self, set_id: Uuid, before: DateTime<Utc>, number: usize)
         -> Result<Vec<DataSchema>, Error>
     {
-        data::select_data_by_set_number_before(&self.pool, set_id, before, number)
-        .await
+        let selector = DataSelector::NumberBefore(before, number);
+        data::select_data_set(&self.pool, selector, set_id).await
+        .map(|el| el.0)
     }
 
     pub async fn list_data_by_set_number_after(&self, set_id: Uuid, after: DateTime<Utc>, number: usize)
         -> Result<Vec<DataSchema>, Error>
     {
-        data::select_data_by_set_number_after(&self.pool, set_id, after, number)
-        .await
+        let selector = DataSelector::NumberAfter(after, number);
+        data::select_data_set(&self.pool, selector, set_id).await
+        .map(|el| el.0)
     }
 
     pub async fn read_data_set(&self, set_id: Uuid, timestamp: DateTime<Utc>)
         -> Result<DataSetSchema, Error>
     {
-        data::select_data_set_by_time(&self.pool, set_id, timestamp).await?.into_iter().next()
-            .ok_or(Error::RowNotFound)
+        let selector = DataSelector::Time(timestamp);
+        data::select_data_set(&self.pool, selector, set_id).await
+        .map(|el| el.1)?.into_iter().next().ok_or(Error::RowNotFound)
     }
 
     pub async fn list_data_set_by_time(&self, set_id: Uuid, timestamp: DateTime<Utc>)
         -> Result<Vec<DataSetSchema>, Error>
     {
-        data::select_data_set_by_time(&self.pool, set_id, timestamp)
-        .await
+        let selector = DataSelector::Time(timestamp);
+        data::select_data_set(&self.pool, selector, set_id).await
+        .map(|el| el.1)
     }
 
     pub async fn list_data_set_by_last_time(&self, set_id: Uuid, last: DateTime<Utc>)
         -> Result<Vec<DataSetSchema>, Error>
     {
-        data::select_data_set_by_last_time(&self.pool, set_id, last)
-        .await
+        let selector = DataSelector::Last(last);
+        data::select_data_set(&self.pool, selector, set_id).await
+        .map(|el| el.1)
     }
 
     pub async fn list_data_set_by_range_time(&self, set_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
         -> Result<Vec<DataSetSchema>, Error>
     {
-        data::select_data_set_by_range_time(&self.pool, set_id, begin, end)
-        .await
+        let selector = DataSelector::Range(begin, end);
+        data::select_data_set(&self.pool, selector, set_id).await
+        .map(|el| el.1)
     }
 
     pub async fn list_data_set_by_number_before(&self, set_id: Uuid, before: DateTime<Utc>, number: usize)
         -> Result<Vec<DataSetSchema>, Error>
     {
-        data::select_data_set_by_number_before(&self.pool, set_id, before, number)
-        .await
+        let selector = DataSelector::NumberBefore(before, number);
+        data::select_data_set(&self.pool, selector, set_id).await
+        .map(|el| el.1)
     }
 
     pub async fn list_data_set_by_number_after(&self, set_id: Uuid, after: DateTime<Utc>, number: usize)
         -> Result<Vec<DataSetSchema>, Error>
     {
-        data::select_data_set_by_number_after(&self.pool, set_id, after, number)
-        .await
+        let selector = DataSelector::NumberAfter(after, number);
+        data::select_data_set(&self.pool, selector, set_id).await
+        .map(|el| el.1)
     }
 
     pub async fn read_buffer(&self, id: i32)
         -> Result<BufferSchema, Error>
     {
-        buffer::select_buffer_by_id(&self.pool, id).await
+        buffer::select_buffer(&self.pool, BufferSelector::None, Some(id), None, None, None).await?
+        .into_iter().next().ok_or(Error::RowNotFound)
     }
 
     pub async fn read_buffer_by_time(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, status: Option<BufferStatus>)
         -> Result<BufferSchema, Error>
     {
-        buffer::select_buffer_by_time(&self.pool, device_id, model_id, timestamp, status).await
+        let selector = BufferSelector::Time(timestamp);
+        buffer::select_buffer(&self.pool, selector, None, Some(device_id), Some(model_id), status).await?
+        .into_iter().next().ok_or(Error::RowNotFound)
     }
 
     pub async fn read_buffer_first(&self, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
         -> Result<BufferSchema, Error>
     {
-        buffer::select_buffer_first(&self.pool, 1, device_id, model_id, status)
-            .await?.into_iter().next().ok_or(Error::RowNotFound)
+        let selector = BufferSelector::First(1, 0);
+        buffer::select_buffer(&self.pool, selector, None, device_id, model_id, status).await?
+        .into_iter().next().ok_or(Error::RowNotFound)
     }
 
     pub async fn read_buffer_last(&self, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
         -> Result<BufferSchema, Error>
     {
-        buffer::select_buffer_last(&self.pool, 1, device_id, model_id, status)
-            .await?.into_iter().next().ok_or(Error::RowNotFound)
+        let selector = BufferSelector::Last(1, 0);
+        buffer::select_buffer(&self.pool, selector, None, device_id, model_id, status).await?
+        .into_iter().next().ok_or(Error::RowNotFound)
     }
 
     pub async fn list_buffer_first(&self, number: usize, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
         -> Result<Vec<BufferSchema>, Error>
     {
-        buffer::select_buffer_first(&self.pool, number, device_id, model_id, status)
+        let selector = BufferSelector::First(number, 0);
+        buffer::select_buffer(&self.pool, selector, None, device_id, model_id, status)
         .await
     }
 
     pub async fn list_buffer_first_offset(&self, number: usize, offset: usize, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
         -> Result<Vec<BufferSchema>, Error>
     {
-        buffer::select_buffer_first_offset(&self.pool, number, offset, device_id, model_id, status)
+        let selector = BufferSelector::First(number, offset);
+        buffer::select_buffer(&self.pool, selector, None, device_id, model_id, status)
         .await
     }
 
     pub async fn list_buffer_last(&self, number: usize, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
         -> Result<Vec<BufferSchema>, Error>
     {
-        buffer::select_buffer_last(&self.pool, number, device_id, model_id, status)
+        let selector = BufferSelector::Last(number, 0);
+        buffer::select_buffer(&self.pool, selector, None, device_id, model_id, status)
         .await
     }
 
     pub async fn list_buffer_last_offset(&self, number: usize, offset: usize, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
         -> Result<Vec<BufferSchema>, Error>
     {
-        buffer::select_buffer_last_offset(&self.pool, number, offset, device_id, model_id, status)
+        let selector = BufferSelector::Last(number, offset);
+        buffer::select_buffer(&self.pool, selector, None, device_id, model_id, status)
         .await
     }
 
@@ -1104,37 +1134,51 @@ impl Resource {
     pub async fn read_slice(&self, id: i32)
         -> Result<SliceSchema, Error>
     {
-        slice::select_slice_by_id(&self.pool, id).await
+        slice::select_slice(&self.pool, SliceSelector::None, Some(id), None, None, None).await?
+        .into_iter().next().ok_or(Error::RowNotFound)
     }
 
     pub async fn list_slice_by_time(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>)
         -> Result<Vec<SliceSchema>, Error>
     {
-        slice::select_slice_by_time(&self.pool, device_id, model_id, timestamp).await
+        let selector = SliceSelector::Time(timestamp);
+        slice::select_slice(&self.pool, selector, None, Some(device_id), Some(model_id), None)
+        .await
     }
 
     pub async fn list_slice_by_range_time(&self, device_id: Uuid, model_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
         -> Result<Vec<SliceSchema>, Error>
     {
-        slice::select_slice_by_range_time(&self.pool, device_id, model_id, begin, end).await
+        let selector = SliceSelector::Range(begin, end);
+        slice::select_slice(&self.pool, selector, None, Some(device_id), Some(model_id), None)
+        .await
     }
 
     pub async fn list_slice_by_name_time(&self, name: &str, timestamp: DateTime<Utc>)
         -> Result<Vec<SliceSchema>, Error>
     {
-        slice::select_slice_by_name_time(&self.pool, name, timestamp).await
+        let selector = SliceSelector::Time(timestamp);
+        slice::select_slice(&self.pool, selector, None, None, None, Some(name))
+        .await
     }
 
     pub async fn list_slice_by_name_range_time(&self, name: &str, begin: DateTime<Utc>, end: DateTime<Utc>)
         -> Result<Vec<SliceSchema>, Error>
     {
-        slice::select_slice_by_name_range_time(&self.pool, name, begin, end).await
+        let selector = SliceSelector::Range(begin, end);
+        slice::select_slice(&self.pool, selector, None, None, None, Some(name))
+        .await
     }
 
     pub async fn list_slice_option(&self, device_id: Option<Uuid>, model_id: Option<Uuid>, name: Option<&str>, begin_or_timestamp: Option<DateTime<Utc>>, end: Option<DateTime<Utc>>)
         -> Result<Vec<SliceSchema>, Error>
     {
-        slice::select_slice_by_option(&self.pool, device_id, model_id, name, begin_or_timestamp, end).await
+        let selector = match (begin_or_timestamp, end) {
+            (Some(begin), Some(end)) => SliceSelector::Range(begin, end),
+            (Some(timestamp), None) => SliceSelector::Time(timestamp),
+            _ => SliceSelector::None
+        };
+        slice::select_slice(&self.pool, selector, None, device_id, model_id, name).await
     }
 
     pub async fn create_slice(&self, device_id: Uuid, model_id: Uuid, timestamp_begin: DateTime<Utc>, timestamp_end: DateTime<Utc>, name: &str, description: Option<&str>)
@@ -1160,37 +1204,51 @@ impl Resource {
     pub async fn read_slice_set(&self, id: i32)
         -> Result<SliceSetSchema, Error>
     {
-        slice::select_slice_set_by_id(&self.pool, id).await
+        slice::select_slice_set(&self.pool, SliceSelector::None, Some(id), None, None).await?
+        .into_iter().next().ok_or(Error::RowNotFound)
     }
 
     pub async fn list_slice_set_by_time(&self, set_id: Uuid, timestamp: DateTime<Utc>)
         -> Result<Vec<SliceSetSchema>, Error>
     {
-        slice::select_slice_set_by_time(&self.pool, set_id, timestamp).await
+        let selector = SliceSelector::Time(timestamp);
+        slice::select_slice_set(&self.pool, selector, None, Some(set_id), None)
+        .await
     }
 
     pub async fn list_slice_set_by_range_time(&self, set_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
         -> Result<Vec<SliceSetSchema>, Error>
     {
-        slice::select_slice_set_by_range_time(&self.pool, set_id, begin, end).await
+        let selector = SliceSelector::Range(begin, end);
+        slice::select_slice_set(&self.pool, selector, None, Some(set_id), None)
+        .await
     }
 
     pub async fn list_slice_set_by_name_time(&self, name: &str, timestamp: DateTime<Utc>)
         -> Result<Vec<SliceSetSchema>, Error>
     {
-        slice::select_slice_set_by_name_time(&self.pool, name, timestamp).await
+        let selector = SliceSelector::Time(timestamp);
+        slice::select_slice_set(&self.pool, selector, None, None, Some(name))
+        .await
     }
 
     pub async fn list_slice_set_by_name_range_time(&self, name: &str, begin: DateTime<Utc>, end: DateTime<Utc>)
         -> Result<Vec<SliceSetSchema>, Error>
     {
-        slice::select_slice_set_by_name_range_time(&self.pool, name, begin, end).await
+        let selector = SliceSelector::Range(begin, end);
+        slice::select_slice_set(&self.pool, selector, None, None, Some(name))
+        .await
     }
 
     pub async fn list_slice_set_option(&self, set_id: Option<Uuid>, name: Option<&str>, begin_or_timestamp: Option<DateTime<Utc>>, end: Option<DateTime<Utc>>)
         -> Result<Vec<SliceSetSchema>, Error>
     {
-        slice::select_slice_set_by_option(&self.pool, set_id, name, begin_or_timestamp, end).await
+        let selector = match (begin_or_timestamp, end) {
+            (Some(begin), Some(end)) => SliceSelector::Range(begin, end),
+            (Some(timestamp), None) => SliceSelector::Time(timestamp),
+            _ => SliceSelector::None
+        };
+        slice::select_slice_set(&self.pool, selector, None, set_id, name).await
     }
 
     pub async fn create_slice_set(&self, set_id: Uuid, timestamp_begin: DateTime<Utc>, timestamp_end: DateTime<Utc>, name: &str, description: Option<&str>)
@@ -1216,25 +1274,32 @@ impl Resource {
     pub async fn read_log(&self, timestamp: DateTime<Utc>, device_id: Uuid)
         -> Result<LogSchema, Error>
     {
-        log::select_log_by_id(&self.pool, timestamp, device_id).await
+        log::select_log(&self.pool, LogSelector::Time(timestamp), Some(device_id), None).await?
+        .into_iter().next().ok_or(Error::RowNotFound)
     }
 
     pub async fn list_log_by_time(&self, timestamp: DateTime<Utc>, device_id: Option<Uuid>, status: Option<LogStatus>)
         -> Result<Vec<LogSchema>, Error>
     {
-        log::select_log_by_time(&self.pool, timestamp, device_id, status).await
+        let selector = LogSelector::Time(timestamp);
+        log::select_log(&self.pool, selector, device_id, status)
+        .await
     }
 
     pub async fn list_log_by_last_time(&self, last: DateTime<Utc>, device_id: Option<Uuid>, status: Option<LogStatus>)
         -> Result<Vec<LogSchema>, Error>
     {
-        log::select_log_by_last_time(&self.pool, last, device_id, status).await
+        let selector = LogSelector::Last(last);
+        log::select_log(&self.pool, selector, device_id, status)
+        .await
     }
 
     pub async fn list_log_by_range_time(&self, begin: DateTime<Utc>, end: DateTime<Utc>, device_id: Option<Uuid>, status: Option<LogStatus>)
         -> Result<Vec<LogSchema>, Error>
     {
-        log::select_log_by_range_time(&self.pool, begin, end, device_id, status).await
+        let selector = LogSelector::Range(begin, end);
+        log::select_log(&self.pool, selector, device_id, status)
+        .await
     }
 
     pub async fn create_log(&self, timestamp: DateTime<Utc>, device_id: Uuid, status: LogStatus, value: ConfigValue)
