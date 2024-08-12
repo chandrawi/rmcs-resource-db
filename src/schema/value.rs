@@ -1,7 +1,7 @@
 use ConfigValue::{Int, Float, Str};
-use DataValue::{I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, F32, F64, Char, Bool};
+use DataValue::{I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, F32, F64, Bool, Char};
 use ConfigType::{IntT, FloatT, StrT};
-use DataType::{I8T, I16T, I32T, I64T, I128T, U8T, U16T, U32T, U64T, U128T, F32T, F64T, CharT, BoolT};
+use DataType::{I8T, I16T, I32T, I64T, I128T, U8T, U16T, U32T, U64T, U128T, F32T, F64T, BoolT, CharT, StringT, BytesT};
 use rmcs_resource_api::common;
 
 #[derive(Debug)]
@@ -97,6 +97,7 @@ pub type LogValue = ConfigValue;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DataType {
+    NullT,
     I8T,
     I16T,
     I32T,
@@ -109,9 +110,10 @@ pub enum DataType {
     U128T,
     F32T,
     F64T,
-    CharT,
     BoolT,
-    NullT
+    CharT,
+    StringT,
+    BytesT
 }
 
 impl From<u8> for DataType {
@@ -131,6 +133,8 @@ impl From<u8> for DataType {
             13 => F64T,
             15 => BoolT,
             16 => CharT,
+            17 => StringT,
+            18 => BytesT,
             _ => Self::NullT
         }
     }
@@ -159,6 +163,8 @@ impl From<DataType> for u8 {
             F64T => 13,
             BoolT => 15,
             CharT => 16,
+            StringT => 17,
+            BytesT => 18,
             DataType::NullT => 0
         }
     }
@@ -187,7 +193,9 @@ impl From<common::DataType> for DataType {
             common::DataType::F32 => Self::F32T,
             common::DataType::F64 => Self::F64T,
             common::DataType::Bool => Self::BoolT,
-            common::DataType::Char => Self::CharT
+            common::DataType::Char => Self::CharT,
+            common::DataType::String => Self::StringT,
+            common::DataType::Bytes => Self::BytesT
         }
     }
 }
@@ -209,13 +217,17 @@ impl Into<common::DataType> for DataType {
             Self::F64T => common::DataType::F64,
             Self::CharT => common::DataType::Char,
             Self::BoolT => common::DataType::Bool,
-            Self::NullT => common::DataType::Nulld
+            Self::NullT => common::DataType::Nulld,
+            Self::StringT => common::DataType::String,
+            Self::BytesT => common::DataType::Bytes
         }
     }
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub enum DataValue {
+    #[default]
+    Null,
     I8(i8),
     I16(i16),
     I32(i32),
@@ -228,23 +240,27 @@ pub enum DataValue {
     U128(u128),
     F32(f32),
     F64(f64),
-    Char(char),
     Bool(bool),
-    #[default]
-    Null
+    Char(char),
+    String(String),
+    Bytes(Vec<u8>)
 }
 
 impl DataValue {
     pub fn from_bytes(bytes: &[u8], type_: DataType) -> Self {
         if bytes.len() == 0 {
-            return DataValue::Null;
+            return Self::Null;
         }
         let first_el = bytes[0];
+        let rest_el: Vec<u8> = bytes.iter().enumerate()
+            .filter(|(index, _)| *index > 0)
+            .map(|(_, &value)| value)
+            .collect();
         let sel_val = |n: usize, v: DataValue| -> DataValue {
             if bytes.len() == n {
                 v
             } else {
-                DataValue::Null
+                Self::Null
             }
         };
         match type_ {
@@ -260,8 +276,19 @@ impl DataValue {
             U128T => sel_val(16, U128(u128::from_be_bytes(bytes.try_into().unwrap_or_default()))),
             F32T => sel_val(4, F32(f32::from_be_bytes(bytes.try_into().unwrap_or_default()))),
             F64T => sel_val(8, F64(f64::from_be_bytes(bytes.try_into().unwrap_or_default()))),
-            CharT => sel_val(1, Char(char::from_u32(first_el as u32).unwrap_or_default())),
             BoolT => sel_val(1, Bool(bool::from(first_el > 0))),
+            CharT => sel_val(1, Char(char::from_u32(first_el as u32).unwrap_or_default())),
+            StringT => sel_val(
+                first_el as usize + 1,
+                match String::from_utf8(rest_el).ok() {
+                    Some(value) => Self::String(value),
+                    None => Self::Null
+                }
+            ),
+            BytesT => sel_val(
+                first_el as usize + 1,
+                Self::Bytes(rest_el)
+            ),
             _ => Self::Null
         }
     }
@@ -279,8 +306,20 @@ impl DataValue {
             U128(value) => value.to_be_bytes().to_vec(),
             F32(value) => value.to_be_bytes().to_vec(),
             F64(value) => value.to_be_bytes().to_vec(),
-            Char(value) => Vec::from([*value as u8]),
             Bool(value) => Vec::from([*value as u8]),
+            Char(value) => Vec::from([*value as u8]),
+            Self::String(value) => {
+                let mut vec_len = vec![value.len() as u8];
+                let mut vec_str = value.to_owned().as_bytes().to_vec();
+                vec_len.append(&mut vec_str);
+                vec_len
+            },
+            Self::Bytes(value) => {
+                let mut vec_len = vec![value.len() as u8];
+                let mut vec_bytes = value.to_owned();
+                vec_len.append(&mut vec_bytes);
+                vec_len
+            },
             _ => Vec::new()
         }
     }
@@ -300,6 +339,8 @@ impl DataValue {
             F64(_) => F64T,
             Char(_) => CharT,
             Bool(_) => BoolT,
+            Self::String(_) => StringT,
+            Self::Bytes(_) => BytesT,
             Self::Null => DataType::NullT
         }
     }
@@ -364,12 +405,14 @@ impl ArrayDataValue {
         let mut values = Vec::new();
         let mut index = 0;
         for t in types {
+            let string_bytes_len = bytes.get(index).unwrap_or(&0).to_owned() as usize;
             let len = match t {
                 I8T | U8T | CharT | BoolT => 1,
                 I16T | U16T => 2,
                 I32T | U32T | F32T => 4,
                 I64T | U64T | F64T => 8,
                 I128T | U128T => 16,
+                StringT | BytesT => string_bytes_len + 1,
                 _ => 0
             };
             if index + len > bytes.len() {
@@ -659,6 +702,15 @@ mod tests {
         assert_eq!(bytes.to_vec(), value.to_bytes());
         assert_eq!(value, Bool(true));
 
+        let bytes = [3, 97, 98, 99];
+        let value = DataValue::from_bytes(&bytes, StringT);
+        assert_eq!(bytes.to_vec(), value.to_bytes());
+        assert_eq!(value, DataValue::String("abc".to_owned()));
+        let bytes = [4, 10, 20, 30, 40];
+        let value = DataValue::from_bytes(&bytes, BytesT);
+        assert_eq!(bytes.to_vec(), value.to_bytes());
+        assert_eq!(value, DataValue::Bytes(vec![10, 20, 30, 40]));
+
         // wrong bytes length
         let bytes = [1, 0];
         assert_eq!(DataValue::from_bytes(&bytes, U8T), DataValue::Null);
@@ -685,12 +737,14 @@ mod tests {
             F64(0.01171875)
         ]);
 
-        let bytes = [97, 1];
-        let types = [CharT, BoolT];
+        let bytes = [97, 1, 3, 97, 98, 99, 4, 10, 20, 30, 40];
+        let types = [CharT, BoolT, StringT, BytesT];
         let data = ArrayDataValue::from_bytes(&bytes, &types);
         assert_eq!(data.0, [
             Char('a'),
-            Bool(true)
+            Bool(true),
+            DataValue::String("abc".to_owned()),
+            DataValue::Bytes(vec![10, 20, 30, 40])
         ]);
     }
 
