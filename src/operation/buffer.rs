@@ -214,3 +214,37 @@ pub(crate) async fn delete_buffer(pool: &Pool<Postgres>,
 
     Ok(())
 }
+
+pub(crate) async fn count_buffer(pool: &Pool<Postgres>,
+    device_id: Option<Uuid>,
+    model_id: Option<Uuid>,
+    status: Option<BufferStatus>
+) -> Result<usize, Error>
+{
+    let mut stmt = Query::select()
+        .expr(Expr::col(DataBuffer::Id).count())
+        .from(DataBuffer::Table)
+        .to_owned();
+
+    if let Some(id) = device_id {
+        stmt = stmt.and_where(Expr::col(DataBuffer::DeviceId).eq(id)).to_owned();
+    }
+    if let Some(id) = model_id {
+        stmt = stmt.and_where(Expr::col(DataBuffer::ModelId).eq(id)).to_owned();
+    }
+    if let Some(stat) = status {
+        let status = i16::from(stat);
+        stmt = stmt.and_where(Expr::col(DataBuffer::Status).eq(status)).to_owned();
+    }
+
+    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
+
+    let count: i64 = sqlx::query_with(&sql, values)
+        .map(|row| {
+            row.get(0)
+        })
+        .fetch_one(pool)
+        .await?;
+
+    Ok(count as usize)
+}

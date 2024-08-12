@@ -949,14 +949,35 @@ impl Resource {
     pub async fn create_data(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, data: Vec<DataValue>)
         -> Result<(), Error>
     {
-        data::insert_data(&self.pool, model_id, device_id, timestamp, data)
+        data::insert_data(&self.pool, device_id, model_id, timestamp, data)
         .await
     }
 
     pub async fn delete_data(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>)
         -> Result<(), Error>
     {
-        data::delete_data(&self.pool, model_id, device_id, timestamp)
+        data::delete_data(&self.pool, device_id, model_id, timestamp)
+        .await
+    }
+
+    pub async fn count_data(&self, device_id: Uuid, model_id: Uuid)
+        -> Result<usize, Error>
+    {
+        data::count_data(&self.pool, DataSelector::Time(DateTime::default()), device_id, model_id)
+        .await
+    }
+
+    pub async fn count_data_by_last_time(&self, device_id: Uuid, model_id: Uuid, last: DateTime<Utc>)
+        -> Result<usize, Error>
+    {
+        data::count_data(&self.pool, DataSelector::Last(last), device_id, model_id)
+        .await
+    }
+
+    pub async fn count_data_by_range_time(&self, device_id: Uuid, model_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
+        -> Result<usize, Error>
+    {
+        data::count_data(&self.pool, DataSelector::Range(begin, end), device_id, model_id)
         .await
     }
 
@@ -1129,6 +1150,13 @@ impl Resource {
         -> Result<(), Error>
     {
         buffer::delete_buffer(&self.pool, id).await
+    }
+
+    pub async fn count_buffer(&self, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
+        -> Result<usize, Error>
+    {
+        buffer::count_buffer(&self.pool, device_id, model_id, status)
+        .await
     }
 
     pub async fn read_slice(&self, id: i32)
