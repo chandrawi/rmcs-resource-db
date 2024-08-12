@@ -2,7 +2,7 @@ use std::str::FromStr;
 use sea_query::Iden;
 use sqlx::types::chrono::{DateTime, Utc, TimeZone};
 use uuid::Uuid;
-use crate::schema::value::{LogValue, LogType};
+use crate::schema::value::{DataValue, DataType};
 use rmcs_resource_api::{common, log};
 
 #[allow(unused)]
@@ -130,7 +130,7 @@ pub struct LogSchema {
     pub timestamp: DateTime<Utc>,
     pub device_id: Uuid,
     pub status: LogStatus,
-    pub value: LogValue
+    pub value: DataValue
 }
 
 impl From<log::LogSchema> for LogSchema {
@@ -139,9 +139,9 @@ impl From<log::LogSchema> for LogSchema {
             timestamp: Utc.timestamp_nanos(value.timestamp * 1000),
             device_id: Uuid::from_slice(&value.device_id).unwrap_or_default(),
             status: LogStatus::from(value.status as i16),
-            value: LogValue::from_bytes(
+            value: DataValue::from_bytes(
                 &value.log_bytes,
-                LogType::from(common::ConfigType::try_from(value.log_type).unwrap_or_default())
+                DataType::from(common::DataType::try_from(value.log_type).unwrap_or_default())
             )
         }
     }
@@ -154,7 +154,7 @@ impl Into<log::LogSchema> for LogSchema {
             device_id: self.device_id.as_bytes().to_vec(),
             status: i16::from(self.status).into(),
             log_bytes: self.value.to_bytes(),
-            log_type: Into::<common::ConfigType>::into(self.value.get_type()).into()
+            log_type: Into::<common::DataType>::into(self.value.get_type()).into()
         }
     }
 }

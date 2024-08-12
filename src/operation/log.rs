@@ -5,7 +5,7 @@ use sea_query::{PostgresQueryBuilder, Query, Expr, Order};
 use sea_query_binder::SqlxBinder;
 use uuid::Uuid;
 
-use crate::schema::value::{ConfigType, ConfigValue};
+use crate::schema::value::{DataType, DataValue};
 use crate::schema::log::{SystemLog, LogSchema, LogStatus};
 
 pub(crate) enum LogSelector {
@@ -59,12 +59,12 @@ pub(crate) async fn select_log(pool: &Pool<Postgres>,
     let rows = sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
             let bytes: Vec<u8> = row.get(3);
-            let type_ = ConfigType::from(row.get::<i16,_>(4));
+            let type_ = DataType::from(row.get::<i16,_>(4));
             LogSchema {
                 device_id: row.get(0),
                 timestamp: row.get(1),
                 status: LogStatus::from(row.get::<i16,_>(2)),
-                value: ConfigValue::from_bytes(&bytes, type_)
+                value: DataValue::from_bytes(&bytes, type_)
             }
         })
         .fetch_all(pool)
@@ -77,7 +77,7 @@ pub(crate) async fn insert_log(pool: &Pool<Postgres>,
     timestamp: DateTime<Utc>,
     device_id: Uuid,
     status: LogStatus,
-    value: ConfigValue
+    value: DataValue
 ) -> Result<(), Error>
 {
     let bytes = value.to_bytes();
@@ -113,7 +113,7 @@ pub(crate) async fn update_log(pool: &Pool<Postgres>,
     timestamp: DateTime<Utc>,
     device_id: Uuid,
     status: Option<LogStatus>,
-    value: Option<ConfigValue>
+    value: Option<DataValue>
 ) -> Result<(), Error>
 {
     let mut stmt = Query::update()

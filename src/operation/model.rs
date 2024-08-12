@@ -4,7 +4,7 @@ use sea_query::{PostgresQueryBuilder, Query, Expr, Order, Func};
 use sea_query_binder::SqlxBinder;
 use uuid::Uuid;
 
-use crate::schema::value::{ConfigType, ConfigValue, DataType};
+use crate::schema::value::{DataValue, DataType};
 use crate::schema::model::{Model, ModelConfig, ModelSchema, ModelConfigSchema};
 use crate::schema::device::DeviceTypeModel;
 
@@ -103,13 +103,13 @@ pub(crate) async fn select_model(pool: &Pool<Postgres>,
             // update model_schema configs if non empty config found
             if let Some(index) = type_index {
                 let bytes: Vec<u8> = row.try_get(8).unwrap_or_default();
-                let type_ = ConfigType::from(row.try_get::<i16,_>(9).unwrap_or_default());
+                let type_ = DataType::from(row.try_get::<i16,_>(9).unwrap_or_default());
                 config_schema_vec.push(ModelConfigSchema {
                     id: row.try_get(5).unwrap_or_default(),
                     model_id: id,
                     index,
                     name: row.try_get(7).unwrap_or_default(),
-                    value: ConfigValue::from_bytes(bytes.as_slice(), type_),
+                    value: DataValue::from_bytes(bytes.as_slice(), type_),
                     category: row.try_get(10).unwrap_or_default()
                 });
             }
@@ -248,13 +248,13 @@ pub(crate) async fn select_model_config(pool: &Pool<Postgres>,
     let rows = sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
             let bytes: &[u8] = row.get(4);
-            let type_ = ConfigType::from(row.get::<i16,_>(5));
+            let type_ = DataType::from(row.get::<i16,_>(5));
             ModelConfigSchema {
                 id: row.get(0),
                 model_id: row.get(1),
                 index: row.get(2),
                 name: row.get(3),
-                value: ConfigValue::from_bytes(bytes, type_),
+                value: DataValue::from_bytes(bytes, type_),
                 category: row.get(6)
             }
         })
@@ -268,7 +268,7 @@ pub(crate) async fn insert_model_config(pool: &Pool<Postgres>,
     model_id: Uuid,
     index: i32,
     name: &str,
-    value: ConfigValue,
+    value: DataValue,
     category: &str
 ) -> Result<i32, Error>
 {
@@ -314,7 +314,7 @@ pub(crate) async fn insert_model_config(pool: &Pool<Postgres>,
 pub(crate) async fn update_model_config(pool: &Pool<Postgres>,
     id: i32,
     name: Option<&str>,
-    value: Option<ConfigValue>,
+    value: Option<DataValue>,
     category: Option<&str>
 ) -> Result<(), Error>
 {

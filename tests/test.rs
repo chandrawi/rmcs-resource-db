@@ -6,7 +6,7 @@ mod tests {
     use sqlx::types::chrono::{Utc, DateTime};
     use uuid::Uuid;
     use rmcs_resource_db::{ModelConfigSchema, DeviceConfigSchema};
-    use rmcs_resource_db::{Resource, ConfigValue::{*, self}, DataType::*, DataValue::*};
+    use rmcs_resource_db::{Resource, DataType::*, DataValue::{*, self}};
     use rmcs_resource_db::{BufferStatus::*, LogStatus::*};
 
     async fn get_connection_pool() -> Result<Pool<Postgres>, Error>
@@ -43,11 +43,11 @@ mod tests {
         let model_id = resource.create_model(Uuid::new_v4(), &[F32T,F32T], "UPLINK", "speed and direction", None).await.unwrap();
         let model_buf_id = resource.create_model(Uuid::new_v4(), &[U8T,U8T,U8T,U8T], "UPLINK", "buffer 4", None).await.unwrap();
         // create scale, symbol, and threshold configurations for new created model
-        resource.create_model_config(model_id, 0, "scale_0", Str("speed".to_owned()), "SCALE").await.unwrap();
-        resource.create_model_config(model_id, 1, "scale_1", Str("direction".to_owned()), "SCALE").await.unwrap();
-        resource.create_model_config(model_id, 0, "unit_0", Str("meter/second".to_owned()), "UNIT").await.unwrap();
-        resource.create_model_config(model_id, 1, "unit_1", Str("degree".to_owned()), "UNIT").await.unwrap();
-        let model_cfg_id = resource.create_model_config(model_id, 0, "upper_threshold", Int(250), "THRESHOLD").await.unwrap();
+        resource.create_model_config(model_id, 0, "scale_0", String("speed".to_owned()), "SCALE").await.unwrap();
+        resource.create_model_config(model_id, 1, "scale_1", String("direction".to_owned()), "SCALE").await.unwrap();
+        resource.create_model_config(model_id, 0, "unit_0", String("meter/second".to_owned()), "UNIT").await.unwrap();
+        resource.create_model_config(model_id, 1, "unit_1", String("degree".to_owned()), "UNIT").await.unwrap();
+        let model_cfg_id = resource.create_model_config(model_id, 0, "upper_threshold", I32(250), "THRESHOLD").await.unwrap();
 
         // Create new type and link it to newly created model
         let type_id = resource.create_type(Uuid::new_v4(), "Speedometer Compass", None).await.unwrap();
@@ -61,12 +61,12 @@ mod tests {
         resource.create_device(device_id1, gateway_id, type_id, "TEST01", "Speedometer Compass 1", None).await.unwrap();
         resource.create_device(device_id2, gateway_id, type_id, "TEST02", "Speedometer Compass 2", None).await.unwrap();
         // create device configurations
-        resource.create_device_config(device_id1, "coef_0", Int(-21), "CONVERSION").await.unwrap();
-        resource.create_device_config(device_id1, "coef_1", Float(0.1934), "CONVERSION").await.unwrap();
-        resource.create_device_config(device_id1, "period", Int(60), "NETWORK").await.unwrap();
-        resource.create_device_config(device_id2, "coef_0", Int(44), "CONVERSION").await.unwrap();
-        resource.create_device_config(device_id2, "coef_1", Float(0.2192), "CONVERSION").await.unwrap();
-        let device_cfg_id = resource.create_device_config(device_id2, "period", Int(120), "NETWORK").await.unwrap();
+        resource.create_device_config(device_id1, "coef_0", I32(-21), "CONVERSION").await.unwrap();
+        resource.create_device_config(device_id1, "coef_1", F64(0.1934), "CONVERSION").await.unwrap();
+        resource.create_device_config(device_id1, "period", I32(60), "NETWORK").await.unwrap();
+        resource.create_device_config(device_id2, "coef_0", I32(44), "CONVERSION").await.unwrap();
+        resource.create_device_config(device_id2, "coef_1", F64(0.2192), "CONVERSION").await.unwrap();
+        let device_cfg_id = resource.create_device_config(device_id2, "period", I32(120), "NETWORK").await.unwrap();
 
         // create new group and register newly created models as its member
         let group_model_id = resource.create_group_model(Uuid::new_v4(), "data", "APPLICATION", None).await.unwrap();
@@ -127,9 +127,9 @@ mod tests {
         assert_eq!(model.name, "buffer 2 integer");
         assert_eq!(model.data_type, [I32T,I32T]);
         // update model configurations
-        resource.update_model_config(model_cfg_id, None, Some(Int(238)), None).await.unwrap();
+        resource.update_model_config(model_cfg_id, None, Some(I32(238)), None).await.unwrap();
         let config = resource.read_model_config(model_cfg_id).await.unwrap();
-        assert_eq!(config.value, Int(238));
+        assert_eq!(config.value, I32(238));
 
         // update type
         resource.update_type(type_id, None, Some("Speedometer and compass sensor")).await.unwrap();
@@ -141,9 +141,9 @@ mod tests {
         let device2 = resource.read_device(device_id2).await.unwrap();
         assert_eq!(device2.description, "E-bike speedometer and compass sensor 2");
         // update device config
-        resource.update_device_config(device_cfg_id, None, Some(Int(60)), None).await.unwrap();
+        resource.update_device_config(device_cfg_id, None, Some(I32(60)), None).await.unwrap();
         let config = resource.read_device_config(device_cfg_id).await.unwrap();
-        assert_eq!(config.value, Int(60));
+        assert_eq!(config.value, I32(60));
 
         // update group model
         resource.update_group_model(group_model_id, None, None, Some("Data models")).await.unwrap();
@@ -167,11 +167,11 @@ mod tests {
         assert_eq!(buffers[1].data, raw_2);
 
         // get model config value then convert buffer data
-        let conf_val = |model_configs: Vec<DeviceConfigSchema>, name: &str| -> ConfigValue {
+        let conf_val = |model_configs: Vec<DeviceConfigSchema>, name: &str| -> DataValue {
             model_configs.iter().filter(|&cfg| cfg.name == name.to_owned())
                 .next().unwrap().value.clone()
         };
-        let convert = |raw: i32, coef0: i64, coef1: f64| -> f64 {
+        let convert = |raw: i32, coef0: i32, coef1: f64| -> f64 {
             (raw as f64 - coef0 as f64) * coef1
         };
         let coef0 = conf_val(device_configs.clone(), "coef_0").try_into().unwrap();
@@ -223,11 +223,11 @@ mod tests {
         assert!(result.is_err());
 
         // create system log
-        resource.create_log(timestamp, device_id1, UnknownError, Str("testing success".to_owned())).await.unwrap();
+        resource.create_log(timestamp, device_id1, UnknownError, String("testing success".to_owned())).await.unwrap();
         // read log
         let logs = resource.list_log_by_range_time(timestamp, Utc::now(), None, None).await.unwrap();
         let log = logs.iter().filter(|x| x.device_id == device_id1 && x.timestamp == timestamp).next().unwrap();
-        assert_eq!(log.value, Str("testing success".to_owned()));
+        assert_eq!(log.value, String("testing success".to_owned()));
 
         // update system log
         resource.update_log(timestamp, device_id1, Some(Success), None).await.unwrap();

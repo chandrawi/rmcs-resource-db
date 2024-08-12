@@ -1,6 +1,6 @@
 use sea_query::Iden;
 use uuid::Uuid;
-use crate::schema::value::{ConfigValue, ConfigType, DataType};
+use crate::schema::value::{DataValue, DataType};
 use rmcs_resource_api::{common, model};
 
 #[derive(Iden)]
@@ -41,7 +41,7 @@ pub struct ModelConfigSchema {
     pub model_id: Uuid,
     pub index: i16,
     pub name: String,
-    pub value: ConfigValue,
+    pub value: DataValue,
     pub category: String
 }
 
@@ -86,9 +86,9 @@ impl From<model::ConfigSchema> for ModelConfigSchema {
             model_id: Uuid::from_slice(&value.model_id).unwrap_or_default(),
             index: value.index as i16,
             name: value.name,
-            value: ConfigValue::from_bytes(
+            value: DataValue::from_bytes(
                 &value.config_bytes, 
-                ConfigType::from(common::ConfigType::try_from(value.config_type).unwrap_or_default())
+                DataType::from(common::DataType::try_from(value.config_type).unwrap_or_default())
             ),
             category: value.category
         }
@@ -103,7 +103,7 @@ impl Into<model::ConfigSchema> for ModelConfigSchema {
             index: self.index as i32,
             name: self.name,
             config_bytes: self.value.to_bytes(),
-            config_type: Into::<common::ConfigType>::into(self.value.get_type()).into(),
+            config_type: Into::<common::DataType>::into(self.value.get_type()).into(),
             category: self.category
         }
     }

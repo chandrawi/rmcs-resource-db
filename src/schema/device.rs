@@ -1,6 +1,6 @@
 use sea_query::Iden;
 use uuid::Uuid;
-use crate::schema::value::{ConfigValue, ConfigType};
+use crate::schema::value::{DataValue, DataType};
 use rmcs_resource_api::{common, device};
 
 #[derive(Iden)]
@@ -93,7 +93,7 @@ pub struct DeviceConfigSchema {
     pub id: i32,
     pub device_id: Uuid,
     pub name: String,
-    pub value: ConfigValue,
+    pub value: DataValue,
     pub category: String
 }
 
@@ -102,7 +102,7 @@ pub struct GatewayConfigSchema {
     pub id: i32,
     pub gateway_id: Uuid,
     pub name: String,
-    pub value: ConfigValue,
+    pub value: DataValue,
     pub category: String
 }
 
@@ -179,9 +179,9 @@ impl From<device::ConfigSchema> for DeviceConfigSchema {
             id: value.id,
             device_id: Uuid::from_slice(&value.device_id).unwrap_or_default(),
             name: value.name,
-            value: ConfigValue::from_bytes(
+            value: DataValue::from_bytes(
                 &value.config_bytes,
-                ConfigType::from(common::ConfigType::try_from(value.config_type).unwrap_or_default())
+                DataType::from(common::DataType::try_from(value.config_type).unwrap_or_default())
             ),
             category: value.category
         }
@@ -195,7 +195,7 @@ impl Into<device::ConfigSchema> for DeviceConfigSchema {
             device_id: self.device_id.as_bytes().to_vec(),
             name: self.name,
             config_bytes: self.value.to_bytes(),
-            config_type: Into::<common::ConfigType>::into(self.value.get_type()).into(),
+            config_type: Into::<common::DataType>::into(self.value.get_type()).into(),
             category: self.category
         }
     }
@@ -207,9 +207,9 @@ impl From<device::ConfigSchema> for GatewayConfigSchema {
             id: value.id,
             gateway_id: Uuid::from_slice(&value.device_id).unwrap_or_default(),
             name: value.name,
-            value: ConfigValue::from_bytes(
+            value: DataValue::from_bytes(
                 &value.config_bytes,
-                ConfigType::from(common::ConfigType::try_from(value.config_type).unwrap_or_default())
+                DataType::from(common::DataType::try_from(value.config_type).unwrap_or_default())
             ),
             category: value.category
         }
@@ -223,7 +223,7 @@ impl Into<device::ConfigSchema> for GatewayConfigSchema {
             device_id: self.gateway_id.as_bytes().to_vec(),
             name: self.name,
             config_bytes: self.value.to_bytes(),
-            config_type: Into::<common::ConfigType>::into(self.value.get_type()).into(),
+            config_type: Into::<common::DataType>::into(self.value.get_type()).into(),
             category: self.category
         }
     }

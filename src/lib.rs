@@ -16,7 +16,7 @@ use operation::data;
 use operation::buffer;
 use operation::slice;
 use operation::log;
-pub use schema::value::{ConfigType, ConfigValue, LogType, LogValue, DataType, DataValue, ArrayDataValue};
+pub use schema::value::{DataType, DataValue, ArrayDataValue};
 pub use schema::model::{ModelSchema, ModelConfigSchema};
 pub use schema::device::{DeviceSchema, GatewaySchema, TypeSchema, DeviceConfigSchema, GatewayConfigSchema};
 use schema::device::DeviceKind;
@@ -184,14 +184,14 @@ impl Resource {
         .await
     }
 
-    pub async fn create_model_config(&self, model_id: Uuid, index: i32, name: &str, value: ConfigValue, category: &str)
+    pub async fn create_model_config(&self, model_id: Uuid, index: i32, name: &str, value: DataValue, category: &str)
         -> Result<i32, Error>
     {
         model::insert_model_config(&self.pool, model_id, index, name, value, category)
         .await
     }
 
-    pub async fn update_model_config(&self, id: i32, name: Option<&str>, value: Option<ConfigValue>, category: Option<&str>)
+    pub async fn update_model_config(&self, id: i32, name: Option<&str>, value: Option<DataValue>, category: Option<&str>)
         -> Result<(), Error>
     {
         model::update_model_config(&self.pool, id, name, value, category)
@@ -375,14 +375,14 @@ impl Resource {
         .await
     }
 
-    pub async fn create_device_config(&self, device_id: Uuid, name: &str, value: ConfigValue, category: &str)
+    pub async fn create_device_config(&self, device_id: Uuid, name: &str, value: DataValue, category: &str)
         -> Result<i32, Error>
     {
         device::insert_device_config(&self.pool, device_id, name, value, category)
         .await
     }
 
-    pub async fn update_device_config(&self, id: i32, name: Option<&str>, value: Option<ConfigValue>, category: Option<&str>)
+    pub async fn update_device_config(&self, id: i32, name: Option<&str>, value: Option<DataValue>, category: Option<&str>)
         -> Result<(), Error>
     {
         device::update_device_config(&self.pool, id, name, value, category)
@@ -415,14 +415,14 @@ impl Resource {
         }
     }
 
-    pub async fn create_gateway_config(&self, gateway_id: Uuid, name: &str, value: ConfigValue, category: &str)
+    pub async fn create_gateway_config(&self, gateway_id: Uuid, name: &str, value: DataValue, category: &str)
         -> Result<i32, Error>
     {
         device::insert_device_config(&self.pool, gateway_id, name, value, category)
         .await
     }
 
-    pub async fn update_gateway_config(&self, id: i32, name: Option<&str>, value: Option<ConfigValue>, category: Option<&str>)
+    pub async fn update_gateway_config(&self, id: i32, name: Option<&str>, value: Option<DataValue>, category: Option<&str>)
         -> Result<(), Error>
     {
         device::update_device_config(&self.pool, id, name, value, category)
@@ -1330,14 +1330,14 @@ impl Resource {
         .await
     }
 
-    pub async fn create_log(&self, timestamp: DateTime<Utc>, device_id: Uuid, status: LogStatus, value: ConfigValue)
+    pub async fn create_log(&self, timestamp: DateTime<Utc>, device_id: Uuid, status: LogStatus, value: DataValue)
         -> Result<(), Error>
     {
         log::insert_log(&self.pool, timestamp, device_id, status, value)
         .await
     }
 
-    pub async fn update_log(&self, timestamp: DateTime<Utc>, device_id: Uuid, status: Option<LogStatus>, value: Option<ConfigValue>)
+    pub async fn update_log(&self, timestamp: DateTime<Utc>, device_id: Uuid, status: Option<LogStatus>, value: Option<DataValue>)
         -> Result<(), Error>
     {
         log::update_log(&self.pool, timestamp, device_id, status, value)

@@ -1,99 +1,6 @@
-use ConfigValue::{Int, Float, Str};
 use DataValue::{I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, F32, F64, Bool, Char};
-use ConfigType::{IntT, FloatT, StrT};
 use DataType::{I8T, I16T, I32T, I64T, I128T, U8T, U16T, U32T, U64T, U128T, F32T, F64T, BoolT, CharT, StringT, BytesT};
 use rmcs_resource_api::common;
-
-#[derive(Debug)]
-pub enum ConfigType {
-    IntT,
-    FloatT,
-    StrT,
-    NullT
-}
-
-impl From<i16> for ConfigType {
-    fn from(value: i16) -> Self {
-        match value {
-            1 => IntT,
-            2 => FloatT,
-            3 => StrT,
-            _ => Self::NullT
-        }
-    }
-}
-
-impl From<ConfigType> for i16 {
-    fn from(value: ConfigType) -> Self {
-        match value {
-            IntT => 1,
-            FloatT => 2,
-            StrT => 3,
-            ConfigType::NullT => 0
-        }
-    }
-}
-
-impl From<common::ConfigType> for ConfigType {
-    fn from(value: common::ConfigType) -> Self {
-        match value {
-            common::ConfigType::Nullc => Self::NullT,
-            common::ConfigType::Int => Self::IntT,
-            common::ConfigType::Float => Self::FloatT,
-            common::ConfigType::Str => Self::StrT
-        }
-    }
-}
-
-impl Into<common::ConfigType> for ConfigType {
-    fn into(self) -> common::ConfigType {
-        match self {
-            Self::NullT => common::ConfigType::Nullc,
-            Self::IntT => common::ConfigType::Int,
-            Self::FloatT => common::ConfigType::Float,
-            Self::StrT => common::ConfigType::Str
-        }
-    }
-}
-
-#[derive(Debug, Default, Clone, PartialEq)]
-pub enum ConfigValue {
-    Int(i64),
-    Float(f64),
-    Str(String),
-    #[default]
-    Null
-}
-
-impl ConfigValue {
-    pub fn from_bytes(bytes: &[u8], type_: ConfigType) -> Self {
-        match type_ {
-            IntT => Int(i64::from_be_bytes(bytes.try_into().unwrap_or_default())),
-            FloatT => Float(f64::from_be_bytes(bytes.try_into().unwrap_or_default())),
-            StrT => Str(std::str::from_utf8(bytes).unwrap_or_default().to_owned()),
-            _ => Self::Null
-        }
-    }
-    pub fn to_bytes(&self) -> Vec<u8> {
-        match self {
-            Int(value) => value.to_be_bytes().to_vec(),
-            Float(value) => value.to_be_bytes().to_vec(),
-            Str(value) => value.as_bytes().to_vec(),
-            Self::Null => Vec::new()
-        }
-    }
-    pub fn get_type(&self) -> ConfigType {
-        match self {
-            Int(_) => IntT,
-            Float(_) => FloatT,
-            Str(_) => StrT,
-            Self::Null => ConfigType::NullT
-        }
-    }
-}
-
-pub type LogType = ConfigType;
-pub type LogValue = ConfigValue;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DataType {
@@ -140,6 +47,12 @@ impl From<u8> for DataType {
     }
 }
 
+impl From<i16> for DataType {
+    fn from(value: i16) -> Self {
+        Self::from(value as u8)
+    }
+}
+
 impl From<i32> for DataType {
     fn from(value: i32) -> Self {
         Self::from(value as u8)
@@ -167,6 +80,12 @@ impl From<DataType> for u8 {
             BytesT => 18,
             DataType::NullT => 0
         }
+    }
+}
+
+impl From<DataType> for i16 {
+    fn from(value: DataType) -> Self {
+        u8::from(value) as i16
     }
 }
 
@@ -462,13 +381,6 @@ impl ArrayDataValue {
 }
 
 macro_rules! value_impl_from {
-    ($from:ty, $value:ty, $variant:path, $into:ty) => {
-        impl From<$from> for $value {
-            fn from(value: $from) -> Self {
-                $variant(value as $into)
-            }
-        }
-    };
     ($from:ty, $value:ty, $variant:path) => {
         impl From<$from> for $value {
             fn from(value: $from) -> Self {
@@ -477,21 +389,6 @@ macro_rules! value_impl_from {
         }
     };
 }
-
-value_impl_from!(i8, ConfigValue, Int, i64);
-value_impl_from!(i16, ConfigValue, Int, i64);
-value_impl_from!(i32, ConfigValue, Int, i64);
-value_impl_from!(i64, ConfigValue, Int, i64);
-value_impl_from!(i128, ConfigValue, Int, i64);
-value_impl_from!(u8, ConfigValue, Int, i64);
-value_impl_from!(u16, ConfigValue, Int, i64);
-value_impl_from!(u32, ConfigValue, Int, i64);
-value_impl_from!(u64, ConfigValue, Int, i64);
-value_impl_from!(u128, ConfigValue, Int, i64);
-value_impl_from!(f32, ConfigValue, Float, f64);
-value_impl_from!(f64, ConfigValue, Float, f64);
-value_impl_from!(String, ConfigValue, Str);
-value_impl_from!(&str, ConfigValue, Str);
 
 value_impl_from!(i8, DataValue, I8);
 value_impl_from!(i16, DataValue, I16);
@@ -522,20 +419,6 @@ macro_rules! value_impl_try_into {
     };
 }
 
-value_impl_try_into!(i8, ConfigValue, Int);
-value_impl_try_into!(i16, ConfigValue, Int);
-value_impl_try_into!(i32, ConfigValue, Int);
-value_impl_try_into!(i64, ConfigValue, Int);
-value_impl_try_into!(i128, ConfigValue, Int);
-value_impl_try_into!(u8, ConfigValue, Int);
-value_impl_try_into!(u16, ConfigValue, Int);
-value_impl_try_into!(u32, ConfigValue, Int);
-value_impl_try_into!(u64, ConfigValue, Int);
-value_impl_try_into!(u128, ConfigValue, Int);
-value_impl_try_into!(f32, ConfigValue, Float);
-value_impl_try_into!(f64, ConfigValue, Float);
-value_impl_try_into!(String, ConfigValue, Str);
-
 value_impl_try_into!(i8, DataValue, I8);
 value_impl_try_into!(i16, DataValue, I16);
 value_impl_try_into!(i32, DataValue, I32);
@@ -554,54 +437,6 @@ value_impl_try_into!(bool, DataValue, Bool);
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn config_value_conversion()
-    {
-        let value: u8 = 1;
-        let conf = ConfigValue::from(value);
-        assert_eq!(value, TryInto::<u8>::try_into(conf).unwrap());
-        let value: i16 = -256;
-        let conf = ConfigValue::from(value);
-        assert_eq!(value, TryInto::<i16>::try_into(conf).unwrap());
-        let value: u32 = 65536;
-        let conf = ConfigValue::from(value);
-        assert_eq!(value, TryInto::<u32>::try_into(conf).unwrap());
-        let value: i64 = -4294967296;
-        let conf = ConfigValue::from(value);
-        assert_eq!(value, TryInto::<i64>::try_into(conf).unwrap());
-
-        let value: f32 = 65536.65536;
-        let conf = ConfigValue::from(value);
-        assert_eq!(value, TryInto::<f32>::try_into(conf).unwrap());
-        let value: f64 = 4294967296.4294967296;
-        let conf = ConfigValue::from(value);
-        assert_eq!(value, TryInto::<f64>::try_into(conf).unwrap());
-
-        let value: &str = "slice_value";
-        let conf = ConfigValue::from(value);
-        let convert: String = conf.try_into().unwrap();
-        assert_eq!(String::from("slice_value"), convert);
-    }
-
-    #[test]
-    fn config_value_bytes() 
-    {
-        let bytes = [255, 255, 255, 255, 255, 255, 255, 0];
-        let conf = ConfigValue::from_bytes(&bytes, IntT);
-        assert_eq!(bytes.to_vec(), conf.to_bytes());
-        assert_eq!(conf, Int(-256));
-
-        let bytes = [63, 136, 0, 0, 0, 0, 0, 0];
-        let conf = ConfigValue::from_bytes(&bytes, FloatT);
-        assert_eq!(bytes.to_vec(), conf.to_bytes());
-        assert_eq!(conf, Float(0.01171875));
-
-        let bytes = [97, 98, 99, 100];
-        let conf = ConfigValue::from_bytes(&bytes, StrT);
-        assert_eq!(bytes.to_vec(), conf.to_bytes());
-        assert_eq!(conf, Str(String::from("abcd")));
-    }
 
     #[test]
     fn data_value_conversion()

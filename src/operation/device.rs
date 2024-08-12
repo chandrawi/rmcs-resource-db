@@ -4,7 +4,7 @@ use sea_query::{PostgresQueryBuilder, Query, Expr, Order, Func};
 use sea_query_binder::SqlxBinder;
 use uuid::Uuid;
 
-use crate::schema::value::{ConfigValue, ConfigType};
+use crate::schema::value::{DataValue, DataType};
 use crate::schema::device::{Device, DeviceType, DeviceTypeModel, DeviceConfig, DeviceKind, DeviceSchema, DeviceConfigSchema};
 
 pub(crate) async fn select_device(pool: &Pool<Postgres>, 
@@ -126,12 +126,12 @@ pub(crate) async fn select_device(pool: &Pool<Postgres>,
             let config_id: Result<i32, Error> = row.try_get(9);
             if let Ok(cfg_id) = config_id {
                 let bytes: Vec<u8> = row.try_get(11).unwrap_or_default();
-                let type_string = ConfigType::from(row.try_get::<i16,_>(12).unwrap_or_default());
+                let type_ = DataType::from(row.try_get::<i16,_>(12).unwrap_or_default());
                 device_schema.configs.push(DeviceConfigSchema {
                     id: cfg_id,
                     device_id: id,
                     name: row.try_get(10).unwrap_or_default(),
-                    value: ConfigValue::from_bytes(bytes.as_slice(), type_string),
+                    value: DataValue::from_bytes(bytes.as_slice(), type_),
                     category: row.try_get(13).unwrap_or_default()
                 });
             }
@@ -293,12 +293,12 @@ pub(crate) async fn select_device_config(pool: &Pool<Postgres>,
     let rows = sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
             let bytes = row.get(3);
-            let type_string = ConfigType::from(row.get::<i16,_>(4));
+            let type_ = DataType::from(row.get::<i16,_>(4));
             DeviceConfigSchema {
                 id: row.get(0),
                 device_id: row.get(1),
                 name: row.get(2),
-                value: ConfigValue::from_bytes(bytes, type_string),
+                value: DataValue::from_bytes(bytes, type_),
                 category: row.get(5)
             }
         })
@@ -311,7 +311,7 @@ pub(crate) async fn select_device_config(pool: &Pool<Postgres>,
 pub(crate) async fn insert_device_config(pool: &Pool<Postgres>,
     device_id: Uuid,
     name: &str,
-    value: ConfigValue,
+    value: DataValue,
     category: &str
 ) -> Result<i32, Error>
 {
@@ -355,7 +355,7 @@ pub(crate) async fn insert_device_config(pool: &Pool<Postgres>,
 pub(crate) async fn update_device_config(pool: &Pool<Postgres>,
     id: i32,
     name: Option<&str>,
-    value: Option<ConfigValue>,
+    value: Option<DataValue>,
     category: Option<&str>
 ) -> Result<(), Error>
 {
