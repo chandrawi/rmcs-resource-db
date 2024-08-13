@@ -247,7 +247,7 @@ pub(crate) async fn select_model_config(pool: &Pool<Postgres>,
 
     let rows = sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
-            let bytes: &[u8] = row.get(4);
+            let bytes = row.get(4);
             let type_ = DataType::from(row.get::<i16,_>(5));
             ModelConfigSchema {
                 id: row.get(0),

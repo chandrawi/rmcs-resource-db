@@ -171,10 +171,6 @@ impl DataValue {
             return Self::Null;
         }
         let first_el = bytes[0];
-        let rest_el: Vec<u8> = bytes.iter().enumerate()
-            .filter(|(index, _)| *index > 0)
-            .map(|(_, &value)| value)
-            .collect();
         let sel_val = |n: usize, v: DataValue| -> DataValue {
             if bytes.len() == n {
                 v
@@ -197,17 +193,11 @@ impl DataValue {
             F64T => sel_val(8, F64(f64::from_be_bytes(bytes.try_into().unwrap_or_default()))),
             BoolT => sel_val(1, Bool(bool::from(first_el > 0))),
             CharT => sel_val(1, Char(char::from_u32(first_el as u32).unwrap_or_default())),
-            StringT => sel_val(
-                first_el as usize + 1,
-                match String::from_utf8(rest_el).ok() {
-                    Some(value) => Self::String(value),
-                    None => Self::Null
-                }
-            ),
-            BytesT => sel_val(
-                first_el as usize + 1,
-                Self::Bytes(rest_el)
-            ),
+            StringT => match String::from_utf8(bytes.to_owned()).ok() {
+                Some(value) => Self::String(value),
+                None => Self::Null
+            },
+            BytesT => Self::Bytes(bytes.to_owned()),
             _ => Self::Null
         }
     }
@@ -227,18 +217,8 @@ impl DataValue {
             F64(value) => value.to_be_bytes().to_vec(),
             Bool(value) => Vec::from([*value as u8]),
             Char(value) => Vec::from([*value as u8]),
-            Self::String(value) => {
-                let mut vec_len = vec![value.len() as u8];
-                let mut vec_str = value.to_owned().as_bytes().to_vec();
-                vec_len.append(&mut vec_str);
-                vec_len
-            },
-            Self::Bytes(value) => {
-                let mut vec_len = vec![value.len() as u8];
-                let mut vec_bytes = value.to_owned();
-                vec_len.append(&mut vec_bytes);
-                vec_len
-            },
+            Self::String(value) => value.to_owned().as_bytes().to_vec(),
+            Self::Bytes(value) => value.to_owned(),
             _ => Vec::new()
         }
     }
@@ -324,14 +304,17 @@ impl ArrayDataValue {
         let mut values = Vec::new();
         let mut index = 0;
         for t in types {
-            let string_bytes_len = bytes.get(index).unwrap_or(&0).to_owned() as usize;
             let len = match t {
                 I8T | U8T | CharT | BoolT => 1,
                 I16T | U16T => 2,
                 I32T | U32T | F32T => 4,
                 I64T | U64T | F64T => 8,
                 I128T | U128T => 16,
-                StringT | BytesT => string_bytes_len + 1,
+                StringT | BytesT => {
+                    let length = bytes.get(index).unwrap_or(&0).to_owned(); // first element is the length
+                    index += 1;  // skip first element
+                    length as usize
+                },
                 _ => 0
             };
             if index + len > bytes.len() {
@@ -345,7 +328,14 @@ impl ArrayDataValue {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         for value in &self.0 {
-            bytes.append(&mut value.to_bytes());
+            let mut bytes_value = value.to_bytes();
+            match value {
+                DataValue::String(_) | DataValue::Bytes(_) => {
+                    bytes.push(bytes_value.len() as u8) // insert length at first element
+                },
+                _ => {}
+            }
+            bytes.append(&mut bytes_value);
         }
         bytes
     }
@@ -402,8 +392,10 @@ value_impl_from!(u64, DataValue, U64);
 value_impl_from!(u128, DataValue, U128);
 value_impl_from!(f32, DataValue, F32);
 value_impl_from!(f64, DataValue, F64);
-value_impl_from!(char, DataValue, Char);
 value_impl_from!(bool, DataValue, Bool);
+value_impl_from!(char, DataValue, Char);
+value_impl_from!(String, DataValue, DataValue::String);
+value_impl_from!(Vec<u8>, DataValue, DataValue::Bytes);
 
 macro_rules! value_impl_try_into {
     ($into:ty, $value:ty, $variant:path) => {
@@ -431,8 +423,10 @@ value_impl_try_into!(u64, DataValue, U64);
 value_impl_try_into!(u128, DataValue, U128);
 value_impl_try_into!(f32, DataValue, F32);
 value_impl_try_into!(f64, DataValue, F64);
-value_impl_try_into!(char, DataValue, Char);
 value_impl_try_into!(bool, DataValue, Bool);
+value_impl_try_into!(char, DataValue, Char);
+value_impl_try_into!(String, DataValue, DataValue::String);
+value_impl_try_into!(Vec<u8>, DataValue, DataValue::Bytes);
 
 #[cfg(test)]
 mod tests {
@@ -480,6 +474,13 @@ mod tests {
         let value: char = 'a';
         let data = DataValue::from(value);
         assert_eq!(value, TryInto::<char>::try_into(data).unwrap());
+
+        let value: String = "xyz".to_owned();
+        let data = DataValue::from(value.clone());
+        assert_eq!(value, TryInto::<String>::try_into(data).unwrap());
+        let value: Vec<u8> = vec![101, 102, 103, 104, 105];
+        let data = DataValue::from(value.clone());
+        assert_eq!(value, TryInto::<Vec<u8>>::try_into(data).unwrap());
     }
 
     #[test]
@@ -537,11 +538,11 @@ mod tests {
         assert_eq!(bytes.to_vec(), value.to_bytes());
         assert_eq!(value, Bool(true));
 
-        let bytes = [3, 97, 98, 99];
+        let bytes = [97, 98, 99];
         let value = DataValue::from_bytes(&bytes, StringT);
         assert_eq!(bytes.to_vec(), value.to_bytes());
         assert_eq!(value, DataValue::String("abc".to_owned()));
-        let bytes = [4, 10, 20, 30, 40];
+        let bytes = [10, 20, 30, 40];
         let value = DataValue::from_bytes(&bytes, BytesT);
         assert_eq!(bytes.to_vec(), value.to_bytes());
         assert_eq!(value, DataValue::Bytes(vec![10, 20, 30, 40]));
@@ -563,6 +564,7 @@ mod tests {
             U32(16777216),
             I64(72057594037927936)
         ]);
+        assert_eq!(bytes.to_vec(), data.to_bytes());
 
         let bytes = [62, 32, 0, 0, 63, 136, 0, 0, 0, 0, 0, 0];
         let types = [F32T, F64T];
@@ -571,6 +573,7 @@ mod tests {
             F32(0.15625),
             F64(0.01171875)
         ]);
+        assert_eq!(bytes.to_vec(), data.to_bytes());
 
         let bytes = [97, 1, 3, 97, 98, 99, 4, 10, 20, 30, 40];
         let types = [CharT, BoolT, StringT, BytesT];
@@ -581,6 +584,7 @@ mod tests {
             DataValue::String("abc".to_owned()),
             DataValue::Bytes(vec![10, 20, 30, 40])
         ]);
+        assert_eq!(bytes.to_vec(), data.to_bytes());
     }
 
 }
