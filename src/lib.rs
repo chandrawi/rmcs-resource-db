@@ -946,6 +946,30 @@ impl Resource {
         .await
     }
 
+    pub async fn read_data_timestamp(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>)
+        -> Result<DateTime<Utc>, Error>
+    {
+        let selector = DataSelector::Time(timestamp);
+        data::select_timestamp(&self.pool, selector, device_id, model_id).await?.into_iter().next()
+            .ok_or(Error::RowNotFound)
+    }
+
+    pub async fn list_data_timestamp_by_last_time(&self, device_id: Uuid, model_id: Uuid, last: DateTime<Utc>)
+        -> Result<Vec<DateTime<Utc>>, Error>
+    {
+        let selector = DataSelector::Last(last);
+        data::select_timestamp(&self.pool, selector, device_id, model_id)
+        .await
+    }
+
+    pub async fn list_data_timestamp_by_range_time(&self, device_id: Uuid, model_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
+        -> Result<Vec<DateTime<Utc>>, Error>
+    {
+        let selector = DataSelector::Range(begin, end);
+        data::select_timestamp(&self.pool, selector, device_id, model_id)
+        .await
+    }
+
     pub async fn create_data(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, data: Vec<DataValue>)
         -> Result<(), Error>
     {
@@ -1067,6 +1091,30 @@ impl Resource {
         let selector = DataSelector::NumberAfter(after, number);
         data::select_data_set(&self.pool, selector, set_id).await
         .map(|el| el.1)
+    }
+
+    pub async fn read_data_set_timestamp(&self, set_id: Uuid, timestamp: DateTime<Utc>)
+        -> Result<DateTime<Utc>, Error>
+    {
+        let selector = DataSelector::Time(timestamp);
+        data::select_timestamp_set(&self.pool, selector, set_id).await?.into_iter().next()
+            .ok_or(Error::RowNotFound)
+    }
+
+    pub async fn list_data_set_timestamp_by_last_time(&self, set_id: Uuid, last: DateTime<Utc>)
+        -> Result<Vec<DateTime<Utc>>, Error>
+    {
+        let selector = DataSelector::Last(last);
+        data::select_timestamp_set(&self.pool, selector, set_id)
+        .await
+    }
+
+    pub async fn list_data_set_timestamp_by_range_time(&self, set_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
+        -> Result<Vec<DateTime<Utc>>, Error>
+    {
+        let selector = DataSelector::Range(begin, end);
+        data::select_timestamp_set(&self.pool, selector, set_id)
+        .await
     }
 
     pub async fn read_buffer(&self, id: i32)

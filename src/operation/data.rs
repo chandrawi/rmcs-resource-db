@@ -37,6 +37,7 @@ pub(crate) async fn select_data(pool: &Pool<Postgres>,
         .and_where(Expr::col((Data::Table, Data::DeviceId)).eq(device_id))
         .and_where(Expr::col((Data::Table, Data::ModelId)).eq(model_id))
         .to_owned();
+
     match selector {
         DataSelector::Time(time) => {
             stmt = stmt.and_where(Expr::col((Data::Table, Data::Timestamp)).eq(time)).to_owned();
@@ -80,6 +81,48 @@ pub(crate) async fn select_data(pool: &Pool<Postgres>,
                 timestamp: row.get(0),
                 data: ArrayDataValue::from_bytes(&bytes, &types).to_vec()
             }
+        })
+        .fetch_all(pool)
+        .await?;
+
+    Ok(rows)
+}
+
+pub(crate) async fn select_timestamp(pool: &Pool<Postgres>,
+    selector: DataSelector,
+    device_id: Uuid,
+    model_id: Uuid
+) -> Result<Vec<DateTime<Utc>>, Error>
+{
+    let mut stmt = Query::select()
+        .column((Data::Table, Data::Timestamp))
+        .from(Data::Table)
+        .and_where(Expr::col((Data::Table, Data::DeviceId)).eq(device_id))
+        .and_where(Expr::col((Data::Table, Data::ModelId)).eq(model_id))
+        .to_owned();
+    match selector {
+        DataSelector::Time(time) => {
+            stmt = stmt.and_where(Expr::col((Data::Table, Data::Timestamp)).eq(time)).to_owned();
+        },
+        DataSelector::Last(last) => {
+            stmt = stmt.and_where(Expr::col((Data::Table, Data::Timestamp)).gt(last))
+            .order_by((Data::Table, Data::Timestamp), Order::Asc)
+            .to_owned();
+        },
+        DataSelector::Range(begin, end) => {
+            stmt = stmt
+                .and_where(Expr::col((Data::Table, Data::Timestamp)).gte(begin))
+                .and_where(Expr::col((Data::Table, Data::Timestamp)).lte(end))
+                .order_by((Data::Table, Data::Timestamp), Order::Asc)
+                .to_owned();
+        }
+        _ => {}
+    }
+    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
+
+    let rows = sqlx::query_with(&sql, values)
+        .map(|row: PgRow| {
+            row.get(0)
         })
         .fetch_all(pool)
         .await?;
@@ -232,6 +275,7 @@ pub(crate) async fn select_data_set(pool: &Pool<Postgres>,
         )
         .and_where(Expr::col((SetMap::Table, SetMap::SetId)).eq(set_id))
         .to_owned();
+
     match selector {
         DataSelector::Time(time) => {
             stmt = stmt.and_where(Expr::col((Data::Table, Data::Timestamp)).eq(time)).to_owned();
@@ -316,4 +360,57 @@ pub(crate) async fn select_data_set(pool: &Pool<Postgres>,
         .await?;
 
     Ok((data_schema_vec, data_set_schema_vec))
+}
+
+pub(crate) async fn select_timestamp_set(pool: &Pool<Postgres>,
+    selector: DataSelector,
+    set_id: Uuid
+) -> Result<Vec<DateTime<Utc>>, Error>
+{
+    let mut stmt = Query::select()
+        .column((Data::Table, Data::Timestamp))
+        .from(Data::Table)
+        .inner_join(SetMap::Table, 
+            Condition::all()
+            .add(Expr::col((Data::Table, Data::DeviceId)).equals((SetMap::Table, SetMap::DeviceId)))
+            .add(Expr::col((Data::Table, Data::ModelId)).equals((SetMap::Table, SetMap::ModelId)))
+        )
+        .and_where(Expr::col((SetMap::Table, SetMap::SetId)).eq(set_id))
+        .to_owned();
+
+    match selector {
+        DataSelector::Time(time) => {
+            stmt = stmt.and_where(Expr::col((Data::Table, Data::Timestamp)).eq(time)).to_owned();
+        },
+        DataSelector::Last(last) => {
+            stmt = stmt.and_where(Expr::col((Data::Table, Data::Timestamp)).gt(last))
+            .order_by((Data::Table, Data::Timestamp), Order::Asc)
+            .to_owned();
+        },
+        DataSelector::Range(begin, end) => {
+            stmt = stmt
+                .and_where(Expr::col((Data::Table, Data::Timestamp)).gte(begin))
+                .and_where(Expr::col((Data::Table, Data::Timestamp)).lte(end))
+                .order_by((Data::Table, Data::Timestamp), Order::Asc)
+                .to_owned();
+        }
+        _ => {}
+    }
+    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
+
+    let mut timestamps: Vec<DateTime<Utc>> = Vec::new();
+    let mut last_timestamp: Option<DateTime<Utc>> = None;
+
+    sqlx::query_with(&sql, values)
+        .map(|row: PgRow| {
+            let timestamp = row.get(0);
+            if Some(timestamp) != last_timestamp {
+                timestamps.push(timestamp);
+            }
+            last_timestamp = Some(timestamp);
+        })
+        .fetch_all(pool)
+        .await?;
+
+    Ok(timestamps)
 }
