@@ -1116,6 +1116,38 @@ impl Resource {
         .into_iter().next().ok_or(Error::RowNotFound)
     }
 
+    pub async fn list_buffer_by_last_time(&self, device_id: Uuid, model_id: Uuid, last: DateTime<Utc>, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::TimeLast(last);
+        buffer::select_buffer(&self.pool, selector, None, Some(device_id), Some(model_id), status)
+        .await
+    }
+
+    pub async fn list_buffer_by_range_time(&self, device_id: Uuid, model_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::TimeRange(begin, end);
+        buffer::select_buffer(&self.pool, selector, None, Some(device_id), Some(model_id), status)
+        .await
+    }
+
+    pub async fn list_buffer_by_number_before(&self, device_id: Uuid, model_id: Uuid, before: DateTime<Utc>, number: usize, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::NumberBefore(before, number);
+        buffer::select_buffer(&self.pool, selector, None, Some(device_id), Some(model_id), status)
+        .await
+    }
+
+    pub async fn list_buffer_by_number_after(&self, device_id: Uuid, model_id: Uuid, after: DateTime<Utc>, number: usize, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::NumberAfter(after, number);
+        buffer::select_buffer(&self.pool, selector, None, Some(device_id), Some(model_id), status)
+        .await
+    }
+
     pub async fn read_buffer_first(&self, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
         -> Result<BufferSchema, Error>
     {

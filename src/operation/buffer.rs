@@ -12,6 +12,10 @@ use crate::operation::data::select_data_types;
 
 pub(crate) enum BufferSelector {
     Time(DateTime<Utc>),
+    TimeLast(DateTime<Utc>),
+    TimeRange(DateTime<Utc>, DateTime<Utc>),
+    NumberBefore(DateTime<Utc>, usize),
+    NumberAfter(DateTime<Utc>, usize),
     First(usize, usize),
     Last(usize, usize),
     None
@@ -25,13 +29,6 @@ pub(crate) async fn select_buffer(pool: &Pool<Postgres>,
     status: Option<BufferStatus>
 ) -> Result<Vec<BufferSchema>, Error>
 {
-    let (timestamp, order, number, offset) = match selector {
-        BufferSelector::First(number, offset) => (None, Order::Asc, number, offset),
-        BufferSelector::Last(number, offset) => (None, Order::Desc, number, offset),
-        BufferSelector::Time(ts) => (Some(ts), Order::Asc, 1, 0),
-        _ => (None, Order::Asc, 1, 0)
-    };
-
     let mut stmt = Query::select().to_owned();
     stmt = stmt
         .columns([
@@ -51,25 +48,63 @@ pub(crate) async fn select_buffer(pool: &Pool<Postgres>,
 
     if let Some(id) = id {
         stmt = stmt.and_where(Expr::col(DataBuffer::Id).eq(id)).to_owned();
-    } else {
-        if let Some(id) = device_id {
-            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).eq(id)).to_owned();
-        }
-        if let Some(id) = model_id {
-            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).eq(id)).to_owned();
-        }
-        if let Some(ts) = timestamp {
-            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).eq(ts)).to_owned();
-        }
-        if let Some(stat) = status {
-            let status = i16::from(stat);
-            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Status)).eq(status)).to_owned();
-        }
-        stmt = stmt
-            .order_by((DataBuffer::Table, DataBuffer::Id), order)
-            .limit(number as u64)
-            .offset(offset as u64)
-            .to_owned();
+    }
+    if let Some(id) = device_id {
+        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).eq(id)).to_owned();
+    }
+    if let Some(id) = model_id {
+        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).eq(id)).to_owned();
+    }
+    if let Some(stat) = status {
+        let status = i16::from(stat);
+        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Status)).eq(status)).to_owned();
+    }
+
+    match selector {
+        BufferSelector::Time(timestamp) => {
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).eq(timestamp)).to_owned();
+        },
+        BufferSelector::TimeLast(last) => {
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).gt(last))
+                .order_by((DataBuffer::Table, DataBuffer::Timestamp), Order::Asc)
+                .to_owned();
+        },
+        BufferSelector::TimeRange(begin, end) => {
+            stmt = stmt
+                .and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).gte(begin))
+                .and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).lte(end))
+                .order_by((DataBuffer::Table, DataBuffer::Timestamp), Order::Asc)
+                .to_owned();
+        },
+        BufferSelector::NumberBefore(timestamp, number) => {
+            stmt = stmt
+                .and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).lte(timestamp))
+                .order_by((DataBuffer::Table, DataBuffer::Timestamp), Order::Desc)
+                .limit(number as u64)
+                .to_owned();
+        },
+        BufferSelector::NumberAfter(timestamp, number) => {
+            stmt = stmt
+                .and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).gte(timestamp))
+                .order_by((DataBuffer::Table, DataBuffer::Timestamp), Order::Asc)
+                .limit(number as u64)
+                .to_owned();
+        },
+        BufferSelector::First(number, offset) => {
+            stmt = stmt
+                .order_by((DataBuffer::Table, DataBuffer::Id), Order::Asc)
+                .limit(number as u64)
+                .offset(offset as u64)
+                .to_owned();
+        },
+        BufferSelector::Last(number, offset) => {
+            stmt = stmt
+                .order_by((DataBuffer::Table, DataBuffer::Id), Order::Desc)
+                .limit(number as u64)
+                .offset(offset as u64)
+                .to_owned();
+        },
+        BufferSelector::None => {}
     }
     let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
