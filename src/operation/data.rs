@@ -208,44 +208,6 @@ pub(crate) async fn delete_data(pool: &Pool<Postgres>,
     Ok(())
 }
 
-pub(crate) async fn count_data(pool: &Pool<Postgres>,
-    selector: DataSelector,
-    device_id: Uuid,
-    model_id: Uuid
-) -> Result<usize, Error>
-{
-    let mut stmt = Query::select()
-        .expr(Expr::col(Data::Timestamp).count())
-        .from(Data::Table)
-        .and_where(Expr::col(Data::DeviceId).eq(device_id))
-        .and_where(Expr::col(Data::ModelId).eq(model_id))
-        .to_owned();
-
-    match selector {
-        DataSelector::Last(last) => {
-            stmt = stmt.and_where(Expr::col(Data::Timestamp).gt(last)).to_owned();
-        },
-        DataSelector::Range(begin, end) => {
-            stmt = stmt
-                .and_where(Expr::col(Data::Timestamp).gte(begin))
-                .and_where(Expr::col(Data::Timestamp).lte(end))
-                .to_owned();
-        },
-        _ => {}
-    }
-
-    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
-
-    let count: i64 = sqlx::query_with(&sql, values)
-        .map(|row| {
-            row.get(0)
-        })
-        .fetch_one(pool)
-        .await?;
-
-    Ok(count as usize)
-}
-
 pub(crate) async fn select_data_set(pool: &Pool<Postgres>, 
     selector: DataSelector,
     set_id: Uuid
@@ -413,4 +375,42 @@ pub(crate) async fn select_timestamp_set(pool: &Pool<Postgres>,
         .await?;
 
     Ok(timestamps)
+}
+
+pub(crate) async fn count_data(pool: &Pool<Postgres>,
+    selector: DataSelector,
+    device_id: Uuid,
+    model_id: Uuid
+) -> Result<usize, Error>
+{
+    let mut stmt = Query::select()
+        .expr(Expr::col(Data::Timestamp).count())
+        .from(Data::Table)
+        .and_where(Expr::col(Data::DeviceId).eq(device_id))
+        .and_where(Expr::col(Data::ModelId).eq(model_id))
+        .to_owned();
+
+    match selector {
+        DataSelector::Last(last) => {
+            stmt = stmt.and_where(Expr::col(Data::Timestamp).gt(last)).to_owned();
+        },
+        DataSelector::Range(begin, end) => {
+            stmt = stmt
+                .and_where(Expr::col(Data::Timestamp).gte(begin))
+                .and_where(Expr::col(Data::Timestamp).lte(end))
+                .to_owned();
+        },
+        _ => {}
+    }
+
+    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
+
+    let count: i64 = sqlx::query_with(&sql, values)
+        .map(|row| {
+            row.get(0)
+        })
+        .fetch_one(pool)
+        .await?;
+
+    Ok(count as usize)
 }

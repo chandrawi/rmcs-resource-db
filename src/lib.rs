@@ -906,14 +906,6 @@ impl Resource {
             .ok_or(Error::RowNotFound)
     }
 
-    pub async fn list_data_by_time(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>)
-        -> Result<Vec<DataSchema>, Error>
-    {
-        let selector = DataSelector::Time(timestamp);
-        data::select_data(&self.pool, selector, device_id, model_id)
-        .await
-    }
-
     pub async fn list_data_by_last_time(&self, device_id: Uuid, model_id: Uuid, last: DateTime<Utc>)
         -> Result<Vec<DataSchema>, Error>
     {
@@ -943,65 +935,6 @@ impl Resource {
     {
         let selector = DataSelector::NumberAfter(after, number);
         data::select_data(&self.pool, selector, device_id, model_id)
-        .await
-    }
-
-    pub async fn read_data_timestamp(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>)
-        -> Result<DateTime<Utc>, Error>
-    {
-        let selector = DataSelector::Time(timestamp);
-        data::select_timestamp(&self.pool, selector, device_id, model_id).await?.into_iter().next()
-            .ok_or(Error::RowNotFound)
-    }
-
-    pub async fn list_data_timestamp_by_last_time(&self, device_id: Uuid, model_id: Uuid, last: DateTime<Utc>)
-        -> Result<Vec<DateTime<Utc>>, Error>
-    {
-        let selector = DataSelector::Last(last);
-        data::select_timestamp(&self.pool, selector, device_id, model_id)
-        .await
-    }
-
-    pub async fn list_data_timestamp_by_range_time(&self, device_id: Uuid, model_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
-        -> Result<Vec<DateTime<Utc>>, Error>
-    {
-        let selector = DataSelector::Range(begin, end);
-        data::select_timestamp(&self.pool, selector, device_id, model_id)
-        .await
-    }
-
-    pub async fn create_data(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, data: Vec<DataValue>)
-        -> Result<(), Error>
-    {
-        data::insert_data(&self.pool, device_id, model_id, timestamp, data)
-        .await
-    }
-
-    pub async fn delete_data(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>)
-        -> Result<(), Error>
-    {
-        data::delete_data(&self.pool, device_id, model_id, timestamp)
-        .await
-    }
-
-    pub async fn count_data(&self, device_id: Uuid, model_id: Uuid)
-        -> Result<usize, Error>
-    {
-        data::count_data(&self.pool, DataSelector::Time(DateTime::default()), device_id, model_id)
-        .await
-    }
-
-    pub async fn count_data_by_last_time(&self, device_id: Uuid, model_id: Uuid, last: DateTime<Utc>)
-        -> Result<usize, Error>
-    {
-        data::count_data(&self.pool, DataSelector::Last(last), device_id, model_id)
-        .await
-    }
-
-    pub async fn count_data_by_range_time(&self, device_id: Uuid, model_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
-        -> Result<usize, Error>
-    {
-        data::count_data(&self.pool, DataSelector::Range(begin, end), device_id, model_id)
         .await
     }
 
@@ -1053,14 +986,6 @@ impl Resource {
         .map(|el| el.1)?.into_iter().next().ok_or(Error::RowNotFound)
     }
 
-    pub async fn list_data_set_by_time(&self, set_id: Uuid, timestamp: DateTime<Utc>)
-        -> Result<Vec<DataSetSchema>, Error>
-    {
-        let selector = DataSelector::Time(timestamp);
-        data::select_data_set(&self.pool, selector, set_id).await
-        .map(|el| el.1)
-    }
-
     pub async fn list_data_set_by_last_time(&self, set_id: Uuid, last: DateTime<Utc>)
         -> Result<Vec<DataSetSchema>, Error>
     {
@@ -1093,7 +1018,45 @@ impl Resource {
         .map(|el| el.1)
     }
 
-    pub async fn read_data_set_timestamp(&self, set_id: Uuid, timestamp: DateTime<Utc>)
+    pub async fn create_data(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, data: Vec<DataValue>)
+        -> Result<(), Error>
+    {
+        data::insert_data(&self.pool, device_id, model_id, timestamp, data)
+        .await
+    }
+
+    pub async fn delete_data(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>)
+        -> Result<(), Error>
+    {
+        data::delete_data(&self.pool, device_id, model_id, timestamp)
+        .await
+    }
+
+    pub async fn read_data_timestamp(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>)
+        -> Result<DateTime<Utc>, Error>
+    {
+        let selector = DataSelector::Time(timestamp);
+        data::select_timestamp(&self.pool, selector, device_id, model_id).await?.into_iter().next()
+            .ok_or(Error::RowNotFound)
+    }
+
+    pub async fn list_data_timestamp_by_last_time(&self, device_id: Uuid, model_id: Uuid, last: DateTime<Utc>)
+        -> Result<Vec<DateTime<Utc>>, Error>
+    {
+        let selector = DataSelector::Last(last);
+        data::select_timestamp(&self.pool, selector, device_id, model_id)
+        .await
+    }
+
+    pub async fn list_data_timestamp_by_range_time(&self, device_id: Uuid, model_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
+        -> Result<Vec<DateTime<Utc>>, Error>
+    {
+        let selector = DataSelector::Range(begin, end);
+        data::select_timestamp(&self.pool, selector, device_id, model_id)
+        .await
+    }
+
+    pub async fn read_data_timestamp_by_set(&self, set_id: Uuid, timestamp: DateTime<Utc>)
         -> Result<DateTime<Utc>, Error>
     {
         let selector = DataSelector::Time(timestamp);
@@ -1101,7 +1064,7 @@ impl Resource {
             .ok_or(Error::RowNotFound)
     }
 
-    pub async fn list_data_set_timestamp_by_last_time(&self, set_id: Uuid, last: DateTime<Utc>)
+    pub async fn list_data_timestamp_by_set_last_time(&self, set_id: Uuid, last: DateTime<Utc>)
         -> Result<Vec<DateTime<Utc>>, Error>
     {
         let selector = DataSelector::Last(last);
@@ -1109,11 +1072,32 @@ impl Resource {
         .await
     }
 
-    pub async fn list_data_set_timestamp_by_range_time(&self, set_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
+    pub async fn list_data_timestamp_by_set_range_time(&self, set_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
         -> Result<Vec<DateTime<Utc>>, Error>
     {
         let selector = DataSelector::Range(begin, end);
         data::select_timestamp_set(&self.pool, selector, set_id)
+        .await
+    }
+
+    pub async fn count_data(&self, device_id: Uuid, model_id: Uuid)
+        -> Result<usize, Error>
+    {
+        data::count_data(&self.pool, DataSelector::Time(DateTime::default()), device_id, model_id)
+        .await
+    }
+
+    pub async fn count_data_by_last_time(&self, device_id: Uuid, model_id: Uuid, last: DateTime<Utc>)
+        -> Result<usize, Error>
+    {
+        data::count_data(&self.pool, DataSelector::Last(last), device_id, model_id)
+        .await
+    }
+
+    pub async fn count_data_by_range_time(&self, device_id: Uuid, model_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
+        -> Result<usize, Error>
+    {
+        data::count_data(&self.pool, DataSelector::Range(begin, end), device_id, model_id)
         .await
     }
 
