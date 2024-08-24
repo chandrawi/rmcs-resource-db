@@ -902,7 +902,7 @@ impl Resource {
         -> Result<DataSchema, Error>
     {
         let selector = DataSelector::Time(timestamp);
-        data::select_data(&self.pool, selector, device_id, model_id).await?.into_iter().next()
+        data::select_data(&self.pool, selector, vec![device_id], vec![model_id]).await?.into_iter().next()
             .ok_or(Error::RowNotFound)
     }
 
@@ -910,7 +910,7 @@ impl Resource {
         -> Result<Vec<DataSchema>, Error>
     {
         let selector = DataSelector::Last(last);
-        data::select_data(&self.pool, selector, device_id, model_id)
+        data::select_data(&self.pool, selector, vec![device_id], vec![model_id])
         .await
     }
 
@@ -918,7 +918,7 @@ impl Resource {
         -> Result<Vec<DataSchema>, Error>
     {
         let selector = DataSelector::Range(begin, end);
-        data::select_data(&self.pool, selector, device_id, model_id)
+        data::select_data(&self.pool, selector, vec![device_id], vec![model_id])
         .await
     }
 
@@ -926,7 +926,7 @@ impl Resource {
         -> Result<Vec<DataSchema>, Error>
     {
         let selector = DataSelector::NumberBefore(before, number);
-        data::select_data(&self.pool, selector, device_id, model_id)
+        data::select_data(&self.pool, selector, vec![device_id], vec![model_id])
         .await
     }
 
@@ -934,7 +934,47 @@ impl Resource {
         -> Result<Vec<DataSchema>, Error>
     {
         let selector = DataSelector::NumberAfter(after, number);
-        data::select_data(&self.pool, selector, device_id, model_id)
+        data::select_data(&self.pool, selector, vec![device_id], vec![model_id])
+        .await
+    }
+
+    pub async fn list_data_by_ids_time(&self, device_ids: Vec<Uuid>, model_ids: Vec<Uuid>, timestamp: DateTime<Utc>)
+        -> Result<Vec<DataSchema>, Error>
+    {
+        let selector = DataSelector::Time(timestamp);
+        data::select_data(&self.pool, selector, device_ids, model_ids)
+        .await
+    }
+
+    pub async fn list_data_by_ids_last_time(&self, device_ids: Vec<Uuid>, model_ids: Vec<Uuid>, last: DateTime<Utc>)
+        -> Result<Vec<DataSchema>, Error>
+    {
+        let selector = DataSelector::Last(last);
+        data::select_data(&self.pool, selector, device_ids, model_ids)
+        .await
+    }
+
+    pub async fn list_data_by_ids_range_time(&self, device_ids: Vec<Uuid>, model_ids: Vec<Uuid>, begin: DateTime<Utc>, end: DateTime<Utc>)
+        -> Result<Vec<DataSchema>, Error>
+    {
+        let selector = DataSelector::Range(begin, end);
+        data::select_data(&self.pool, selector, device_ids, model_ids)
+        .await
+    }
+
+    pub async fn list_data_by_ids_number_before(&self, device_ids: Vec<Uuid>, model_ids: Vec<Uuid>, before: DateTime<Utc>, number: usize)
+        -> Result<Vec<DataSchema>, Error>
+    {
+        let selector = DataSelector::NumberBefore(before, number);
+        data::select_data(&self.pool, selector, device_ids, model_ids)
+        .await
+    }
+
+    pub async fn list_data_by_ids_number_after(&self, device_ids: Vec<Uuid>, model_ids: Vec<Uuid>, after: DateTime<Utc>, number: usize)
+        -> Result<Vec<DataSchema>, Error>
+    {
+        let selector = DataSelector::NumberAfter(after, number);
+        data::select_data(&self.pool, selector, device_ids, model_ids)
         .await
     }
 
@@ -1112,7 +1152,7 @@ impl Resource {
         -> Result<BufferSchema, Error>
     {
         let selector = BufferSelector::Time(timestamp);
-        buffer::select_buffer(&self.pool, selector, None, Some(device_id), Some(model_id), status).await?
+        buffer::select_buffer(&self.pool, selector, None, Some(vec![device_id]), Some(vec![model_id]), status).await?
         .into_iter().next().ok_or(Error::RowNotFound)
     }
 
@@ -1120,7 +1160,7 @@ impl Resource {
         -> Result<Vec<BufferSchema>, Error>
     {
         let selector = BufferSelector::TimeLast(last);
-        buffer::select_buffer(&self.pool, selector, None, Some(device_id), Some(model_id), status)
+        buffer::select_buffer(&self.pool, selector, None, Some(vec![device_id]), Some(vec![model_id]), status)
         .await
     }
 
@@ -1128,7 +1168,7 @@ impl Resource {
         -> Result<Vec<BufferSchema>, Error>
     {
         let selector = BufferSelector::TimeRange(begin, end);
-        buffer::select_buffer(&self.pool, selector, None, Some(device_id), Some(model_id), status)
+        buffer::select_buffer(&self.pool, selector, None, Some(vec![device_id]), Some(vec![model_id]), status)
         .await
     }
 
@@ -1136,7 +1176,7 @@ impl Resource {
         -> Result<Vec<BufferSchema>, Error>
     {
         let selector = BufferSelector::NumberBefore(before, number);
-        buffer::select_buffer(&self.pool, selector, None, Some(device_id), Some(model_id), status)
+        buffer::select_buffer(&self.pool, selector, None, Some(vec![device_id]), Some(vec![model_id]), status)
         .await
     }
 
@@ -1144,7 +1184,7 @@ impl Resource {
         -> Result<Vec<BufferSchema>, Error>
     {
         let selector = BufferSelector::NumberAfter(after, number);
-        buffer::select_buffer(&self.pool, selector, None, Some(device_id), Some(model_id), status)
+        buffer::select_buffer(&self.pool, selector, None, Some(vec![device_id]), Some(vec![model_id]), status)
         .await
     }
 
@@ -1152,7 +1192,7 @@ impl Resource {
         -> Result<BufferSchema, Error>
     {
         let selector = BufferSelector::First(1, 0);
-        buffer::select_buffer(&self.pool, selector, None, device_id, model_id, status).await?
+        buffer::select_buffer(&self.pool, selector, None, device_id.map(|id| vec![id]), model_id.map(|id| vec![id]), status).await?
         .into_iter().next().ok_or(Error::RowNotFound)
     }
 
@@ -1160,7 +1200,7 @@ impl Resource {
         -> Result<BufferSchema, Error>
     {
         let selector = BufferSelector::Last(1, 0);
-        buffer::select_buffer(&self.pool, selector, None, device_id, model_id, status).await?
+        buffer::select_buffer(&self.pool, selector, None, device_id.map(|id| vec![id]), model_id.map(|id| vec![id]), status).await?
         .into_iter().next().ok_or(Error::RowNotFound)
     }
 
@@ -1168,7 +1208,7 @@ impl Resource {
         -> Result<Vec<BufferSchema>, Error>
     {
         let selector = BufferSelector::First(number, 0);
-        buffer::select_buffer(&self.pool, selector, None, device_id, model_id, status)
+        buffer::select_buffer(&self.pool, selector, None, device_id.map(|id| vec![id]), model_id.map(|id| vec![id]), status)
         .await
     }
 
@@ -1176,7 +1216,7 @@ impl Resource {
         -> Result<Vec<BufferSchema>, Error>
     {
         let selector = BufferSelector::First(number, offset);
-        buffer::select_buffer(&self.pool, selector, None, device_id, model_id, status)
+        buffer::select_buffer(&self.pool, selector, None, device_id.map(|id| vec![id]), model_id.map(|id| vec![id]), status)
         .await
     }
 
@@ -1184,7 +1224,7 @@ impl Resource {
         -> Result<Vec<BufferSchema>, Error>
     {
         let selector = BufferSelector::Last(number, 0);
-        buffer::select_buffer(&self.pool, selector, None, device_id, model_id, status)
+        buffer::select_buffer(&self.pool, selector, None, device_id.map(|id| vec![id]), model_id.map(|id| vec![id]), status)
         .await
     }
 
@@ -1192,7 +1232,79 @@ impl Resource {
         -> Result<Vec<BufferSchema>, Error>
     {
         let selector = BufferSelector::Last(number, offset);
-        buffer::select_buffer(&self.pool, selector, None, device_id, model_id, status)
+        buffer::select_buffer(&self.pool, selector, None, device_id.map(|id| vec![id]), model_id.map(|id| vec![id]), status)
+        .await
+    }
+
+    pub async fn list_buffer_by_ids_time(&self, device_ids: Vec<Uuid>, model_ids: Vec<Uuid>, timestamp: DateTime<Utc>, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::Time(timestamp);
+        buffer::select_buffer(&self.pool, selector, None, Some(device_ids), Some(model_ids), status)
+        .await
+    }
+
+    pub async fn list_buffer_by_ids_last_time(&self, device_ids: Vec<Uuid>, model_ids: Vec<Uuid>, last: DateTime<Utc>, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::TimeLast(last);
+        buffer::select_buffer(&self.pool, selector, None, Some(device_ids), Some(model_ids), status)
+        .await
+    }
+
+    pub async fn list_buffer_by_ids_range_time(&self, device_ids: Vec<Uuid>, model_ids: Vec<Uuid>, begin: DateTime<Utc>, end: DateTime<Utc>, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::TimeRange(begin, end);
+        buffer::select_buffer(&self.pool, selector, None, Some(device_ids), Some(model_ids), status)
+        .await
+    }
+
+    pub async fn list_buffer_by_ids_number_before(&self, device_ids: Vec<Uuid>, model_ids: Vec<Uuid>, before: DateTime<Utc>, number: usize, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::NumberBefore(before, number);
+        buffer::select_buffer(&self.pool, selector, None, Some(device_ids), Some(model_ids), status)
+        .await
+    }
+
+    pub async fn list_buffer_by_ids_number_after(&self, device_ids: Vec<Uuid>, model_ids: Vec<Uuid>, after: DateTime<Utc>, number: usize, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::NumberAfter(after, number);
+        buffer::select_buffer(&self.pool, selector, None, Some(device_ids), Some(model_ids), status)
+        .await
+    }
+
+    pub async fn list_buffer_first_by_ids(&self, number: usize, device_ids: Option<Vec<Uuid>>, model_ids: Option<Vec<Uuid>>, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::First(number, 0);
+        buffer::select_buffer(&self.pool, selector, None, device_ids, model_ids, status)
+        .await
+    }
+
+    pub async fn list_buffer_first_offset_by_ids(&self, number: usize, offset: usize, device_ids: Option<Vec<Uuid>>, model_ids: Option<Vec<Uuid>>, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::First(number, offset);
+        buffer::select_buffer(&self.pool, selector, None, device_ids, model_ids, status)
+        .await
+    }
+
+    pub async fn list_buffer_last_by_ids(&self, number: usize, device_ids: Option<Vec<Uuid>>, model_ids: Option<Vec<Uuid>>, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::Last(number, 0);
+        buffer::select_buffer(&self.pool, selector, None, device_ids, model_ids, status)
+        .await
+    }
+
+    pub async fn list_buffer_last_offset_by_ids(&self, number: usize, offset: usize, device_ids: Option<Vec<Uuid>>, model_ids: Option<Vec<Uuid>>, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::Last(number, offset);
+        buffer::select_buffer(&self.pool, selector, None, device_ids, model_ids, status)
         .await
     }
 

@@ -25,8 +25,8 @@ pub(crate) enum BufferSelector {
 pub(crate) async fn select_buffer(pool: &Pool<Postgres>, 
     selector: BufferSelector,
     id: Option<i32>,
-    device_id: Option<Uuid>,
-    model_id: Option<Uuid>,
+    device_ids: Option<Vec<Uuid>>,
+    model_ids: Option<Vec<Uuid>>,
     status: Option<BufferStatus>
 ) -> Result<Vec<BufferSchema>, Error>
 {
@@ -50,11 +50,21 @@ pub(crate) async fn select_buffer(pool: &Pool<Postgres>,
     if let Some(id) = id {
         stmt = stmt.and_where(Expr::col(DataBuffer::Id).eq(id)).to_owned();
     }
-    if let Some(id) = device_id {
-        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).eq(id)).to_owned();
+    if let Some(ids) = device_ids {
+        if ids.len() == 1 {
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).eq(ids[0])).to_owned();
+        }
+        else if ids.len() > 1 {
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).is_in(ids)).to_owned();
+        }
     }
-    if let Some(id) = model_id {
-        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).eq(id)).to_owned();
+    if let Some(ids) = model_ids {
+        if ids.len() == 1 {
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).eq(ids[0])).to_owned();
+        }
+        else if ids.len() > 1 {
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).is_in(ids)).to_owned();
+        }
     }
     if let Some(stat) = status {
         let status = i16::from(stat);

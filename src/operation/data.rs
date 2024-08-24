@@ -20,12 +20,14 @@ pub(crate) enum DataSelector {
 
 pub(crate) async fn select_data(pool: &Pool<Postgres>, 
     selector: DataSelector,
-    device_id: Uuid,
-    model_id: Uuid
+    device_ids: Vec<Uuid>,
+    model_ids: Vec<Uuid>
 ) -> Result<Vec<DataSchema>, Error>
 {
     let mut stmt = Query::select()
         .columns([
+            (Data::Table, Data::DeviceId),
+            (Data::Table, Data::ModelId),
             (Data::Table, Data::Timestamp),
             (Data::Table, Data::Data)
         ])
@@ -34,9 +36,23 @@ pub(crate) async fn select_data(pool: &Pool<Postgres>,
         .inner_join(Model::Table, 
             Expr::col((Data::Table, Data::ModelId))
             .equals((Model::Table, Model::ModelId)))
-        .and_where(Expr::col((Data::Table, Data::DeviceId)).eq(device_id))
-        .and_where(Expr::col((Data::Table, Data::ModelId)).eq(model_id))
         .to_owned();
+
+    if device_ids.len() == 0 || model_ids.len() == 0 {
+        return Ok(Vec::new());
+    }
+    if device_ids.len() == 1 {
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::DeviceId)).eq(device_ids[0])).to_owned();
+    }
+    else {
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::DeviceId)).is_in(device_ids)).to_owned();
+    }
+    if model_ids.len() == 1 {
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).eq(model_ids[0])).to_owned();
+    }
+    else {
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).is_in(model_ids)).to_owned();
+    }
 
     match selector {
         DataSelector::Time(time) => {
@@ -44,8 +60,8 @@ pub(crate) async fn select_data(pool: &Pool<Postgres>,
         },
         DataSelector::Last(last) => {
             stmt = stmt.and_where(Expr::col((Data::Table, Data::Timestamp)).gt(last))
-            .order_by((Data::Table, Data::Timestamp), Order::Asc)
-            .to_owned();
+                .order_by((Data::Table, Data::Timestamp), Order::Asc)
+                .to_owned();
         },
         DataSelector::Range(begin, end) => {
             stmt = stmt
@@ -73,12 +89,12 @@ pub(crate) async fn select_data(pool: &Pool<Postgres>,
 
     let rows = sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
-            let bytes: Vec<u8> = row.get(1);
-            let types: Vec<DataType> = row.get::<Vec<u8>,_>(2).into_iter().map(|ty| ty.into()).collect();
+            let bytes: Vec<u8> = row.get(3);
+            let types: Vec<DataType> = row.get::<Vec<u8>,_>(4).into_iter().map(|ty| ty.into()).collect();
             DataSchema {
-                device_id: device_id.clone(),
-                model_id: model_id.clone(),
-                timestamp: row.get(0),
+                device_id: row.get(0),
+                model_id: row.get(1),
+                timestamp: row.get(2),
                 data: ArrayDataValue::from_bytes(&bytes, &types).to_vec()
             }
         })
