@@ -1196,6 +1196,78 @@ impl Resource {
         .await
     }
 
+    pub async fn list_buffer_by_set_time(&self, set_id: Uuid, timestamp: DateTime<Utc>, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::Time(timestamp);
+        buffer::select_buffer_set(&self.pool, selector, set_id, status)
+        .await
+    }
+
+    pub async fn list_buffer_by_set_last_time(&self, set_id: Uuid, last: DateTime<Utc>, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::TimeLast(last);
+        buffer::select_buffer_set(&self.pool, selector, set_id, status)
+        .await
+    }
+
+    pub async fn list_buffer_by_set_range_time(&self, set_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::TimeRange(begin, end);
+        buffer::select_buffer_set(&self.pool, selector, set_id, status)
+        .await
+    }
+
+    pub async fn list_buffer_by_set_number_before(&self, set_id: Uuid, before: DateTime<Utc>, number: usize, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::NumberBefore(before, number);
+        buffer::select_buffer_set(&self.pool, selector, set_id, status)
+        .await
+    }
+
+    pub async fn list_buffer_by_set_number_after(&self, set_id: Uuid, after: DateTime<Utc>, number: usize, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::NumberAfter(after, number);
+        buffer::select_buffer_set(&self.pool, selector, set_id, status)
+        .await
+    }
+
+    pub async fn list_buffer_first_by_set(&self, number: usize, set_id: Uuid, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::First(number, 0);
+        buffer::select_buffer_set(&self.pool, selector, set_id, status)
+        .await
+    }
+
+    pub async fn list_buffer_first_offset_by_set(&self, number: usize, offset: usize, set_id: Uuid, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::First(number, offset);
+        buffer::select_buffer_set(&self.pool, selector, set_id, status)
+        .await
+    }
+
+    pub async fn list_buffer_last_by_set(&self, number: usize, set_id: Uuid, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::Last(number, 0);
+        buffer::select_buffer_set(&self.pool, selector, set_id, status)
+        .await
+    }
+
+    pub async fn list_buffer_last_offset_by_set(&self, number: usize, offset: usize, set_id: Uuid, status: Option<BufferStatus>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        let selector = BufferSelector::Last(number, offset);
+        buffer::select_buffer_set(&self.pool, selector, set_id, status)
+        .await
+    }
+
     pub async fn create_buffer(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, data: Vec<DataValue>, status: BufferStatus)
         -> Result<i32, Error>
     {
