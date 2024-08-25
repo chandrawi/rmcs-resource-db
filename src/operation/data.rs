@@ -411,16 +411,40 @@ pub(crate) async fn select_timestamp_set(pool: &Pool<Postgres>,
 
 pub(crate) async fn count_data(pool: &Pool<Postgres>,
     selector: DataSelector,
-    device_id: Uuid,
-    model_id: Uuid
+    device_ids: Vec<Uuid>,
+    model_ids: Vec<Uuid>,
+    set_id: Option<Uuid>
 ) -> Result<usize, Error>
 {
     let mut stmt = Query::select()
-        .expr(Expr::col(Data::Timestamp).count())
+        .expr(Expr::col((Data::Table, Data::Timestamp)).count())
         .from(Data::Table)
-        .and_where(Expr::col(Data::DeviceId).eq(device_id))
-        .and_where(Expr::col(Data::ModelId).eq(model_id))
         .to_owned();
+
+    if let Some(set_id) = set_id {
+        stmt = stmt
+            .inner_join(SetMap::Table, 
+                Condition::all()
+                .add(Expr::col((Data::Table, Data::DeviceId)).equals((SetMap::Table, SetMap::DeviceId)))
+                .add(Expr::col((Data::Table, Data::ModelId)).equals((SetMap::Table, SetMap::ModelId)))
+            )
+            .and_where(Expr::col((SetMap::Table, SetMap::SetId)).eq(set_id)).to_owned()
+            .to_owned();
+    }
+    else {
+        if device_ids.len() == 1 {
+            stmt = stmt.and_where(Expr::col((Data::Table, Data::DeviceId)).eq(device_ids[0])).to_owned();
+        }
+        else {
+            stmt = stmt.and_where(Expr::col((Data::Table, Data::DeviceId)).is_in(device_ids)).to_owned();
+        }
+        if model_ids.len() == 1 {
+            stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).eq(model_ids[0])).to_owned();
+        }
+        else {
+            stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).is_in(model_ids)).to_owned();
+        }
+    }
 
     match selector {
         DataSelector::Last(last) => {
@@ -434,7 +458,6 @@ pub(crate) async fn count_data(pool: &Pool<Postgres>,
         },
         _ => {}
     }
-
     let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     let count: i64 = sqlx::query_with(&sql, values)

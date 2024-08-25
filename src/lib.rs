@@ -1147,21 +1147,63 @@ impl Resource {
     pub async fn count_data(&self, device_id: Uuid, model_id: Uuid)
         -> Result<usize, Error>
     {
-        data::count_data(&self.pool, DataSelector::Time(DateTime::default()), device_id, model_id)
+        data::count_data(&self.pool, DataSelector::Time(DateTime::default()), vec![device_id], vec![model_id], None)
         .await
     }
 
     pub async fn count_data_by_last_time(&self, device_id: Uuid, model_id: Uuid, last: DateTime<Utc>)
         -> Result<usize, Error>
     {
-        data::count_data(&self.pool, DataSelector::Last(last), device_id, model_id)
+        data::count_data(&self.pool, DataSelector::Last(last), vec![device_id], vec![model_id], None)
         .await
     }
 
     pub async fn count_data_by_range_time(&self, device_id: Uuid, model_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
         -> Result<usize, Error>
     {
-        data::count_data(&self.pool, DataSelector::Range(begin, end), device_id, model_id)
+        data::count_data(&self.pool, DataSelector::Range(begin, end), vec![device_id], vec![model_id], None)
+        .await
+    }
+
+    pub async fn count_data_by_ids(&self, device_ids: Vec<Uuid>, model_ids: Vec<Uuid>)
+        -> Result<usize, Error>
+    {
+        data::count_data(&self.pool, DataSelector::Time(DateTime::default()), device_ids, model_ids, None)
+        .await
+    }
+
+    pub async fn count_data_by_ids_last_time(&self, device_ids: Vec<Uuid>, model_ids: Vec<Uuid>, last: DateTime<Utc>)
+        -> Result<usize, Error>
+    {
+        data::count_data(&self.pool, DataSelector::Last(last), device_ids, model_ids, None)
+        .await
+    }
+
+    pub async fn count_data_by_ids_range_time(&self, device_ids: Vec<Uuid>, model_ids: Vec<Uuid>, begin: DateTime<Utc>, end: DateTime<Utc>)
+        -> Result<usize, Error>
+    {
+        data::count_data(&self.pool, DataSelector::Range(begin, end), device_ids, model_ids, None)
+        .await
+    }
+
+    pub async fn count_data_by_set(&self, set_id: Uuid)
+        -> Result<usize, Error>
+    {
+        data::count_data(&self.pool, DataSelector::Time(DateTime::default()), Vec::new(), Vec::new(), Some(set_id))
+        .await
+    }
+
+    pub async fn count_data_by_set_last_time(&self, set_id: Uuid, last: DateTime<Utc>)
+        -> Result<usize, Error>
+    {
+        data::count_data(&self.pool, DataSelector::Last(last), Vec::new(), Vec::new(), Some(set_id))
+        .await
+    }
+
+    pub async fn count_data_by_set_range_time(&self, set_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>)
+        -> Result<usize, Error>
+    {
+        data::count_data(&self.pool, DataSelector::Range(begin, end), Vec::new(), Vec::new(), Some(set_id))
         .await
     }
 
@@ -1491,7 +1533,21 @@ impl Resource {
     pub async fn count_buffer(&self, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
         -> Result<usize, Error>
     {
-        buffer::count_buffer(&self.pool, device_id, model_id, status)
+        buffer::count_buffer(&self.pool, device_id.map(|id| vec![id]), model_id.map(|id| vec![id]), None, status)
+        .await
+    }
+
+    pub async fn count_buffer_by_ids(&self, device_ids: Option<Vec<Uuid>>, model_ids: Option<Vec<Uuid>>, status: Option<BufferStatus>)
+        -> Result<usize, Error>
+    {
+        buffer::count_buffer(&self.pool, device_ids, model_ids, None, status)
+        .await
+    }
+
+    pub async fn count_buffer_by_set(&self, set_id: Uuid, status: Option<BufferStatus>)
+        -> Result<usize, Error>
+    {
+        buffer::count_buffer(&self.pool, None, None, Some(set_id), status)
         .await
     }
 

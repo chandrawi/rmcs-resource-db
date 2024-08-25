@@ -477,21 +477,44 @@ pub(crate) async fn select_timestamp_set(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn count_buffer(pool: &Pool<Postgres>,
-    device_id: Option<Uuid>,
-    model_id: Option<Uuid>,
+    device_ids: Option<Vec<Uuid>>,
+    model_ids: Option<Vec<Uuid>>,
+    set_id: Option<Uuid>,
     status: Option<BufferStatus>
 ) -> Result<usize, Error>
 {
     let mut stmt = Query::select()
-        .expr(Expr::col(DataBuffer::Id).count())
+        .expr(Expr::col((DataBuffer::Table, DataBuffer::Id)).count())
         .from(DataBuffer::Table)
         .to_owned();
 
-    if let Some(id) = device_id {
-        stmt = stmt.and_where(Expr::col(DataBuffer::DeviceId).eq(id)).to_owned();
+    if let Some(set_id) = set_id {
+        stmt = stmt
+            .inner_join(SetMap::Table, 
+                Condition::all()
+                .add(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).equals((SetMap::Table, SetMap::DeviceId)))
+                .add(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).equals((SetMap::Table, SetMap::ModelId)))
+            )
+            .and_where(Expr::col((SetMap::Table, SetMap::SetId)).eq(set_id)).to_owned()
+            .to_owned();
     }
-    if let Some(id) = model_id {
-        stmt = stmt.and_where(Expr::col(DataBuffer::ModelId).eq(id)).to_owned();
+    else {
+        if let Some(ids) = device_ids {
+            if ids.len() == 1 {
+                stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).eq(ids[0])).to_owned();
+            }
+            else if ids.len() > 1 {
+                stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).is_in(ids)).to_owned();
+            }
+        }
+        if let Some(ids) = model_ids {
+            if ids.len() == 1 {
+                stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).eq(ids[0])).to_owned();
+            }
+            else if ids.len() > 1 {
+                stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).is_in(ids)).to_owned();
+            }
+        }
     }
     if let Some(stat) = status {
         let status = i16::from(stat);
