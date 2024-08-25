@@ -106,16 +106,31 @@ pub(crate) async fn select_data(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_timestamp(pool: &Pool<Postgres>,
     selector: DataSelector,
-    device_id: Uuid,
-    model_id: Uuid
+    device_ids: Vec<Uuid>,
+    model_ids: Vec<Uuid>
 ) -> Result<Vec<DateTime<Utc>>, Error>
 {
     let mut stmt = Query::select()
         .column((Data::Table, Data::Timestamp))
         .from(Data::Table)
-        .and_where(Expr::col((Data::Table, Data::DeviceId)).eq(device_id))
-        .and_where(Expr::col((Data::Table, Data::ModelId)).eq(model_id))
         .to_owned();
+
+    if device_ids.len() == 0 || model_ids.len() == 0 {
+        return Ok(Vec::new());
+    }
+    if device_ids.len() == 1 {
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::DeviceId)).eq(device_ids[0])).to_owned();
+    }
+    else {
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::DeviceId)).is_in(device_ids)).to_owned();
+    }
+    if model_ids.len() == 1 {
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).eq(model_ids[0])).to_owned();
+    }
+    else {
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).is_in(model_ids)).to_owned();
+    }
+
     match selector {
         DataSelector::Time(time) => {
             stmt = stmt.and_where(Expr::col((Data::Table, Data::Timestamp)).eq(time)).to_owned();
@@ -136,12 +151,13 @@ pub(crate) async fn select_timestamp(pool: &Pool<Postgres>,
     }
     let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
-    let rows = sqlx::query_with(&sql, values)
+    let mut rows = sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
             row.get(0)
         })
         .fetch_all(pool)
         .await?;
+    rows.dedup();
 
     Ok(rows)
 }

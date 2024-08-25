@@ -30,8 +30,7 @@ pub(crate) async fn select_buffer(pool: &Pool<Postgres>,
     status: Option<BufferStatus>
 ) -> Result<Vec<BufferSchema>, Error>
 {
-    let mut stmt = Query::select().to_owned();
-    stmt = stmt
+    let mut stmt = Query::select()
         .columns([
             (DataBuffer::Table, DataBuffer::Id),
             (DataBuffer::Table, DataBuffer::DeviceId),
@@ -134,6 +133,69 @@ pub(crate) async fn select_buffer(pool: &Pool<Postgres>,
         })
         .fetch_all(pool)
         .await?;
+
+    Ok(rows)
+}
+
+pub(crate) async fn select_timestamp(pool: &Pool<Postgres>,
+    selector: BufferSelector,
+    device_ids: Option<Vec<Uuid>>,
+    model_ids: Option<Vec<Uuid>>,
+    status: Option<BufferStatus>
+) -> Result<Vec<DateTime<Utc>>, Error>
+{
+    let mut stmt = Query::select()
+        .column((DataBuffer::Table, DataBuffer::Timestamp))
+        .from(DataBuffer::Table)
+        .to_owned();
+
+    if let Some(ids) = device_ids {
+        if ids.len() == 1 {
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).eq(ids[0])).to_owned();
+        }
+        else if ids.len() > 1 {
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).is_in(ids)).to_owned();
+        }
+    }
+    if let Some(ids) = model_ids {
+        if ids.len() == 1 {
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).eq(ids[0])).to_owned();
+        }
+        else if ids.len() > 1 {
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).is_in(ids)).to_owned();
+        }
+    }
+    if let Some(stat) = status {
+        let status = i16::from(stat);
+        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Status)).eq(status)).to_owned();
+    }
+
+    match selector {
+        BufferSelector::First(number, offset) => {
+            stmt = stmt
+                .order_by((DataBuffer::Table, DataBuffer::Id), Order::Asc)
+                .limit(number as u64)
+                .offset(offset as u64)
+                .to_owned();
+        },
+        BufferSelector::Last(number, offset) => {
+            stmt = stmt
+                .order_by((DataBuffer::Table, DataBuffer::Id), Order::Desc)
+                .limit(number as u64)
+                .offset(offset as u64)
+                .to_owned();
+        },
+        _ => {}
+    }
+    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
+
+    let mut rows = sqlx::query_with(&sql, values)
+        .map(|row: PgRow| {
+            row.get(0)
+        })
+        .fetch_all(pool)
+        .await?;
+    rows.dedup();
 
     Ok(rows)
 }
@@ -358,6 +420,58 @@ pub(crate) async fn select_buffer_set(pool: &Pool<Postgres>,
         })
         .fetch_all(pool)
         .await?;
+
+    Ok(rows)
+}
+
+pub(crate) async fn select_timestamp_set(pool: &Pool<Postgres>,
+    selector: BufferSelector,
+    set_id: Uuid,
+    status: Option<BufferStatus>
+) -> Result<Vec<DateTime<Utc>>, Error>
+{
+    let mut stmt = Query::select()
+        .column((DataBuffer::Table, DataBuffer::Timestamp))
+        .from(DataBuffer::Table)
+        .inner_join(SetMap::Table, 
+            Condition::all()
+            .add(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).equals((SetMap::Table, SetMap::DeviceId)))
+            .add(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).equals((SetMap::Table, SetMap::ModelId)))
+        )
+        .and_where(Expr::col((SetMap::Table, SetMap::SetId)).eq(set_id))
+        .to_owned();
+
+    if let Some(stat) = status {
+        let status = i16::from(stat);
+        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Status)).eq(status)).to_owned();
+    }
+
+    match selector {
+        BufferSelector::First(number, offset) => {
+            stmt = stmt
+                .order_by((DataBuffer::Table, DataBuffer::Id), Order::Asc)
+                .limit(number as u64)
+                .offset(offset as u64)
+                .to_owned();
+        },
+        BufferSelector::Last(number, offset) => {
+            stmt = stmt
+                .order_by((DataBuffer::Table, DataBuffer::Id), Order::Desc)
+                .limit(number as u64)
+                .offset(offset as u64)
+                .to_owned();
+        },
+        _ => {}
+    }
+    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
+
+    let mut rows = sqlx::query_with(&sql, values)
+        .map(|row: PgRow| {
+            row.get(0)
+        })
+        .fetch_all(pool)
+        .await?;
+    rows.dedup();
 
     Ok(rows)
 }

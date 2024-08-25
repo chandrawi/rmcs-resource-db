@@ -1076,7 +1076,7 @@ impl Resource {
         -> Result<DateTime<Utc>, Error>
     {
         let selector = DataSelector::Time(timestamp);
-        data::select_timestamp(&self.pool, selector, device_id, model_id).await?.into_iter().next()
+        data::select_timestamp(&self.pool, selector, vec![device_id], vec![model_id]).await?.into_iter().next()
             .ok_or(Error::RowNotFound)
     }
 
@@ -1084,7 +1084,7 @@ impl Resource {
         -> Result<Vec<DateTime<Utc>>, Error>
     {
         let selector = DataSelector::Last(last);
-        data::select_timestamp(&self.pool, selector, device_id, model_id)
+        data::select_timestamp(&self.pool, selector, vec![device_id], vec![model_id])
         .await
     }
 
@@ -1092,7 +1092,31 @@ impl Resource {
         -> Result<Vec<DateTime<Utc>>, Error>
     {
         let selector = DataSelector::Range(begin, end);
-        data::select_timestamp(&self.pool, selector, device_id, model_id)
+        data::select_timestamp(&self.pool, selector, vec![device_id], vec![model_id])
+        .await
+    }
+
+    pub async fn read_data_timestamp_by_ids(&self, device_ids: Vec<Uuid>, model_ids: Vec<Uuid>, timestamp: DateTime<Utc>)
+        -> Result<DateTime<Utc>, Error>
+    {
+        let selector = DataSelector::Time(timestamp);
+        data::select_timestamp(&self.pool, selector, device_ids, model_ids).await?.into_iter().next()
+            .ok_or(Error::RowNotFound)
+    }
+
+    pub async fn list_data_timestamp_by_ids_last_time(&self, device_ids: Vec<Uuid>, model_ids: Vec<Uuid>, last: DateTime<Utc>)
+        -> Result<Vec<DateTime<Utc>>, Error>
+    {
+        let selector = DataSelector::Last(last);
+        data::select_timestamp(&self.pool, selector, device_ids, model_ids)
+        .await
+    }
+
+    pub async fn list_data_timestamp_by_ids_range_time(&self, device_ids: Vec<Uuid>, model_ids: Vec<Uuid>, begin: DateTime<Utc>, end: DateTime<Utc>)
+        -> Result<Vec<DateTime<Utc>>, Error>
+    {
+        let selector = DataSelector::Range(begin, end);
+        data::select_timestamp(&self.pool, selector, device_ids, model_ids)
         .await
     }
 
@@ -1398,6 +1422,70 @@ impl Resource {
         -> Result<(), Error>
     {
         buffer::delete_buffer(&self.pool, id).await
+    }
+
+    pub async fn read_buffer_timestamp_first(&self, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
+        -> Result<DateTime<Utc>, Error>
+    {
+        let selector = BufferSelector::First(1, 0);
+        buffer::select_timestamp(&self.pool, selector, device_id.map(|id| vec![id]), model_id.map(|id| vec![id]), status).await?
+        .into_iter().next().ok_or(Error::RowNotFound)
+    }
+
+    pub async fn read_buffer_timestamp_last(&self, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
+        -> Result<DateTime<Utc>, Error>
+    {
+        let selector = BufferSelector::Last(1, 0);
+        buffer::select_timestamp(&self.pool, selector, device_id.map(|id| vec![id]), model_id.map(|id| vec![id]), status).await?
+        .into_iter().next().ok_or(Error::RowNotFound)
+    }
+
+    pub async fn list_buffer_timestamp_first(&self, number: usize, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
+        -> Result<Vec<DateTime<Utc>>, Error>
+    {
+        let selector = BufferSelector::First(number, 0);
+        buffer::select_timestamp(&self.pool, selector, device_id.map(|id| vec![id]), model_id.map(|id| vec![id]), status)
+        .await
+    }
+
+    pub async fn list_buffer_timestamp_last(&self, number: usize, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
+        -> Result<Vec<DateTime<Utc>>, Error>
+    {
+        let selector = BufferSelector::Last(number, 0);
+        buffer::select_timestamp(&self.pool, selector, device_id.map(|id| vec![id]), model_id.map(|id| vec![id]), status)
+        .await
+    }
+
+    pub async fn list_buffer_timestamp_first_by_ids(&self, number: usize, device_ids: Option<Vec<Uuid>>, model_ids: Option<Vec<Uuid>>, status: Option<BufferStatus>)
+        -> Result<Vec<DateTime<Utc>>, Error>
+    {
+        let selector = BufferSelector::First(number, 0);
+        buffer::select_timestamp(&self.pool, selector, device_ids, model_ids, status)
+        .await
+    }
+
+    pub async fn list_buffer_timestamp_last_by_ids(&self, number: usize, device_ids: Option<Vec<Uuid>>, model_ids: Option<Vec<Uuid>>, status: Option<BufferStatus>)
+        -> Result<Vec<DateTime<Utc>>, Error>
+    {
+        let selector = BufferSelector::Last(number, 0);
+        buffer::select_timestamp(&self.pool, selector, device_ids, model_ids, status)
+        .await
+    }
+
+    pub async fn list_buffer_timestamp_first_by_set(&self, number: usize, set_id: Uuid, status: Option<BufferStatus>)
+        -> Result<Vec<DateTime<Utc>>, Error>
+    {
+        let selector = BufferSelector::First(number, 0);
+        buffer::select_timestamp_set(&self.pool, selector, set_id, status)
+        .await
+    }
+
+    pub async fn list_buffer_timestamp_last_by_set(&self, number: usize, set_id: Uuid, status: Option<BufferStatus>)
+        -> Result<Vec<DateTime<Utc>>, Error>
+    {
+        let selector = BufferSelector::Last(number, 0);
+        buffer::select_timestamp_set(&self.pool, selector, set_id, status)
+        .await
     }
 
     pub async fn count_buffer(&self, device_id: Option<Uuid>, model_id: Option<Uuid>, status: Option<BufferStatus>)
