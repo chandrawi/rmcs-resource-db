@@ -3,9 +3,8 @@ use sea_query::Iden;
 use sqlx::types::chrono::{DateTime, Utc, TimeZone};
 use uuid::Uuid;
 use crate::schema::value::{DataValue, DataType};
-use rmcs_resource_api::{common, log};
+use rmcs_resource_api::log;
 
-#[allow(unused)]
 #[derive(Iden)]
 pub(crate) enum SystemLog {
     Table,
@@ -141,7 +140,7 @@ impl From<log::LogSchema> for LogSchema {
             status: LogStatus::from(value.status as i16),
             value: DataValue::from_bytes(
                 &value.log_bytes,
-                DataType::from(common::DataType::try_from(value.log_type).unwrap_or_default())
+                DataType::from(value.log_type)
             )
         }
     }
@@ -154,7 +153,7 @@ impl Into<log::LogSchema> for LogSchema {
             device_id: self.device_id.as_bytes().to_vec(),
             status: i16::from(self.status).into(),
             log_bytes: self.value.to_bytes(),
-            log_type: Into::<common::DataType>::into(self.value.get_type()).into()
+            log_type: self.value.get_type().into()
         }
     }
 }

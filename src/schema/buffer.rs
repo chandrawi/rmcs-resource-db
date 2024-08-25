@@ -3,9 +3,8 @@ use sea_query::Iden;
 use sqlx::types::chrono::{DateTime, Utc, TimeZone};
 use uuid::Uuid;
 use crate::schema::value::{DataType, DataValue, ArrayDataValue};
-use rmcs_resource_api::{common, buffer};
+use rmcs_resource_api::buffer;
 
-#[allow(unused)]
 #[derive(Iden)]
 pub(crate) enum DataBuffer {
     Table,
@@ -190,9 +189,7 @@ impl From<buffer::BufferSchema> for BufferSchema {
             timestamp: Utc.timestamp_nanos(value.timestamp * 1000),
             data: ArrayDataValue::from_bytes(
                     &value.data_bytes,
-                    value.data_type.into_iter().map(|e| {
-                        DataType::from(common::DataType::try_from(e).unwrap_or_default())
-                    })
+                    value.data_type.into_iter().map(|e| DataType::from(e))
                     .collect::<Vec<DataType>>()
                     .as_slice()
                 ).to_vec(),
@@ -209,9 +206,7 @@ impl Into<buffer::BufferSchema> for BufferSchema {
             model_id: self.model_id.as_bytes().to_vec(),
             timestamp: self.timestamp.timestamp_micros(),
             data_bytes: ArrayDataValue::from_vec(&self.data).to_bytes(),
-            data_type: self.data.into_iter().map(|e| {
-                    Into::<common::DataType>::into(e.get_type()).into()
-                }).collect(),
+            data_type: self.data.into_iter().map(|e| e.get_type().into()).collect(),
             status: i16::from(self.status).into()
         }
     }

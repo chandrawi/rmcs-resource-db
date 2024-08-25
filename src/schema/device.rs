@@ -1,7 +1,7 @@
 use sea_query::Iden;
 use uuid::Uuid;
 use crate::schema::value::{DataValue, DataType};
-use rmcs_resource_api::{common, device};
+use rmcs_resource_api::device;
 
 #[derive(Iden)]
 pub(crate) enum Device {
@@ -181,7 +181,7 @@ impl From<device::ConfigSchema> for DeviceConfigSchema {
             name: value.name,
             value: DataValue::from_bytes(
                 &value.config_bytes,
-                DataType::from(common::DataType::try_from(value.config_type).unwrap_or_default())
+                DataType::from(value.config_type)
             ),
             category: value.category
         }
@@ -195,7 +195,7 @@ impl Into<device::ConfigSchema> for DeviceConfigSchema {
             device_id: self.device_id.as_bytes().to_vec(),
             name: self.name,
             config_bytes: self.value.to_bytes(),
-            config_type: Into::<common::DataType>::into(self.value.get_type()).into(),
+            config_type: self.value.get_type().into(),
             category: self.category
         }
     }
@@ -209,7 +209,7 @@ impl From<device::ConfigSchema> for GatewayConfigSchema {
             name: value.name,
             value: DataValue::from_bytes(
                 &value.config_bytes,
-                DataType::from(common::DataType::try_from(value.config_type).unwrap_or_default())
+                DataType::from(value.config_type)
             ),
             category: value.category
         }
@@ -223,7 +223,7 @@ impl Into<device::ConfigSchema> for GatewayConfigSchema {
             device_id: self.gateway_id.as_bytes().to_vec(),
             name: self.name,
             config_bytes: self.value.to_bytes(),
-            config_type: Into::<common::DataType>::into(self.value.get_type()).into(),
+            config_type: self.value.get_type().into(),
             category: self.category
         }
     }

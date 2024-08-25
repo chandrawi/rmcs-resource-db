@@ -3,7 +3,6 @@ use sqlx::types::chrono::{DateTime, Utc, TimeZone};
 use uuid::Uuid;
 use rmcs_resource_api::slice;
 
-#[allow(unused)]
 #[derive(Iden)]
 pub(crate) enum SliceData {
     Table,
@@ -16,7 +15,6 @@ pub(crate) enum SliceData {
     Description
 }
 
-#[allow(unused)]
 #[derive(Iden)]
 pub(crate) enum SliceDataSet {
     Table,

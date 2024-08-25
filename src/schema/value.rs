@@ -1,9 +1,9 @@
 use DataValue::{I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, F32, F64, Bool, Char};
 use DataType::{I8T, I16T, I32T, I64T, I128T, U8T, U16T, U32T, U64T, U128T, F32T, F64T, BoolT, CharT, StringT, BytesT};
-use rmcs_resource_api::common;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub enum DataType {
+    #[default]
     NullT,
     I8T,
     I16T,
@@ -53,8 +53,8 @@ impl From<i16> for DataType {
     }
 }
 
-impl From<i32> for DataType {
-    fn from(value: i32) -> Self {
+impl From<u32> for DataType {
+    fn from(value: u32) -> Self {
         Self::from(value as u8)
     }
 }
@@ -89,57 +89,9 @@ impl From<DataType> for i16 {
     }
 }
 
-impl From<DataType> for i32 {
+impl From<DataType> for u32 {
     fn from(value: DataType) -> Self {
-        u8::from(value) as i32
-    }
-}
-
-impl From<common::DataType> for DataType {
-    fn from(value: common::DataType) -> Self {
-        match value {
-            common::DataType::Nulld => Self::NullT,
-            common::DataType::I8 => Self::I8T,
-            common::DataType::I16 => Self::I16T,
-            common::DataType::I32 => Self::I32T,
-            common::DataType::I64 => Self::I64T,
-            common::DataType::I128 => Self::I128T,
-            common::DataType::U8 => Self::U8T,
-            common::DataType::U16 => Self::U16T,
-            common::DataType::U32 => Self::U32T,
-            common::DataType::U64 => Self::U64T,
-            common::DataType::U128 => Self::U128T,
-            common::DataType::F32 => Self::F32T,
-            common::DataType::F64 => Self::F64T,
-            common::DataType::Bool => Self::BoolT,
-            common::DataType::Char => Self::CharT,
-            common::DataType::String => Self::StringT,
-            common::DataType::Bytes => Self::BytesT
-        }
-    }
-}
-
-impl Into<common::DataType> for DataType {
-    fn into(self) -> common::DataType {
-        match self {
-            Self::I8T => common::DataType::I8,
-            Self::I16T => common::DataType::I16,
-            Self::I32T => common::DataType::I32,
-            Self::I64T => common::DataType::I64,
-            Self::I128T => common::DataType::I128,
-            Self::U8T => common::DataType::U8,
-            Self::U16T => common::DataType::U16,
-            Self::U32T => common::DataType::U32,
-            Self::U64T => common::DataType::U64,
-            Self::U128T => common::DataType::U128,
-            Self::F32T => common::DataType::F32,
-            Self::F64T => common::DataType::F64,
-            Self::CharT => common::DataType::Char,
-            Self::BoolT => common::DataType::Bool,
-            Self::NullT => common::DataType::Nulld,
-            Self::StringT => common::DataType::String,
-            Self::BytesT => common::DataType::Bytes
-        }
+        u8::from(value) as u32
     }
 }
 

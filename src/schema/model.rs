@@ -1,7 +1,7 @@
 use sea_query::Iden;
 use uuid::Uuid;
 use crate::schema::value::{DataValue, DataType};
-use rmcs_resource_api::{common, model};
+use rmcs_resource_api::model;
 
 #[derive(Iden)]
 pub(crate) enum Model {
@@ -52,9 +52,7 @@ impl From<model::ModelSchema> for ModelSchema {
             category: value.category,
             name: value.name,
             description: value.description,
-            data_type: value.data_type.into_iter().map(|e| {
-                    DataType::from(common::DataType::try_from(e).unwrap_or_default())
-                }).collect(),
+            data_type: value.data_type.into_iter().map(|e| DataType::from(e)).collect(),
             configs: value.configs.into_iter().map(|e| {
                     e.configs.into_iter().map(|e| e.into()).collect()
                 }).collect()
@@ -69,9 +67,7 @@ impl Into<model::ModelSchema> for ModelSchema {
             category: self.category,
             name: self.name,
             description: self.description,
-            data_type: self.data_type.into_iter().map(|e| {
-                    Into::<common::DataType>::into(e).into()
-                }).collect(),
+            data_type: self.data_type.into_iter().map(|e| e.into()).collect(),
             configs: self.configs.into_iter().map(|e| model::ConfigSchemaVec {
                     configs: e.into_iter().map(|e| e.into()).collect()
                 }).collect()
@@ -88,7 +84,7 @@ impl From<model::ConfigSchema> for ModelConfigSchema {
             name: value.name,
             value: DataValue::from_bytes(
                 &value.config_bytes, 
-                DataType::from(common::DataType::try_from(value.config_type).unwrap_or_default())
+                DataType::from(value.config_type)
             ),
             category: value.category
         }
@@ -103,7 +99,7 @@ impl Into<model::ConfigSchema> for ModelConfigSchema {
             index: self.index as i32,
             name: self.name,
             config_bytes: self.value.to_bytes(),
-            config_type: Into::<common::DataType>::into(self.value.get_type()).into(),
+            config_type: self.value.get_type().into(),
             category: self.category
         }
     }
