@@ -40,7 +40,7 @@ pub(crate) async fn select_set(pool: &Pool<Postgres>,
     }
     else {
         if let Some(template_id) = template_id {
-            stmt = stmt.and_where(Expr::col((Set::Table, Set::Name)).eq(template_id)).to_owned();
+            stmt = stmt.and_where(Expr::col((Set::Table, Set::TemplateId)).eq(template_id)).to_owned();
         }
         if let Some(name) = name {
             let name_like = String::from("%") + name + "%";

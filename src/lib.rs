@@ -22,7 +22,7 @@ pub use schema::device::{DeviceSchema, GatewaySchema, TypeSchema, DeviceConfigSc
 use schema::device::DeviceKind;
 pub use schema::group::{GroupModelSchema, GroupDeviceSchema, GroupGatewaySchema};
 use schema::group::GroupKind;
-pub use schema::set::{SetSchema, SetTemplateSchema};
+pub use schema::set::{SetSchema, SetTemplateSchema, SetMember};
 pub use schema::data::{DataSchema, DataSetSchema};
 use data::DataSelector;
 pub use schema::buffer::{BufferSchema, BufferStatus};
