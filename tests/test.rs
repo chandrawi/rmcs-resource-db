@@ -32,7 +32,7 @@ mod tests {
     #[sqlx::test]
     async fn test_resource()
     {
-        std::env::set_var("RUST_BACKTRACE", "1");
+        unsafe { std::env::set_var("RUST_BACKTRACE", "1"); }
 
         let pool = get_connection_pool().await.unwrap();
         let resource = Resource::new_with_pool(pool);
