@@ -4,8 +4,8 @@ CREATE TABLE IF NOT EXISTS "slice_data" (
   "model_id" uuid NOT NULL,
   "timestamp_begin" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "timestamp_end" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "name" varchar(32) NOT NULL,
-  "description" varchar(255) NOT NULL DEFAULT '',
+  "name" varchar(128) NOT NULL,
+  "description" text NOT NULL DEFAULT '',
   PRIMARY KEY ("id"),
   FOREIGN KEY ("device_id")
     REFERENCES "device" ("device_id"),
@@ -18,8 +18,8 @@ CREATE TABLE IF NOT EXISTS "slice_data_set" (
   "set_id" uuid NOT NULL,
   "timestamp_begin" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "timestamp_end" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "name" varchar(32) NOT NULL,
-  "description" varchar(255) NOT NULL DEFAULT '',
+  "name" varchar(128) NOT NULL,
+  "description" text NOT NULL DEFAULT '',
   PRIMARY KEY ("id"),
   FOREIGN KEY ("set_id")
     REFERENCES "set" ("set_id")

@@ -1,17 +1,17 @@
 CREATE TABLE IF NOT EXISTS "group_model" (
   "group_id" uuid NOT NULL,
-  "name" varchar(32) NOT NULL,
+  "name" varchar(128) NOT NULL,
   "category" varchar(64) NOT NULL,
-  "description" varchar(255) NOT NULL DEFAULT '',
+  "description" text NOT NULL DEFAULT '',
   PRIMARY KEY ("group_id")
 );
 
 CREATE TABLE IF NOT EXISTS "group_device" (
   "group_id" uuid NOT NULL,
-  "name" varchar(32) NOT NULL,
+  "name" varchar(128) NOT NULL,
   "kind" boolean NOT NULL DEFAULT false,
   "category" varchar(64) NOT NULL,
-  "description" varchar(255) NOT NULL DEFAULT '',
+  "description" text NOT NULL DEFAULT '',
   PRIMARY KEY ("group_id")
 );
 

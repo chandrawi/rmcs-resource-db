@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS "set_template" (
   "template_id" uuid NOT NULL,
-  "name" varchar(64) NOT NULL,
-  "description" varchar(255) NOT NULL DEFAULT '',
+  "name" varchar(128) NOT NULL,
+  "description" text NOT NULL DEFAULT '',
   PRIMARY KEY ("template_id")
 );
 
@@ -23,8 +23,8 @@ CREATE TABLE IF NOT EXISTS "set_template_map" (
 CREATE TABLE IF NOT EXISTS "set" (
   "set_id" uuid NOT NULL,
   "template_id" uuid NOT NULL,
-  "name" varchar(64) NOT NULL,
-  "description" varchar(255) NOT NULL DEFAULT '',
+  "name" varchar(128) NOT NULL,
+  "description" text NOT NULL DEFAULT '',
   PRIMARY KEY ("set_id"),
   FOREIGN KEY ("template_id")
     REFERENCES "set_template" ("template_id") ON UPDATE CASCADE ON DELETE CASCADE

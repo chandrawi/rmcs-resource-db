@@ -1,8 +1,8 @@
 CREATE TABLE IF NOT EXISTS "model" (
   "model_id" uuid NOT NULL,
-  "name" varchar(64) NOT NULL,
+  "name" varchar(128) NOT NULL,
   "category" varchar(64) NOT NULL,
-  "description" varchar(255) NOT NULL DEFAULT '',
+  "description" text NOT NULL DEFAULT '',
   "data_type" bytea,
   PRIMARY KEY ("model_id")
 );
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS "model_config" (
   "id" serial NOT NULL,
   "model_id" uuid NOT NULL,
   "index" smallint NOT NULL,
-  "name" varchar(64) NOT NULL,
+  "name" varchar(128) NOT NULL,
   "value" bytea NOT NULL,
   "type" smallint NOT NULL DEFAULT 0,
   "category" varchar(64) NOT NULL,

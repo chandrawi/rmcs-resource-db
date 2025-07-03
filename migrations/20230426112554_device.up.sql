@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS "device_type" (
   "type_id" uuid NOT NULL,
-  "name" varchar(64) NOT NULL,
-  "description" varchar(255) NOT NULL DEFAULT '',
+  "name" varchar(128) NOT NULL,
+  "description" text NOT NULL DEFAULT '',
   PRIMARY KEY ("type_id")
 );
 
@@ -20,8 +20,8 @@ CREATE TABLE IF NOT EXISTS "device" (
   "gateway_id" uuid NOT NULL,
   "type_id" uuid NOT NULL,
   "serial_number" varchar(64) NOT NULL,
-  "name" varchar(64) NOT NULL,
-  "description" varchar(255) NOT NULL DEFAULT '',
+  "name" varchar(128) NOT NULL,
+  "description" text NOT NULL DEFAULT '',
   PRIMARY KEY ("device_id"),
   FOREIGN KEY ("type_id")
     REFERENCES "device_type" ("type_id")
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS "device" (
 CREATE TABLE IF NOT EXISTS "device_config" (
   "id" serial NOT NULL,
   "device_id" uuid NOT NULL,
-  "name" varchar(32) NOT NULL,
+  "name" varchar(128) NOT NULL,
   "value" bytea NOT NULL,
   "type" smallint NOT NULL DEFAULT 0,
   "category" varchar(64) NOT NULL,
