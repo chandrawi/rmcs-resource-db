@@ -177,16 +177,19 @@ mod tests {
         assert_eq!(set.members[1], SetMember { device_id: device_id2, model_id, data_index: vec![1] });
 
         // generate raw data and create buffers
-        let timestamp = DateTime::parse_from_str("2023-05-07 07:08:48.123456 +0000", "%Y-%m-%d %H:%M:%S.%6f %z").unwrap().into();
+        let timestamp_1 = DateTime::parse_from_str("2023-05-07 07:08:48.123456 +0000", "%Y-%m-%d %H:%M:%S.%6f %z").unwrap().into();
+        let timestamp_2 = DateTime::parse_from_str("2025-06-11 14:49:36.123456 +0000", "%Y-%m-%d %H:%M:%S.%6f %z").unwrap().into();
         let raw_1 = vec![I32(1231),I32(890)];
         let raw_2 = vec![I32(1452),I32(-341)];
-        resource.create_buffer(device_id1, model_buf_id, timestamp, raw_1.clone(), Analysis1).await.unwrap();
-        resource.create_buffer(device_id2, model_buf_id, timestamp, raw_2.clone(), Analysis1).await.unwrap();
+        resource.create_buffer(device_id1, model_buf_id, timestamp_1, raw_1.clone(), Analysis1).await.unwrap();
+        resource.create_buffer(device_id2, model_buf_id, timestamp_1, raw_2.clone(), Analysis1).await.unwrap();
+        let ids = resource.create_buffer_multiple(vec![device_id1, device_id2], vec![model_buf_id, model_buf_id], vec![timestamp_2, timestamp_2], vec![raw_1.clone(), raw_2.clone()], vec![TransferLocal, TransferLocal]).await.unwrap();
 
         // read buffer
         let buffers = resource.list_buffer_first(100, None, None, None).await.unwrap();
         assert_eq!(buffers[0].data, raw_1);
         assert_eq!(buffers[1].data, raw_2);
+        assert_eq!(ids.len(), 2);
 
         // read buffers from a device group
         let buffers_group = resource.list_buffer_first_by_ids(100, Some(group_device.devices.clone()), None, None).await.unwrap();
@@ -208,25 +211,26 @@ mod tests {
         let speed2 = convert(raw_2[0].clone().try_into().unwrap(), coef0, coef1) as f32;
         let direction2 = convert(raw_2[1].clone().try_into().unwrap(), coef0, coef1) as f32;
         // create data
-        resource.create_data(device_id1, model_id, timestamp, vec![F32(speed1), F32(direction1)]).await.unwrap();
-        resource.create_data(device_id2, model_id, timestamp, vec![F32(speed2), F32(direction2)]).await.unwrap();
+        resource.create_data(device_id1, model_id, timestamp_1, vec![F32(speed1), F32(direction1)]).await.unwrap();
+        resource.create_data(device_id2, model_id, timestamp_1, vec![F32(speed2), F32(direction2)]).await.unwrap();
+        resource.create_data_multiple(vec![device_id1, device_id2], vec![model_id, model_id], vec![timestamp_2, timestamp_2], vec![vec![F32(speed1), F32(direction1)], vec![F32(speed2), F32(direction2)]]).await.unwrap();
 
         // read data
-        let datas = resource.list_data_by_number_before(device_id1, model_id, timestamp, 100).await.unwrap();
+        let datas = resource.list_data_by_number_before(device_id1, model_id, timestamp_1, 100).await.unwrap();
         let data = datas.iter().filter(|x| x.device_id == device_id1 && x.model_id == model_id).next().unwrap();
         assert_eq!(vec![F32(speed1), F32(direction1)], data.data);
-        assert_eq!(timestamp, data.timestamp);
+        assert_eq!(timestamp_1, data.timestamp);
 
         // read data from a device group
-        let data_group = resource.list_data_by_ids_time(group_device.devices.clone(), vec![model_id], timestamp).await.unwrap();
+        let data_group = resource.list_data_by_ids_time(group_device.devices.clone(), vec![model_id], timestamp_1).await.unwrap();
         let data_values_vec: Vec<Vec<DataValue>> = data_group.iter().map(|d| d.data.clone()).collect();
         let data_values: Vec<DataValue> = data_values_vec.into_iter().flatten().collect();
         assert!(data_values.contains(&F32(speed1)));
         assert!(data_values.contains(&F32(speed2)));
 
         // read data set and data using set
-        let data_set = resource.read_data_set(set_id, timestamp).await.unwrap();
-        let data_by_set = resource.list_data_by_set_time(set_id, timestamp).await.unwrap();
+        let data_set = resource.read_data_set(set_id, timestamp_1).await.unwrap();
+        let data_by_set = resource.list_data_by_set_time(set_id, timestamp_1).await.unwrap();
         let data_by_set_values: Vec<Vec<DataValue>> = data_by_set.iter().map(|d| d.data.clone()).collect();
         assert_eq!(data_set.data[0], F32(direction1));
         assert_eq!(data_set.data[1], F32(direction2));
@@ -234,9 +238,11 @@ mod tests {
         assert!(data_by_set_values.contains(&vec![F32(speed2), F32(direction2)]));
 
         // delete data
-        resource.delete_data(device_id1, model_id, timestamp).await.unwrap();
-        resource.delete_data(device_id2, model_id, timestamp).await.unwrap();
-        let result = resource.read_data(device_id1, model_id, timestamp).await;
+        resource.delete_data(device_id1, model_id, timestamp_1).await.unwrap();
+        resource.delete_data(device_id2, model_id, timestamp_1).await.unwrap();
+        resource.delete_data(device_id1, model_id, timestamp_2).await.unwrap();
+        resource.delete_data(device_id2, model_id, timestamp_2).await.unwrap();
+        let result = resource.read_data(device_id1, model_id, timestamp_1).await;
         assert!(result.is_err());
 
         // update buffer status
@@ -248,15 +254,17 @@ mod tests {
         // delete buffer data
         resource.delete_buffer(buffers[0].id).await.unwrap();
         resource.delete_buffer(buffers[1].id).await.unwrap();
+        resource.delete_buffer(buffers[2].id).await.unwrap();
+        resource.delete_buffer(buffers[3].id).await.unwrap();
         let result = resource.read_buffer(buffers[0].id).await;
         assert!(result.is_err());
 
         // create data slice
-        let slice_id = resource.create_slice(device_id1, model_id, timestamp, timestamp, "Speed and compass slice", None).await.unwrap();
+        let slice_id = resource.create_slice(device_id1, model_id, timestamp_1, timestamp_2, "Speed and compass slice", None).await.unwrap();
         // read data
         let slices = resource.list_slice_option(None, None, Some("slice"), None, None).await.unwrap();
         let slice = slices.iter().filter(|x| x.device_id == device_id1 && x.model_id == model_id).next().unwrap();
-        assert_eq!(slice.timestamp_begin, timestamp);
+        assert_eq!(slice.timestamp_begin, timestamp_1);
         assert_eq!(slice.name, "Speed and compass slice");
 
         // update data slice
@@ -270,20 +278,20 @@ mod tests {
         assert!(result.is_err());
 
         // create system log
-        resource.create_log(timestamp, device_id1, UnknownError, String("testing success".to_owned())).await.unwrap();
+        resource.create_log(timestamp_1, device_id1, UnknownError, String("testing success".to_owned())).await.unwrap();
         // read log
-        let logs = resource.list_log_by_range_time(timestamp, Utc::now(), None, None).await.unwrap();
-        let log = logs.iter().filter(|x| x.device_id == device_id1 && x.timestamp == timestamp).next().unwrap();
+        let logs = resource.list_log_by_range_time(timestamp_1, Utc::now(), None, None).await.unwrap();
+        let log = logs.iter().filter(|x| x.device_id == device_id1 && x.timestamp == timestamp_1).next().unwrap();
         assert_eq!(log.value, String("testing success".to_owned()));
 
         // update system log
-        resource.update_log(timestamp, device_id1, Some(Success), None).await.unwrap();
-        let log = resource.read_log(timestamp, device_id1).await.unwrap();
+        resource.update_log(timestamp_1, device_id1, Some(Success), None).await.unwrap();
+        let log = resource.read_log(timestamp_1, device_id1).await.unwrap();
         assert_eq!(log.status, Success);
 
         // delete system log
-        resource.delete_log(timestamp, device_id1).await.unwrap();
-        let result = resource.read_log(timestamp, device_id1).await;
+        resource.delete_log(timestamp_1, device_id1).await.unwrap();
+        let result = resource.read_log(timestamp_1, device_id1).await;
         assert!(result.is_err());
 
         // delete model config

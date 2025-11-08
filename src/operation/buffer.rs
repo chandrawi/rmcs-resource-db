@@ -231,9 +231,9 @@ pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
     status: BufferStatus
 ) -> Result<i32, Error>
 {
-    let types = select_data_types(pool, model_id).await?;
-    let converted_values = ArrayDataValue::from_vec(&data).convert(&types);
-    let bytes = match converted_values {
+    let types_vec = select_data_types(pool, vec![model_id]).await?;
+    let types = types_vec.into_iter().next().ok_or(Error::RowNotFound)?;
+    let bytes = match ArrayDataValue::from_vec(&data).convert(&types) {
         Some(value) => value.to_bytes(),
         None => return Err(Error::RowNotFound)
     };
@@ -271,6 +271,73 @@ pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
         .await?;
 
     Ok(id)
+}
+
+pub(crate) async fn insert_buffer_multiple(pool: &Pool<Postgres>,
+    device_ids: Vec<Uuid>,
+    model_ids: Vec<Uuid>,
+    timestamps: Vec<DateTime<Utc>>,
+    data: Vec<Vec<DataValue>>,
+    statuses: Vec<BufferStatus>
+) -> Result<Vec<i32>, Error>
+{
+    let numbers = vec![device_ids.len(), model_ids.len(), timestamps.len(), data.len(), statuses.len()];
+    let number = numbers.into_iter().min().ok_or(Error::RowNotFound)?;
+    let mut model_ids_unique = model_ids.clone();
+    model_ids_unique.sort();
+    model_ids_unique.dedup();
+
+    let types_vec = select_data_types(pool, model_ids.clone()).await?;
+    if model_ids_unique.len() != types_vec.len() {
+        return Err(Error::RowNotFound);
+    }
+    let types: Vec<Vec<DataType>> = model_ids.clone().into_iter().map(|id| {
+        let index = model_ids_unique.iter().position(|&el| el == id).unwrap_or_default();
+        types_vec[index].clone()
+    }).collect();
+
+    let mut stmt = Query::insert()
+        .into_table(DataBuffer::Table)
+        .columns([
+            DataBuffer::DeviceId,
+            DataBuffer::ModelId,
+            DataBuffer::Timestamp,
+            DataBuffer::Data,
+            DataBuffer::Status
+        ])
+        .to_owned();
+    for i in 0..number {
+        let bytes = match ArrayDataValue::from_vec(&data[i]).convert(&types[i]) {
+            Some(value) => value.to_bytes(),
+            None => return Err(Error::RowNotFound)
+        };
+        stmt = stmt.values([
+            device_ids[i].into(),
+            model_ids[i].into(),
+            timestamps[i].into(),
+            bytes.into(),
+            i16::from(statuses[i].clone()).into()
+        ])
+        .unwrap_or(&mut sea_query::InsertStatement::default())
+        .to_owned();
+    }
+    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
+
+    sqlx::query_with(&sql, values)
+        .execute(pool)
+        .await?;
+
+    let sql = Query::select()
+        .expr(Func::max(Expr::col(DataBuffer::Id)))
+        .from(DataBuffer::Table)
+        .to_string(PostgresQueryBuilder);
+    let id: i32 = sqlx::query(&sql)
+        .map(|row: PgRow| row.get(0))
+        .fetch_one(pool)
+        .await?;
+    let ids = (id-number as i32+1..id+1).collect();
+
+    Ok(ids)
 }
 
 pub(crate) async fn update_buffer(pool: &Pool<Postgres>,

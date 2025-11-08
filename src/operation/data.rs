@@ -163,20 +163,21 @@ pub(crate) async fn select_timestamp(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn select_data_types(pool: &Pool<Postgres>,
-    model_id: Uuid
-) -> Result<Vec<DataType>, Error>
+    model_ids: Vec<Uuid>
+) -> Result<Vec<Vec<DataType>>, Error>
 {
     let (sql, values) = Query::select()
         .column((Model::Table, Model::DataType))
         .from(Model::Table)
-        .and_where(Expr::col((Model::Table, Model::ModelId)).eq(model_id))
+        .and_where(Expr::col((Model::Table, Model::ModelId)).is_in(model_ids))
+        .order_by((Model::Table, Model::ModelId), Order::Asc)
         .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
             row.get::<Vec<u8>,_>(0).into_iter().map(|ty| ty.into()).collect()
         })
-        .fetch_one(pool)
+        .fetch_all(pool)
         .await
 }
 
@@ -187,9 +188,9 @@ pub(crate) async fn insert_data(pool: &Pool<Postgres>,
     data: Vec<DataValue>
 ) -> Result<(), Error>
 {
-    let types = select_data_types(pool, model_id).await?;
-    let converted_values = ArrayDataValue::from_vec(&data).convert(&types);
-    let bytes = match converted_values {
+    let types_vec = select_data_types(pool, vec![model_id]).await?;
+    let types = types_vec.into_iter().next().ok_or(Error::RowNotFound)?;
+    let bytes = match ArrayDataValue::from_vec(&data).convert(&types) {
         Some(value) => value.to_bytes(),
         None => return Err(Error::RowNotFound)
     };
@@ -210,6 +211,60 @@ pub(crate) async fn insert_data(pool: &Pool<Postgres>,
         ])
         .unwrap_or(&mut sea_query::InsertStatement::default())
         .to_owned();
+    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
+
+    sqlx::query_with(&sql, values)
+        .execute(pool)
+        .await?;
+
+    Ok(())
+}
+
+pub(crate) async fn insert_data_multiple(pool: &Pool<Postgres>,
+    device_ids: Vec<Uuid>,
+    model_ids: Vec<Uuid>,
+    timestamps: Vec<DateTime<Utc>>,
+    data: Vec<Vec<DataValue>>
+) -> Result<(), Error>
+{
+    let numbers = vec![device_ids.len(), model_ids.len(), timestamps.len(), data.len()];
+    let number = numbers.into_iter().min().ok_or(Error::RowNotFound)?;
+    let mut model_ids_unique = model_ids.clone();
+    model_ids_unique.sort();
+    model_ids_unique.dedup();
+
+    let types_vec = select_data_types(pool, model_ids.clone()).await?;
+    if model_ids_unique.len() != types_vec.len() {
+        return Err(Error::RowNotFound);
+    }
+    let types: Vec<Vec<DataType>> = model_ids.clone().into_iter().map(|id| {
+        let index = model_ids_unique.iter().position(|&el| el == id).unwrap_or_default();
+        types_vec[index].clone()
+    }).collect();
+
+    let mut stmt = Query::insert()
+        .into_table(Data::Table)
+        .columns([
+            Data::DeviceId,
+            Data::ModelId,
+            Data::Timestamp,
+            Data::Data
+        ])
+        .to_owned();
+    for i in 0..number {
+        let bytes = match ArrayDataValue::from_vec(&data[i]).convert(&types[i]) {
+            Some(value) => value.to_bytes(),
+            None => return Err(Error::RowNotFound)
+        };
+        stmt = stmt.values([
+            device_ids[i].into(),
+            model_ids[i].into(),
+            timestamps[i].into(),
+            bytes.into()
+        ])
+        .unwrap_or(&mut sea_query::InsertStatement::default())
+        .to_owned();
+    }
     let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
