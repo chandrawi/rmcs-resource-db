@@ -9,6 +9,7 @@ use crate::schema::value::{DataType, DataValue, ArrayDataValue};
 use crate::schema::model::Model;
 use crate::schema::data::{Data, DataSchema, DataSetSchema};
 use crate::schema::set::SetMap;
+use super::{EMPTY_LENGTH_UNMATCH, DATA_TYPE_UNMATCH, MODEL_NOT_EXISTS};
 
 pub(crate) enum DataSelector {
     Time(DateTime<Utc>),
@@ -189,10 +190,10 @@ pub(crate) async fn insert_data(pool: &Pool<Postgres>,
 ) -> Result<(), Error>
 {
     let types_vec = select_data_types(pool, vec![model_id]).await?;
-    let types = types_vec.into_iter().next().ok_or(Error::RowNotFound)?;
+    let types = types_vec.into_iter().next().ok_or(Error::InvalidArgument(MODEL_NOT_EXISTS.to_string()))?;
     let bytes = match ArrayDataValue::from_vec(&data).convert(&types) {
         Some(value) => value.to_bytes(),
-        None => return Err(Error::RowNotFound)
+        None => return Err(Error::InvalidArgument(DATA_TYPE_UNMATCH.to_string()))
     };
 
     let stmt = Query::insert()
@@ -227,15 +228,18 @@ pub(crate) async fn insert_data_multiple(pool: &Pool<Postgres>,
     data: Vec<Vec<DataValue>>
 ) -> Result<(), Error>
 {
-    let numbers = vec![device_ids.len(), model_ids.len(), timestamps.len(), data.len()];
-    let number = numbers.into_iter().min().ok_or(Error::RowNotFound)?;
+    let number = device_ids.len();
+    let numbers = vec![model_ids.len(), timestamps.len(), data.len()];
+    if number == 0 || numbers.into_iter().all(|n| n != number) {
+        return Err(Error::InvalidArgument(EMPTY_LENGTH_UNMATCH.to_string()))
+    } 
     let mut model_ids_unique = model_ids.clone();
     model_ids_unique.sort();
     model_ids_unique.dedup();
 
     let types_vec = select_data_types(pool, model_ids.clone()).await?;
     if model_ids_unique.len() != types_vec.len() {
-        return Err(Error::RowNotFound);
+        return Err(Error::InvalidArgument(MODEL_NOT_EXISTS.to_string()));
     }
     let types: Vec<Vec<DataType>> = model_ids.clone().into_iter().map(|id| {
         let index = model_ids_unique.iter().position(|&el| el == id).unwrap_or_default();
@@ -254,7 +258,7 @@ pub(crate) async fn insert_data_multiple(pool: &Pool<Postgres>,
     for i in 0..number {
         let bytes = match ArrayDataValue::from_vec(&data[i]).convert(&types[i]) {
             Some(value) => value.to_bytes(),
-            None => return Err(Error::RowNotFound)
+            None => return Err(Error::InvalidArgument(DATA_TYPE_UNMATCH.to_string()))
         };
         stmt = stmt.values([
             device_ids[i].into(),

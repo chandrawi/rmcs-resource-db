@@ -10,6 +10,7 @@ use crate::schema::model::Model;
 use crate::schema::buffer::{DataBuffer, BufferSchema, BufferStatus};
 use crate::schema::set::SetMap;
 use crate::operation::data::select_data_types;
+use super::{EMPTY_LENGTH_UNMATCH, DATA_TYPE_UNMATCH, MODEL_NOT_EXISTS};
 
 pub(crate) enum BufferSelector {
     Time(DateTime<Utc>),
@@ -232,10 +233,10 @@ pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
 ) -> Result<i32, Error>
 {
     let types_vec = select_data_types(pool, vec![model_id]).await?;
-    let types = types_vec.into_iter().next().ok_or(Error::RowNotFound)?;
+    let types = types_vec.into_iter().next().ok_or(Error::InvalidArgument(MODEL_NOT_EXISTS.to_string()))?;
     let bytes = match ArrayDataValue::from_vec(&data).convert(&types) {
         Some(value) => value.to_bytes(),
-        None => return Err(Error::RowNotFound)
+        None => return Err(Error::InvalidArgument(DATA_TYPE_UNMATCH.to_string()))
     };
 
     let (sql, values) = Query::insert()
@@ -281,15 +282,18 @@ pub(crate) async fn insert_buffer_multiple(pool: &Pool<Postgres>,
     statuses: Vec<BufferStatus>
 ) -> Result<Vec<i32>, Error>
 {
-    let numbers = vec![device_ids.len(), model_ids.len(), timestamps.len(), data.len(), statuses.len()];
-    let number = numbers.into_iter().min().ok_or(Error::RowNotFound)?;
+    let number = device_ids.len();
+    let numbers = vec![model_ids.len(), timestamps.len(), data.len(), statuses.len()];
+    if number == 0 || numbers.into_iter().all(|n| n != number) {
+        return Err(Error::InvalidArgument(EMPTY_LENGTH_UNMATCH.to_string()))
+    } 
     let mut model_ids_unique = model_ids.clone();
     model_ids_unique.sort();
     model_ids_unique.dedup();
 
     let types_vec = select_data_types(pool, model_ids.clone()).await?;
     if model_ids_unique.len() != types_vec.len() {
-        return Err(Error::RowNotFound);
+        return Err(Error::InvalidArgument(MODEL_NOT_EXISTS.to_string()));
     }
     let types: Vec<Vec<DataType>> = model_ids.clone().into_iter().map(|id| {
         let index = model_ids_unique.iter().position(|&el| el == id).unwrap_or_default();
@@ -309,7 +313,7 @@ pub(crate) async fn insert_buffer_multiple(pool: &Pool<Postgres>,
     for i in 0..number {
         let bytes = match ArrayDataValue::from_vec(&data[i]).convert(&types[i]) {
             Some(value) => value.to_bytes(),
-            None => return Err(Error::RowNotFound)
+            None => return Err(Error::InvalidArgument(DATA_TYPE_UNMATCH.to_string()))
         };
         stmt = stmt.values([
             device_ids[i].into(),
@@ -351,11 +355,10 @@ pub(crate) async fn update_buffer(pool: &Pool<Postgres>,
         .to_owned();
 
     if let Some(value) = data {
-        let types = select_buffer_types(pool, id).await?;
-        let converted_values = ArrayDataValue::from_vec(&value).convert(&types);
-        let bytes = match converted_values {
+        let types = select_buffer_types(pool, id).await.map_err(|_| Error::InvalidArgument(MODEL_NOT_EXISTS.to_string()))?;
+        let bytes = match ArrayDataValue::from_vec(&value).convert(&types) {
             Some(value) => value.to_bytes(),
-            None => return Err(Error::RowNotFound)
+            None => return Err(Error::InvalidArgument(DATA_TYPE_UNMATCH.to_string()))
         };
         stmt = stmt.value(DataBuffer::Data, bytes).to_owned();
     }
