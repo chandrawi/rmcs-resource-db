@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::schema::value::{DataType, DataValue, ArrayDataValue};
 use crate::schema::model::Model;
-use crate::schema::buffer::{DataBuffer, BufferSchema, BufferStatus};
+use crate::schema::buffer::{DataBuffer, BufferSchema};
 use crate::schema::set::SetMap;
 use crate::operation::data::select_data_types;
 use super::{EMPTY_LENGTH_UNMATCH, DATA_TYPE_UNMATCH, MODEL_NOT_EXISTS};
@@ -28,7 +28,7 @@ pub(crate) async fn select_buffer(pool: &Pool<Postgres>,
     id: Option<i32>,
     device_ids: Option<Vec<Uuid>>,
     model_ids: Option<Vec<Uuid>>,
-    status: Option<BufferStatus>
+    tag: Option<i16>
 ) -> Result<Vec<BufferSchema>, Error>
 {
     let mut stmt = Query::select()
@@ -37,8 +37,8 @@ pub(crate) async fn select_buffer(pool: &Pool<Postgres>,
             (DataBuffer::Table, DataBuffer::DeviceId),
             (DataBuffer::Table, DataBuffer::ModelId),
             (DataBuffer::Table, DataBuffer::Timestamp),
-            (DataBuffer::Table, DataBuffer::Data),
-            (DataBuffer::Table, DataBuffer::Status)
+            (DataBuffer::Table, DataBuffer::Tag),
+            (DataBuffer::Table, DataBuffer::Data)
         ])
         .column((Model::Table, Model::DataType))
         .from(DataBuffer::Table)
@@ -66,9 +66,8 @@ pub(crate) async fn select_buffer(pool: &Pool<Postgres>,
             stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).is_in(ids)).to_owned();
         }
     }
-    if let Some(stat) = status {
-        let status = i16::from(stat);
-        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Status)).eq(status)).to_owned();
+    if let Some(t) = tag {
+        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Tag)).eq(t)).to_owned();
     }
 
     match selector {
@@ -121,7 +120,7 @@ pub(crate) async fn select_buffer(pool: &Pool<Postgres>,
 
     let rows = sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
-            let bytes: Vec<u8> = row.get(4);
+            let bytes: Vec<u8> = row.get(5);
             let types: Vec<DataType> = row.get::<Vec<u8>,_>(6).into_iter().map(|ty| ty.into()).collect();
             BufferSchema {
                 id: row.get(0),
@@ -129,7 +128,7 @@ pub(crate) async fn select_buffer(pool: &Pool<Postgres>,
                 model_id: row.get(2),
                 timestamp: row.get(3),
                 data: ArrayDataValue::from_bytes(&bytes, &types).to_vec(),
-                status: BufferStatus::from(row.get::<i16,_>(5))
+                tag: row.get(4)
             }
         })
         .fetch_all(pool)
@@ -142,7 +141,7 @@ pub(crate) async fn select_timestamp(pool: &Pool<Postgres>,
     selector: BufferSelector,
     device_ids: Option<Vec<Uuid>>,
     model_ids: Option<Vec<Uuid>>,
-    status: Option<BufferStatus>
+    tag: Option<i16>
 ) -> Result<Vec<DateTime<Utc>>, Error>
 {
     let mut stmt = Query::select()
@@ -166,9 +165,8 @@ pub(crate) async fn select_timestamp(pool: &Pool<Postgres>,
             stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).is_in(ids)).to_owned();
         }
     }
-    if let Some(stat) = status {
-        let status = i16::from(stat);
-        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Status)).eq(status)).to_owned();
+    if let Some(t) = tag {
+        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Tag)).eq(t)).to_owned();
     }
 
     match selector {
@@ -229,7 +227,7 @@ pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
     model_id: Uuid,
     timestamp: DateTime<Utc>,
     data: Vec<DataValue>,
-    status: BufferStatus
+    tag: i16
 ) -> Result<i32, Error>
 {
     let types_vec = select_data_types(pool, vec![model_id]).await?;
@@ -245,15 +243,15 @@ pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
             DataBuffer::DeviceId,
             DataBuffer::ModelId,
             DataBuffer::Timestamp,
-            DataBuffer::Data,
-            DataBuffer::Status
+            DataBuffer::Tag,
+            DataBuffer::Data
         ])
         .values([
             device_id.into(),
             model_id.into(),
             timestamp.into(),
-            bytes.into(),
-            i16::from(status).into()
+            tag.into(),
+            bytes.into()
         ])
         .unwrap_or(&mut sea_query::InsertStatement::default())
         .build_sqlx(PostgresQueryBuilder);
@@ -279,11 +277,11 @@ pub(crate) async fn insert_buffer_multiple(pool: &Pool<Postgres>,
     model_ids: Vec<Uuid>,
     timestamps: Vec<DateTime<Utc>>,
     data: Vec<Vec<DataValue>>,
-    statuses: Vec<BufferStatus>
+    tags: Vec<i16>
 ) -> Result<Vec<i32>, Error>
 {
     let number = device_ids.len();
-    let numbers = vec![model_ids.len(), timestamps.len(), data.len(), statuses.len()];
+    let numbers = vec![model_ids.len(), timestamps.len(), data.len(), tags.len()];
     if number == 0 || numbers.into_iter().all(|n| n != number) {
         return Err(Error::InvalidArgument(EMPTY_LENGTH_UNMATCH.to_string()))
     } 
@@ -306,8 +304,8 @@ pub(crate) async fn insert_buffer_multiple(pool: &Pool<Postgres>,
             DataBuffer::DeviceId,
             DataBuffer::ModelId,
             DataBuffer::Timestamp,
-            DataBuffer::Data,
-            DataBuffer::Status
+            DataBuffer::Tag,
+            DataBuffer::Data
         ])
         .to_owned();
     for i in 0..number {
@@ -319,8 +317,8 @@ pub(crate) async fn insert_buffer_multiple(pool: &Pool<Postgres>,
             device_ids[i].into(),
             model_ids[i].into(),
             timestamps[i].into(),
-            bytes.into(),
-            i16::from(statuses[i].clone()).into()
+            tags[i].clone().into(),
+            bytes.into()
         ])
         .unwrap_or(&mut sea_query::InsertStatement::default())
         .to_owned();
@@ -347,7 +345,7 @@ pub(crate) async fn insert_buffer_multiple(pool: &Pool<Postgres>,
 pub(crate) async fn update_buffer(pool: &Pool<Postgres>,
     id: i32,
     data: Option<Vec<DataValue>>,
-    status: Option<BufferStatus>
+    tag: Option<i16>
 ) -> Result<(), Error>
 {
     let mut stmt = Query::update()
@@ -362,8 +360,8 @@ pub(crate) async fn update_buffer(pool: &Pool<Postgres>,
         };
         stmt = stmt.value(DataBuffer::Data, bytes).to_owned();
     }
-    if let Some(value) = status {
-        stmt = stmt.value(DataBuffer::Status, i16::from(value)).to_owned();
+    if let Some(value) = tag {
+        stmt = stmt.value(DataBuffer::Tag, i16::from(value)).to_owned();
     }
 
     let (sql, values) = stmt
@@ -396,7 +394,7 @@ pub(crate) async fn delete_buffer(pool: &Pool<Postgres>,
 pub(crate) async fn select_buffer_set(pool: &Pool<Postgres>, 
     selector: BufferSelector,
     set_id: Uuid,
-    status: Option<BufferStatus>
+    tag: Option<i16>
 ) -> Result<Vec<BufferSchema>, Error>
 {
     let mut stmt = Query::select().to_owned();
@@ -406,8 +404,8 @@ pub(crate) async fn select_buffer_set(pool: &Pool<Postgres>,
             (DataBuffer::Table, DataBuffer::DeviceId),
             (DataBuffer::Table, DataBuffer::ModelId),
             (DataBuffer::Table, DataBuffer::Timestamp),
-            (DataBuffer::Table, DataBuffer::Data),
-            (DataBuffer::Table, DataBuffer::Status)
+            (DataBuffer::Table, DataBuffer::Tag),
+            (DataBuffer::Table, DataBuffer::Data)
         ])
         .column((Model::Table, Model::DataType))
         .from(DataBuffer::Table)
@@ -422,9 +420,8 @@ pub(crate) async fn select_buffer_set(pool: &Pool<Postgres>,
         .and_where(Expr::col((SetMap::Table, SetMap::SetId)).eq(set_id))
         .to_owned();
 
-    if let Some(stat) = status {
-        let status = i16::from(stat);
-        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Status)).eq(status)).to_owned();
+    if let Some(t) = tag {
+        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Tag)).eq(t)).to_owned();
     }
 
     match selector {
@@ -477,7 +474,7 @@ pub(crate) async fn select_buffer_set(pool: &Pool<Postgres>,
 
     let rows = sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
-            let bytes: Vec<u8> = row.get(4);
+            let bytes: Vec<u8> = row.get(5);
             let types: Vec<DataType> = row.get::<Vec<u8>,_>(6).into_iter().map(|ty| ty.into()).collect();
             BufferSchema {
                 id: row.get(0),
@@ -485,7 +482,7 @@ pub(crate) async fn select_buffer_set(pool: &Pool<Postgres>,
                 model_id: row.get(2),
                 timestamp: row.get(3),
                 data: ArrayDataValue::from_bytes(&bytes, &types).to_vec(),
-                status: BufferStatus::from(row.get::<i16,_>(5))
+                tag: row.get(5)
             }
         })
         .fetch_all(pool)
@@ -497,7 +494,7 @@ pub(crate) async fn select_buffer_set(pool: &Pool<Postgres>,
 pub(crate) async fn select_timestamp_set(pool: &Pool<Postgres>,
     selector: BufferSelector,
     set_id: Uuid,
-    status: Option<BufferStatus>
+    tag: Option<i16>
 ) -> Result<Vec<DateTime<Utc>>, Error>
 {
     let mut stmt = Query::select()
@@ -511,9 +508,9 @@ pub(crate) async fn select_timestamp_set(pool: &Pool<Postgres>,
         .and_where(Expr::col((SetMap::Table, SetMap::SetId)).eq(set_id))
         .to_owned();
 
-    if let Some(stat) = status {
-        let status = i16::from(stat);
-        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Status)).eq(status)).to_owned();
+    if let Some(t) = tag {
+        let status = i16::from(t);
+        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Tag)).eq(status)).to_owned();
     }
 
     match selector {
@@ -550,7 +547,7 @@ pub(crate) async fn count_buffer(pool: &Pool<Postgres>,
     device_ids: Option<Vec<Uuid>>,
     model_ids: Option<Vec<Uuid>>,
     set_id: Option<Uuid>,
-    status: Option<BufferStatus>
+    tag: Option<i16>
 ) -> Result<usize, Error>
 {
     let mut stmt = Query::select()
@@ -586,9 +583,8 @@ pub(crate) async fn count_buffer(pool: &Pool<Postgres>,
             }
         }
     }
-    if let Some(stat) = status {
-        let status = i16::from(stat);
-        stmt = stmt.and_where(Expr::col(DataBuffer::Status).eq(status)).to_owned();
+    if let Some(t) = tag {
+        stmt = stmt.and_where(Expr::col(DataBuffer::Tag).eq(t)).to_owned();
     }
 
     let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);

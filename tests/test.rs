@@ -7,7 +7,6 @@ mod tests {
     use uuid::Uuid;
     use rmcs_resource_db::{ModelConfigSchema, DeviceConfigSchema};
     use rmcs_resource_db::{Resource, DataType::*, DataValue::{*, self}};
-    use rmcs_resource_db::{BufferStatus::*, LogStatus::*};
     use rmcs_resource_db::SetMember;
 
     async fn get_connection_pool() -> Result<Pool<Postgres>, Error>
@@ -22,7 +21,7 @@ mod tests {
 
     async fn truncate_tables(pool: &Pool<Postgres>) -> Result<(), Error>
     {
-        let sql = "TRUNCATE TABLE \"system_log\", \"slice_data_set\", \"slice_data\", \"data_buffer\", \"data\", \"set_map\", \"set_template_map\", \"set\", \"set_template\", \"group_model_map\", \"group_device_map\", \"group_model\", \"group_device\", \"device_config\", \"device\", \"device_type_model\", \"device_type\", \"model_config\", \"model\";";
+        let sql = "TRUNCATE TABLE \"system_log\", \"slice_data_set\", \"slice_data\", \"data_buffer\", \"data\", \"set_map\", \"set_template_map\", \"set\", \"set_template\", \"group_model_map\", \"group_device_map\", \"group_model\", \"group_device\", \"device_config\", \"device\", \"device_type_model\", \"device_type\", \"model_tag\", \"model_config\", \"model\";";
         sqlx::query(sql)
             .execute(pool)
             .await?;
@@ -181,9 +180,9 @@ mod tests {
         let timestamp_2 = DateTime::parse_from_str("2025-06-11 14:49:36.123456 +0000", "%Y-%m-%d %H:%M:%S.%6f %z").unwrap().into();
         let raw_1 = vec![I32(1231),I32(890)];
         let raw_2 = vec![I32(1452),I32(-341)];
-        resource.create_buffer(device_id1, model_buf_id, timestamp_1, raw_1.clone(), Analysis1).await.unwrap();
-        resource.create_buffer(device_id2, model_buf_id, timestamp_1, raw_2.clone(), Analysis1).await.unwrap();
-        let ids = resource.create_buffer_multiple(vec![device_id1, device_id2], vec![model_buf_id, model_buf_id], vec![timestamp_2, timestamp_2], vec![raw_1.clone(), raw_2.clone()], vec![TransferLocal, TransferLocal]).await.unwrap();
+        resource.create_buffer(device_id1, model_buf_id, timestamp_1, raw_1.clone(), 11).await.unwrap();
+        resource.create_buffer(device_id2, model_buf_id, timestamp_1, raw_2.clone(), 11).await.unwrap();
+        let ids = resource.create_buffer_multiple(vec![device_id1, device_id2], vec![model_buf_id, model_buf_id], vec![timestamp_2, timestamp_2], vec![raw_1.clone(), raw_2.clone()], vec![6, 6]).await.unwrap();
 
         // read buffer
         let buffers = resource.list_buffer_first(100, None, None, None).await.unwrap();
@@ -245,11 +244,11 @@ mod tests {
         let result = resource.read_data(device_id1, model_id, timestamp_1).await;
         assert!(result.is_err());
 
-        // update buffer status
-        resource.update_buffer(buffers[0].id, None, Some(Delete)).await.unwrap();
+        // update buffer tag
+        resource.update_buffer(buffers[0].id, None, Some(2)).await.unwrap();
         let buffer = resource.read_buffer(buffers[0].id).await.unwrap();
         assert_eq!(buffers[0].data, buffer.data);
-        assert_eq!(buffer.status, Delete);
+        assert_eq!(buffer.tag, 2);
 
         // delete buffer data
         resource.delete_buffer(buffers[0].id).await.unwrap();
@@ -278,20 +277,20 @@ mod tests {
         assert!(result.is_err());
 
         // create system log
-        resource.create_log(timestamp_1, device_id1, UnknownError, String("testing success".to_owned())).await.unwrap();
+        let log_id = resource.create_log(timestamp_1, Some(device_id1), None, 0, String("testing success".to_owned())).await.unwrap();
         // read log
-        let logs = resource.list_log_by_range_time(timestamp_1, Utc::now(), None, None).await.unwrap();
-        let log = logs.iter().filter(|x| x.device_id == device_id1 && x.timestamp == timestamp_1).next().unwrap();
+        let logs = resource.list_log_by_range_time(timestamp_1, Utc::now(), None, None, None).await.unwrap();
+        let log = logs.iter().filter(|x| x.device_id == Some(device_id1) && x.timestamp == timestamp_1).next().unwrap();
         assert_eq!(log.value, String("testing success".to_owned()));
 
         // update system log
-        resource.update_log(timestamp_1, device_id1, Some(Success), None).await.unwrap();
-        let log = resource.read_log(timestamp_1, device_id1).await.unwrap();
-        assert_eq!(log.status, Success);
+        resource.update_log(log_id, Some(1), None).await.unwrap();
+        let log = resource.read_log(log.id).await.unwrap();
+        assert_eq!(log.tag, 1);
 
         // delete system log
-        resource.delete_log(timestamp_1, device_id1).await.unwrap();
-        let result = resource.read_log(timestamp_1, device_id1).await;
+        resource.delete_log(log_id).await.unwrap();
+        let result = resource.read_log(log.id).await;
         assert!(result.is_err());
 
         // delete model config

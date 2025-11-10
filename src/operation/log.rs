@@ -1,69 +1,82 @@
 use sqlx::{Pool, Row, Error};
 use sqlx::postgres::{Postgres, PgRow};
 use sqlx::types::chrono::{DateTime, Utc};
-use sea_query::{PostgresQueryBuilder, Query, Expr, Order};
+use sea_query::{PostgresQueryBuilder, Query, Expr, Order, Func};
 use sea_query_binder::SqlxBinder;
 use uuid::Uuid;
 
 use crate::schema::value::{DataType, DataValue};
-use crate::schema::log::{SystemLog, LogSchema, LogStatus};
+use crate::schema::log::{SystemLog, LogSchema};
 
 pub(crate) enum LogSelector {
     Time(DateTime<Utc>),
     Last(DateTime<Utc>),
-    Range(DateTime<Utc>, DateTime<Utc>)
+    Range(DateTime<Utc>, DateTime<Utc>),
+    None
 }
 
 pub(crate) async fn select_log(pool: &Pool<Postgres>,
     selector: LogSelector,
+    id: Option<i32>,
     device_id: Option<Uuid>,
-    status: Option<LogStatus>
+    model_id: Option<Uuid>,
+    tag: Option<i16>
 ) -> Result<Vec<LogSchema>, Error>
 {
     let mut stmt = Query::select()
         .columns([
-            SystemLog::DeviceId,
+            SystemLog::Id,
             SystemLog::Timestamp,
-            SystemLog::Status,
+            SystemLog::DeviceId,
+            SystemLog::ModelId,
+            SystemLog::Tag,
             SystemLog::Value,
             SystemLog::Type
         ])
         .from(SystemLog::Table)
         .to_owned();
+    if let Some(id) = id {
+        stmt = stmt.and_where(Expr::col(SystemLog::Id).eq(id)).to_owned();
+    }
+    if let Some(id) = device_id {
+        stmt = stmt.and_where(Expr::col(SystemLog::DeviceId).eq(id)).to_owned();
+    }
+    if let Some(id) = model_id {
+        stmt = stmt.and_where(Expr::col(SystemLog::ModelId).eq(id)).to_owned();
+    }
+    if let Some(t) = tag {
+        stmt = stmt.and_where(Expr::col(SystemLog::Tag).eq(t)).to_owned();
+    }
     match selector {
         LogSelector::Time(timestamp) => {
             stmt = stmt.and_where(Expr::col(SystemLog::Timestamp).eq(timestamp)).to_owned();
         },
         LogSelector::Last(timestamp) => {
-            stmt = stmt.and_where(Expr::col(SystemLog::Timestamp).gt(timestamp)).to_owned();
+            stmt = stmt.and_where(Expr::col(SystemLog::Timestamp).gt(timestamp))
+                .order_by(SystemLog::Timestamp, Order::Asc)
+                .to_owned();
         },
         LogSelector::Range(begin, end) => {
             stmt = stmt
                 .and_where(Expr::col(SystemLog::Timestamp).gte(begin))
                 .and_where(Expr::col(SystemLog::Timestamp).lte(end))
+                .order_by(SystemLog::Timestamp, Order::Asc)
                 .to_owned();
-        }
+        },
+        LogSelector::None => {}
     }
-    if let Some(id) = device_id {
-        stmt = stmt.and_where(Expr::col(SystemLog::DeviceId).eq(id)).to_owned();
-    }
-    if let Some(stat) = status {
-        let status = i16::from(stat);
-        stmt = stmt.and_where(Expr::col(SystemLog::Status).eq(status)).to_owned();
-    }
-    let (sql, values) = stmt
-        .order_by(SystemLog::Timestamp, Order::Desc)
-        .order_by(SystemLog::DeviceId, Order::Asc)
-        .build_sqlx(PostgresQueryBuilder);
+    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     let rows = sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
-            let bytes: Vec<u8> = row.get(3);
-            let type_ = DataType::from(row.get::<i16,_>(4));
+            let bytes: Vec<u8> = row.get(5);
+            let type_ = DataType::from(row.get::<i16,_>(6));
             LogSchema {
-                device_id: row.get(0),
+                id: row.get(0),
                 timestamp: row.get(1),
-                status: LogStatus::from(row.get::<i16,_>(2)),
+                device_id: row.get(2),
+                model_id: row.get(3),
+                tag: row.get(4),
                 value: DataValue::from_bytes(&bytes, type_)
             }
         })
@@ -75,10 +88,11 @@ pub(crate) async fn select_log(pool: &Pool<Postgres>,
 
 pub(crate) async fn insert_log(pool: &Pool<Postgres>,
     timestamp: DateTime<Utc>,
-    device_id: Uuid,
-    status: LogStatus,
+    device_id: Option<Uuid>,
+    model_id: Option<Uuid>,
+    tag: i16,
     value: DataValue
-) -> Result<(), Error>
+) -> Result<i32, Error>
 {
     let bytes = value.to_bytes();
     let type_ = i16::from(value.get_type());
@@ -86,16 +100,18 @@ pub(crate) async fn insert_log(pool: &Pool<Postgres>,
     let (sql, values) = Query::insert()
         .into_table(SystemLog::Table)
         .columns([
-            SystemLog::DeviceId,
             SystemLog::Timestamp,
-            SystemLog::Status,
+            SystemLog::DeviceId,
+            SystemLog::ModelId,
+            SystemLog::Tag,
             SystemLog::Value,
             SystemLog::Type
         ])
         .values([
-            device_id.into(),
             timestamp.into(),
-            i16::from(status).into(),
+            device_id.into(),
+            model_id.into(),
+            tag.into(),
             bytes.into(),
             type_.into()
         ])
@@ -106,13 +122,21 @@ pub(crate) async fn insert_log(pool: &Pool<Postgres>,
         .execute(pool)
         .await?;
 
-    Ok(())
+    let sql = Query::select()
+        .expr(Func::max(Expr::col(SystemLog::Id)))
+        .from(SystemLog::Table)
+        .to_string(PostgresQueryBuilder);
+    let id: i32 = sqlx::query(&sql)
+        .map(|row: PgRow| row.get(0))
+        .fetch_one(pool)
+        .await?;
+
+    Ok(id)
 }
 
 pub(crate) async fn update_log(pool: &Pool<Postgres>,
-    timestamp: DateTime<Utc>,
-    device_id: Uuid,
-    status: Option<LogStatus>,
+    id: i32,
+    tag: Option<i16>,
     value: Option<DataValue>
 ) -> Result<(), Error>
 {
@@ -120,8 +144,8 @@ pub(crate) async fn update_log(pool: &Pool<Postgres>,
         .table(SystemLog::Table)
         .to_owned();
 
-    if let Some(value) = status {
-        stmt = stmt.value(SystemLog::Status, i16::from(value)).to_owned();
+    if let Some(value) = tag {
+        stmt = stmt.value(SystemLog::Tag, i16::from(value)).to_owned();
     }
     if let Some(value) = value {
         let bytes = value.to_bytes();
@@ -132,8 +156,7 @@ pub(crate) async fn update_log(pool: &Pool<Postgres>,
             .to_owned();
     }
     let (sql, values) = stmt
-        .and_where(Expr::col(SystemLog::DeviceId).eq(device_id))
-        .and_where(Expr::col(SystemLog::Timestamp).eq(timestamp))
+        .and_where(Expr::col(SystemLog::Id).eq(id))
         .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
@@ -144,14 +167,12 @@ pub(crate) async fn update_log(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn delete_log(pool: &Pool<Postgres>,
-    timestamp: DateTime<Utc>,
-    device_id: Uuid
+    id: i32
 ) -> Result<(), Error>
 {
     let (sql, values) = Query::delete()
         .from_table(SystemLog::Table)
-        .and_where(Expr::col(SystemLog::DeviceId).eq(device_id))
-        .and_where(Expr::col(SystemLog::Timestamp).eq(timestamp))
+        .and_where(Expr::col(SystemLog::Id).eq(id))
         .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
