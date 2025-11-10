@@ -1,9 +1,11 @@
-CREATE TABLE IF NOT EXISTS "data" (
+CREATE TABLE IF NOT EXISTS "data_buffer" (
+  "id" serial NOT NULL,
   "device_id" uuid NOT NULL,
   "model_id" uuid NOT NULL,
   "timestamp" timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "tag" smallint NOT NULL DEFAULT 0,
   "data" bytea NOT NULL,
-  PRIMARY KEY ("timestamp","model_id","device_id"),
+  PRIMARY KEY ("timestamp","model_id","device_id","tag"),
   FOREIGN KEY ("device_id")
     REFERENCES "device" ("device_id"),
   FOREIGN KEY ("model_id")
