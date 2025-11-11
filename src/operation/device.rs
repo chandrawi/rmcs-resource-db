@@ -98,16 +98,16 @@ pub(crate) async fn select_device(pool: &Pool<Postgres>,
             // get last device_schema in device_schema_vec or default
             let mut device_schema = device_schema_vec.pop().unwrap_or_default();
             // on every new id found insert device_schema to device_schema_vec and reset last_model
-            let id: Uuid = row.get(0);
+            let device_id: Uuid = row.get(0);
             if let Some(value) = last_id {
-                if value != id {
+                if value != device_id {
                     device_schema_vec.push(device_schema.clone());
                     device_schema = DeviceSchema::default();
                     last_model = None;
                 }
             }
-            last_id = Some(id);
-            device_schema.id = id;
+            last_id = Some(device_id);
+            device_schema.id = device_id;
             device_schema.gateway_id = row.get(1);
             device_schema.serial_number = row.get(3);
             device_schema.name = row.get(4);
@@ -115,25 +115,26 @@ pub(crate) async fn select_device(pool: &Pool<Postgres>,
             device_schema.type_.id = row.get(2);
             device_schema.type_.name = row.get(6);
             device_schema.type_.description = row.get(7);
-            // on every new model_id found add model_vec and update device_schema type
-            let model_id = row.try_get(8).unwrap_or_default();
-            if last_model == None || last_model != Some(model_id) {
-                device_schema.type_.models.push(model_id);
+            // on every new model id found, add model id to type model and initialize a new config
+            let model_id = row.try_get(8).ok();
+            if last_model == None || last_model != Some(model_id.unwrap_or_default()) {
+                if let Some(id) = model_id {
+                    device_schema.type_.models.push(id);
+                }
                 device_schema.configs = Vec::new();
             }
-            last_model = Some(model_id);
+            last_model = Some(model_id.unwrap_or_default());
             // update device_schema configs if non empty config found
-            let config_id: Result<i32, Error> = row.try_get(9);
-            if let Ok(cfg_id) = config_id {
-                let bytes: Vec<u8> = row.try_get(11).unwrap_or_default();
-                let type_ = DataType::from(row.try_get::<i16,_>(12).unwrap_or_default());
-                device_schema.configs.push(DeviceConfigSchema {
-                    id: cfg_id,
-                    device_id: id,
-                    name: row.try_get(10).unwrap_or_default(),
-                    value: DataValue::from_bytes(bytes.as_slice(), type_),
-                    category: row.try_get(13).unwrap_or_default()
-                });
+            let config_id = row.try_get(9);
+            let config_name = row.try_get(10);
+            let config_bytes: Result<Vec<u8>,_> = row.try_get(11);
+            let config_type: Result<i16,_> = row.try_get(12);
+            let config_category = row.try_get(13);
+            if let (Ok(id), Ok(name), Ok(bytes), Ok(type_), Ok(category)) = 
+                (config_id, config_name, config_bytes, config_type, config_category) 
+            {
+                let value = DataValue::from_bytes(&bytes, DataType::from(type_));
+                device_schema.configs.push(DeviceConfigSchema { id, device_id, name, value, category });
             }
             // update device_schema_vec with updated device_schema
             device_schema_vec.push(device_schema.clone());

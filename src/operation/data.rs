@@ -9,6 +9,8 @@ use crate::schema::value::{DataType, DataValue, ArrayDataValue};
 use crate::schema::model::Model;
 use crate::schema::data::{Data, DataSchema, DataSetSchema};
 use crate::schema::set::SetMap;
+use crate::operation::model::select_tag_members;
+use crate::utility::tag as Tag;
 use super::{EMPTY_LENGTH_UNMATCH, DATA_TYPE_UNMATCH, MODEL_NOT_EXISTS};
 
 pub(crate) enum DataSelector {
@@ -54,7 +56,7 @@ pub(crate) async fn select_data(pool: &Pool<Postgres>,
         stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).eq(model_ids[0])).to_owned();
     }
     else {
-        stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).is_in(model_ids)).to_owned();
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).is_in(model_ids.clone())).to_owned();
     }
 
     match selector {
@@ -90,7 +92,8 @@ pub(crate) async fn select_data(pool: &Pool<Postgres>,
     }
 
     if let Some(t) = tag {
-        stmt = stmt.and_where(Expr::col((Data::Table, Data::Tag)).eq(t)).to_owned();
+        let tags = select_tag_members(pool, model_ids, t).await?;
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::Tag)).is_in(tags)).to_owned();
     }
     let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
@@ -137,7 +140,7 @@ pub(crate) async fn select_timestamp(pool: &Pool<Postgres>,
         stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).eq(model_ids[0])).to_owned();
     }
     else {
-        stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).is_in(model_ids)).to_owned();
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).is_in(model_ids.clone())).to_owned();
     }
 
     match selector {
@@ -160,7 +163,8 @@ pub(crate) async fn select_timestamp(pool: &Pool<Postgres>,
     }
 
     if let Some(t) = tag {
-        stmt = stmt.and_where(Expr::col((Data::Table, Data::Tag)).eq(t)).to_owned();
+        let tags = select_tag_members(pool, model_ids, t).await?;
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::Tag)).is_in(tags)).to_owned();
     }
     let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
@@ -199,7 +203,7 @@ pub(crate) async fn insert_data(pool: &Pool<Postgres>,
     model_id: Uuid,
     timestamp: DateTime<Utc>,
     data: Vec<DataValue>,
-    tag: i16
+    tag: Option<i16>
 ) -> Result<(), Error>
 {
     let types_vec = select_data_types(pool, vec![model_id]).await?;
@@ -208,6 +212,7 @@ pub(crate) async fn insert_data(pool: &Pool<Postgres>,
         Some(value) => value.to_bytes(),
         None => return Err(Error::InvalidArgument(DATA_TYPE_UNMATCH.to_string()))
     };
+    let tag = tag.unwrap_or(Tag::DEFAULT);
 
     let stmt = Query::insert()
         .into_table(Data::Table)
@@ -241,12 +246,16 @@ pub(crate) async fn insert_data_multiple(pool: &Pool<Postgres>,
     model_ids: Vec<Uuid>,
     timestamps: Vec<DateTime<Utc>>,
     data: Vec<Vec<DataValue>>,
-    tags: Vec<i16>
+    tags: Option<Vec<i16>>
 ) -> Result<(), Error>
 {
     let number = device_ids.len();
-    let numbers = vec![model_ids.len(), timestamps.len(), data.len()];
-    if number == 0 || numbers.into_iter().all(|n| n != number) {
+    let tags = match tags {
+        Some(value) => value,
+        None => (0..number).map(|_| Tag::DEFAULT).collect()
+    };
+    let numbers = vec![model_ids.len(), timestamps.len(), data.len(), tags.len()];
+    if number == 0 || numbers.into_iter().any(|n| n != number) {
         return Err(Error::InvalidArgument(EMPTY_LENGTH_UNMATCH.to_string()))
     } 
     let mut model_ids_unique = model_ids.clone();
@@ -323,8 +332,7 @@ pub(crate) async fn delete_data(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_data_set(pool: &Pool<Postgres>, 
     selector: DataSelector,
-    set_id: Uuid,
-    tag: Option<i16>
+    set_id: Uuid
 ) -> Result<(Vec<DataSchema>, Vec<DataSetSchema>), Error>
 {
     let mut stmt = Query::select()
@@ -386,9 +394,6 @@ pub(crate) async fn select_data_set(pool: &Pool<Postgres>,
         }
     }
 
-    if let Some(t) = tag {
-        stmt = stmt.and_where(Expr::col((Data::Table, Data::Tag)).eq(t)).to_owned();
-    }
     let (sql, values) = stmt
         .order_by((SetMap::Table, SetMap::SetPosition), Order::Asc)
         .build_sqlx(PostgresQueryBuilder);
@@ -446,8 +451,7 @@ pub(crate) async fn select_data_set(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_timestamp_set(pool: &Pool<Postgres>,
     selector: DataSelector,
-    set_id: Uuid,
-    tag: Option<i16>
+    set_id: Uuid
 ) -> Result<Vec<DateTime<Utc>>, Error>
 {
     let mut stmt = Query::select()
@@ -480,9 +484,6 @@ pub(crate) async fn select_timestamp_set(pool: &Pool<Postgres>,
         _ => {}
     }
 
-    if let Some(t) = tag {
-        stmt = stmt.and_where(Expr::col((Data::Table, Data::Tag)).eq(t)).to_owned();
-    }
     let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     let mut timestamps: Vec<DateTime<Utc>> = Vec::new();
@@ -536,7 +537,7 @@ pub(crate) async fn count_data(pool: &Pool<Postgres>,
             stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).eq(model_ids[0])).to_owned();
         }
         else {
-            stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).is_in(model_ids)).to_owned();
+            stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).is_in(model_ids.clone())).to_owned();
         }
     }
 
@@ -554,7 +555,8 @@ pub(crate) async fn count_data(pool: &Pool<Postgres>,
     }
 
     if let Some(t) = tag {
-        stmt = stmt.and_where(Expr::col((Data::Table, Data::Tag)).eq(t)).to_owned();
+        let tags = select_tag_members(pool, model_ids, t).await?;
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::Tag)).is_in(tags)).to_owned();
     }
     let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 

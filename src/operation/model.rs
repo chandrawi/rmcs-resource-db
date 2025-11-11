@@ -5,7 +5,7 @@ use sea_query_binder::SqlxBinder;
 use uuid::Uuid;
 
 use crate::schema::value::{DataValue, DataType};
-use crate::schema::model::{Model, ModelConfig, ModelSchema, ModelConfigSchema};
+use crate::schema::model::{Model, ModelTag, ModelConfig, ModelSchema, ModelConfigSchema, TagSchema, ModelSchemaFlat};
 use crate::schema::device::DeviceTypeModel;
 
 pub(crate) async fn select_model(pool: &Pool<Postgres>, 
@@ -25,6 +25,11 @@ pub(crate) async fn select_model(pool: &Pool<Postgres>,
             (Model::Table, Model::DataType)
         ])
         .columns([
+            (ModelTag::Table, ModelTag::Tag),
+            (ModelTag::Table, ModelTag::Name),
+            (ModelTag::Table, ModelTag::Members)
+        ])
+        .columns([
             (ModelConfig::Table, ModelConfig::Id),
             (ModelConfig::Table, ModelConfig::Index),
             (ModelConfig::Table, ModelConfig::Name),
@@ -33,6 +38,10 @@ pub(crate) async fn select_model(pool: &Pool<Postgres>,
             (ModelConfig::Table, ModelConfig::Category)
         ])
         .from(Model::Table)
+        .left_join(ModelTag::Table, 
+            Expr::col((Model::Table, Model::ModelId))
+            .equals((ModelTag::Table, ModelTag::ModelId))
+        )
         .left_join(ModelConfig::Table, 
             Expr::col((Model::Table, Model::ModelId))
             .equals((ModelConfig::Table, ModelConfig::ModelId))
@@ -65,63 +74,70 @@ pub(crate) async fn select_model(pool: &Pool<Postgres>,
 
     let (sql, values) = stmt
         .order_by((Model::Table, Model::ModelId), Order::Asc)
-        .order_by((ModelConfig::Table, ModelConfig::Index), Order::Asc)
+        .order_by((ModelTag::Table, ModelTag::Tag), Order::Asc)
         .order_by((ModelConfig::Table, ModelConfig::Id), Order::Asc)
         .build_sqlx(PostgresQueryBuilder);
 
     let mut last_id: Option<Uuid> = None;
-    let mut last_index: Option<i16> = None;
-    let mut config_schema_vec: Vec<ModelConfigSchema> = Vec::new();
-    let mut model_schema_vec: Vec<ModelSchema> = Vec::new();
+    let mut last_tag: Option<i16> = None;
+    let mut model_schema_vec: Vec<ModelSchemaFlat> = Vec::new();
 
     sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
             // get last model_schema in model_schema_vec or default
             let mut model_schema = model_schema_vec.pop().unwrap_or_default();
             // on every new id found insert model_schema to model_schema_vec and reset last_index
-            let id: Uuid = row.get(0);
-            if let Some(value) = last_id {
-                if value != id {
+            let model_id: Uuid = row.get(0);
+            if let Some(id) = last_id {
+                if id != model_id {
                     model_schema_vec.push(model_schema.clone());
-                    model_schema = ModelSchema::default();
-                    last_index = None;
+                    model_schema = ModelSchemaFlat::default();
+                    last_tag = None;
                 }
             }
-            last_id = Some(id);
-            model_schema.id = id;
+            last_id = Some(model_id);
+            model_schema.id = model_id;
             model_schema.name = row.get(1);
             model_schema.category = row.get(2);
             model_schema.description = row.get(3);
             model_schema.data_type = row.get::<Vec<u8>,_>(4).into_iter().map(|byte| byte.into()).collect();
-            // on every new index found update model_schema types and clear config_schema_vec
-            let type_index: Option<i16> = row.try_get(6).ok();
-            if last_index == None || last_index != type_index {
-                model_schema.configs.push(Vec::new());
-                config_schema_vec.clear();
+            // on every new tag found, add a new tag schema to model schema and initialize a new config
+            let tag_id = row.try_get(5).ok();
+            let tag_name = row.try_get(6);
+            let tag_bytes: Result<Vec<u8>,_> = row.try_get(7);
+            if last_tag == None || last_tag != Some(tag_id.unwrap_or(0)) {
+                if let (Some(tag), Ok(name), Ok(bytes)) = 
+                    (tag_id, tag_name, tag_bytes) 
+                {
+                    let mut members = vec![tag];
+                    for chunk in bytes.chunks_exact(2) {
+                        members.push(i16::from_be_bytes([chunk[0], chunk[1]]));
+                    }
+                    model_schema.tags.push(TagSchema { model_id, tag, name, members });
+                }
+                model_schema.configs = Vec::new();
             }
-            last_index = type_index;
+            last_tag = Some(tag_id.unwrap_or(0));
             // update model_schema configs if non empty config found
-            if let Some(index) = type_index {
-                let bytes: Vec<u8> = row.try_get(8).unwrap_or_default();
-                let type_ = DataType::from(row.try_get::<i16,_>(9).unwrap_or_default());
-                config_schema_vec.push(ModelConfigSchema {
-                    id: row.try_get(5).unwrap_or_default(),
-                    model_id: id,
-                    index,
-                    name: row.try_get(7).unwrap_or_default(),
-                    value: DataValue::from_bytes(bytes.as_slice(), type_),
-                    category: row.try_get(10).unwrap_or_default()
-                });
+            let config_id = row.try_get(8);
+            let config_index = row.try_get(9);
+            let config_name = row.try_get(10);
+            let config_bytes: Result<Vec<u8>,_> = row.try_get(11);
+            let config_type: Result<i16,_> = row.try_get(12);
+            let config_category = row.try_get(13);
+            if let (Ok(id), Ok(index), Ok(name), Ok(bytes), Ok(type_), Ok(category)) = 
+                (config_id, config_index, config_name, config_bytes, config_type, config_category) 
+            {
+                let value = DataValue::from_bytes(&bytes, DataType::from(type_));
+                model_schema.configs.push(ModelConfigSchema { id, model_id, index, name, value, category});
             }
-            model_schema.configs.pop();
-            model_schema.configs.push(config_schema_vec.clone());
             // update model_schema_vec with updated model_schema
             model_schema_vec.push(model_schema.clone());
         })
         .fetch_all(pool)
         .await?;
 
-    Ok(model_schema_vec)
+    Ok(model_schema_vec.into_iter().map(|schema| schema.into()).collect())
 }
 
 pub(crate) async fn insert_model(pool: &Pool<Postgres>,
@@ -354,6 +370,164 @@ pub(crate) async fn delete_model_config(pool: &Pool<Postgres>,
     let (sql, values) = Query::delete()
         .from_table(ModelConfig::Table)
         .and_where(Expr::col(ModelConfig::Id).eq(id))
+        .build_sqlx(PostgresQueryBuilder);
+
+    sqlx::query_with(&sql, values)
+        .execute(pool)
+        .await?;
+
+    Ok(())
+}
+
+pub(crate) async fn select_model_tag(pool: &Pool<Postgres>, 
+    model_id: Uuid,
+    tag: Option<i16>
+) -> Result<Vec<TagSchema>, Error>
+{
+    let mut stmt = Query::select()
+        .columns([
+            ModelTag::ModelId,
+            ModelTag::Tag,
+            ModelTag::Name,
+            ModelTag::Members
+        ])
+        .from(ModelTag::Table)
+        .and_where(Expr::col(ModelTag::ModelId).eq(model_id))
+        .to_owned();
+
+    if let Some(t) = tag {
+        stmt = stmt.and_where(Expr::col(ModelTag::Tag).eq(t)).to_owned();
+    }
+    let (sql, values) = stmt
+        .order_by(ModelTag::Tag, Order::Asc)
+        .build_sqlx(PostgresQueryBuilder);
+
+    let rows = sqlx::query_with(&sql, values)
+        .map(|row: PgRow| {
+            let mut tags: Vec<i16> = vec![row.get(1)];
+            let bytes: Vec<u8> = row.get(3);
+            for chunk in bytes.chunks_exact(2) {
+                tags.push(i16::from_be_bytes([chunk[0], chunk[1]]));
+            }
+            TagSchema {
+                model_id: row.get(0),
+                tag: tags[0],
+                name: row.get(2),
+                members: tags
+            }
+        })
+        .fetch_all(pool)
+        .await?;
+
+    Ok(rows)
+}
+
+pub(crate) async fn select_tag_members(pool: &Pool<Postgres>, 
+    model_ids: Vec<Uuid>,
+    tag: i16
+) -> Result<Vec<i16>, Error>
+{
+    let (sql, values) = Query::select()
+        .column(ModelTag::Members)
+        .from(ModelTag::Table)
+        .and_where(Expr::col(ModelTag::ModelId).is_in(model_ids))
+        .and_where(Expr::col(ModelTag::Tag).eq(tag))
+        .build_sqlx(PostgresQueryBuilder);
+
+    let mut tags: Vec<i16> = vec![tag];
+    sqlx::query_with(&sql, values)
+        .map(|row: PgRow| {
+            let bytes: Vec<u8> = row.get(0);
+            for chunk in bytes.chunks_exact(2) {
+                tags.push(i16::from_be_bytes([chunk[0], chunk[1]]));
+            }
+        })
+        .fetch_all(pool)
+        .await?;
+
+    tags.sort();
+    tags.dedup();
+    Ok(tags)
+}
+
+pub(crate) async fn insert_model_tag(pool: &Pool<Postgres>,
+    model_id: Uuid,
+    tag: i16,
+    name: &str,
+    members: Vec<i16>
+) -> Result<(), Error>
+{
+    let mut bytes: Vec<u8> = Vec::new();
+    for member in members {
+        bytes.append(member.to_be_bytes().to_vec().as_mut());
+    }
+    let (sql, values) = Query::insert()
+        .into_table(ModelTag::Table)
+        .columns([
+            ModelTag::ModelId,
+            ModelTag::Tag,
+            ModelTag::Name,
+            ModelTag::Members
+        ])
+        .values([
+            model_id.into(),
+            tag.into(),
+            name.into(),
+            bytes.into()
+        ])
+        .unwrap_or(&mut sea_query::InsertStatement::default())
+        .build_sqlx(PostgresQueryBuilder);
+
+    sqlx::query_with(&sql, values)
+        .execute(pool)
+        .await?;
+
+    Ok(())
+}
+
+pub(crate) async fn update_model_tag(pool: &Pool<Postgres>,
+    model_id: Uuid,
+    tag: i16,
+    name: Option<&str>,
+    members: Option<Vec<i16>>
+) -> Result<(), Error>
+{
+    let mut stmt = Query::update()
+        .table(ModelTag::Table)
+        .to_owned();
+
+    if let Some(value) = name {
+        stmt = stmt.value(ModelTag::Name, value).to_owned();
+    }
+    if let Some(value) = members {
+        let mut bytes: Vec<u8> = Vec::new();
+        for member in value {
+            bytes.append(member.to_be_bytes().to_vec().as_mut());
+        }
+        stmt = stmt.value(ModelTag::Members, bytes).to_owned();
+    }
+
+    let (sql, values) = stmt
+        .and_where(Expr::col(ModelTag::ModelId).eq(model_id))
+        .and_where(Expr::col(ModelTag::Tag).eq(tag))
+        .build_sqlx(PostgresQueryBuilder);
+
+    sqlx::query_with(&sql, values)
+        .execute(pool)
+        .await?;
+
+    Ok(())
+}
+
+pub(crate) async fn delete_model_tag(pool: &Pool<Postgres>,
+    model_id: Uuid,
+    tag: i16
+) -> Result<(), Error>
+{
+    let (sql, values) = Query::delete()
+        .from_table(ModelTag::Table)
+        .and_where(Expr::col(ModelTag::ModelId).eq(model_id))
+        .and_where(Expr::col(ModelTag::Tag).eq(tag))
         .build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)

@@ -4,7 +4,6 @@ CREATE TABLE IF NOT EXISTS "model" (
   "category" varchar(64) NOT NULL,
   "description" text NOT NULL DEFAULT '',
   "data_type" bytea,
-  "tag_map" bytea,
   PRIMARY KEY ("model_id")
 );
 
@@ -24,8 +23,8 @@ CREATE TABLE IF NOT EXISTS "model_config" (
 CREATE TABLE IF NOT EXISTS "model_tag" (
   "model_id" uuid NOT NULL,
   "tag" smallint NOT NULL,
-  "group" boolean NOT NULL DEFAULT false,
   "name" varchar(128) NOT NULL,
+  "members" bytea NOT NULL,
   PRIMARY KEY ("model_id", "tag"),
   FOREIGN KEY ("model_id")
     REFERENCES "model" ("model_id") ON UPDATE CASCADE ON DELETE CASCADE
