@@ -10,6 +10,7 @@ pub(crate) enum Data {
     DeviceId,
     ModelId,
     Timestamp,
+    Tag,
     Data
 }
 
@@ -18,7 +19,8 @@ pub struct DataSchema {
     pub device_id: Uuid,
     pub model_id: Uuid,
     pub timestamp: DateTime<Utc>,
-    pub data: Vec<DataValue>
+    pub data: Vec<DataValue>,
+    pub tag: i16
 }
 
 #[derive(Debug, Default, PartialEq, Clone)]
@@ -39,7 +41,8 @@ impl From<data::DataSchema> for DataSchema {
                     value.data_type.into_iter().map(|e| DataType::from(e))
                     .collect::<Vec<DataType>>()
                     .as_slice()
-                ).to_vec()
+                ).to_vec(),
+            tag: value.tag as i16
         }
     }
 }
@@ -51,7 +54,8 @@ impl Into<data::DataSchema> for DataSchema {
             model_id: self.model_id.as_bytes().to_vec(),
             timestamp: self.timestamp.timestamp_micros(),
             data_bytes: ArrayDataValue::from_vec(&self.data).to_bytes(),
-            data_type: self.data.into_iter().map(|e| e.get_type().into()).collect()
+            data_type: self.data.into_iter().map(|e| e.get_type().into()).collect(),
+            tag: self.tag as i32
         }
     }
 }

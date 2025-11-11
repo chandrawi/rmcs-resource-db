@@ -22,7 +22,8 @@ pub(crate) enum DataSelector {
 pub(crate) async fn select_data(pool: &Pool<Postgres>, 
     selector: DataSelector,
     device_ids: Vec<Uuid>,
-    model_ids: Vec<Uuid>
+    model_ids: Vec<Uuid>,
+    tag: Option<i16>
 ) -> Result<Vec<DataSchema>, Error>
 {
     let mut stmt = Query::select()
@@ -30,6 +31,7 @@ pub(crate) async fn select_data(pool: &Pool<Postgres>,
             (Data::Table, Data::DeviceId),
             (Data::Table, Data::ModelId),
             (Data::Table, Data::Timestamp),
+            (Data::Table, Data::Tag),
             (Data::Table, Data::Data)
         ])
         .column((Model::Table, Model::DataType))
@@ -86,17 +88,22 @@ pub(crate) async fn select_data(pool: &Pool<Postgres>,
                 .to_owned();
         }
     }
+
+    if let Some(t) = tag {
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::Tag)).eq(t)).to_owned();
+    }
     let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     let rows = sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
-            let bytes: Vec<u8> = row.get(3);
-            let types: Vec<DataType> = row.get::<Vec<u8>,_>(4).into_iter().map(|ty| ty.into()).collect();
+            let bytes: Vec<u8> = row.get(4);
+            let types: Vec<DataType> = row.get::<Vec<u8>,_>(5).into_iter().map(|ty| ty.into()).collect();
             DataSchema {
                 device_id: row.get(0),
                 model_id: row.get(1),
                 timestamp: row.get(2),
-                data: ArrayDataValue::from_bytes(&bytes, &types).to_vec()
+                data: ArrayDataValue::from_bytes(&bytes, &types).to_vec(),
+                tag: row.get(3)
             }
         })
         .fetch_all(pool)
@@ -108,7 +115,8 @@ pub(crate) async fn select_data(pool: &Pool<Postgres>,
 pub(crate) async fn select_timestamp(pool: &Pool<Postgres>,
     selector: DataSelector,
     device_ids: Vec<Uuid>,
-    model_ids: Vec<Uuid>
+    model_ids: Vec<Uuid>,
+    tag: Option<i16>
 ) -> Result<Vec<DateTime<Utc>>, Error>
 {
     let mut stmt = Query::select()
@@ -150,6 +158,10 @@ pub(crate) async fn select_timestamp(pool: &Pool<Postgres>,
         }
         _ => {}
     }
+
+    if let Some(t) = tag {
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::Tag)).eq(t)).to_owned();
+    }
     let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     let mut rows = sqlx::query_with(&sql, values)
@@ -186,7 +198,8 @@ pub(crate) async fn insert_data(pool: &Pool<Postgres>,
     device_id: Uuid,
     model_id: Uuid,
     timestamp: DateTime<Utc>,
-    data: Vec<DataValue>
+    data: Vec<DataValue>,
+    tag: i16
 ) -> Result<(), Error>
 {
     let types_vec = select_data_types(pool, vec![model_id]).await?;
@@ -202,12 +215,14 @@ pub(crate) async fn insert_data(pool: &Pool<Postgres>,
             Data::DeviceId,
             Data::ModelId,
             Data::Timestamp,
+            Data::Tag,
             Data::Data
         ])
         .values([
             device_id.into(),
             model_id.into(),
             timestamp.into(),
+            tag.into(),
             bytes.into()
         ])
         .unwrap_or(&mut sea_query::InsertStatement::default())
@@ -225,7 +240,8 @@ pub(crate) async fn insert_data_multiple(pool: &Pool<Postgres>,
     device_ids: Vec<Uuid>,
     model_ids: Vec<Uuid>,
     timestamps: Vec<DateTime<Utc>>,
-    data: Vec<Vec<DataValue>>
+    data: Vec<Vec<DataValue>>,
+    tags: Vec<i16>
 ) -> Result<(), Error>
 {
     let number = device_ids.len();
@@ -252,6 +268,7 @@ pub(crate) async fn insert_data_multiple(pool: &Pool<Postgres>,
             Data::DeviceId,
             Data::ModelId,
             Data::Timestamp,
+            Data::Tag,
             Data::Data
         ])
         .to_owned();
@@ -264,6 +281,7 @@ pub(crate) async fn insert_data_multiple(pool: &Pool<Postgres>,
             device_ids[i].into(),
             model_ids[i].into(),
             timestamps[i].into(),
+            tags[i].into(),
             bytes.into()
         ])
         .unwrap_or(&mut sea_query::InsertStatement::default())
@@ -281,15 +299,19 @@ pub(crate) async fn insert_data_multiple(pool: &Pool<Postgres>,
 pub(crate) async fn delete_data(pool: &Pool<Postgres>,
     device_id: Uuid,
     model_id: Uuid,
-    timestamp: DateTime<Utc>
+    timestamp: DateTime<Utc>,
+    tag: Option<i16>
 ) -> Result<(), Error>
 {
-    let stmt = Query::delete()
+    let mut stmt = Query::delete()
         .from_table(Data::Table)
         .and_where(Expr::col(Data::DeviceId).eq(device_id))
         .and_where(Expr::col(Data::ModelId).eq(model_id))
         .and_where(Expr::col(Data::Timestamp).eq(timestamp))
         .to_owned();
+    if let Some(t) = tag {
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::Tag)).eq(t)).to_owned();
+    }
     let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
@@ -301,7 +323,8 @@ pub(crate) async fn delete_data(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_data_set(pool: &Pool<Postgres>, 
     selector: DataSelector,
-    set_id: Uuid
+    set_id: Uuid,
+    tag: Option<i16>
 ) -> Result<(Vec<DataSchema>, Vec<DataSetSchema>), Error>
 {
     let mut stmt = Query::select()
@@ -309,6 +332,7 @@ pub(crate) async fn select_data_set(pool: &Pool<Postgres>,
             (Data::Table, Data::DeviceId),
             (Data::Table, Data::ModelId),
             (Data::Table, Data::Timestamp),
+            (Data::Table, Data::Tag),
             (Data::Table, Data::Data)
         ])
         .column((Model::Table, Model::DataType))
@@ -361,6 +385,10 @@ pub(crate) async fn select_data_set(pool: &Pool<Postgres>,
                 .to_owned();
         }
     }
+
+    if let Some(t) = tag {
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::Tag)).eq(t)).to_owned();
+    }
     let (sql, values) = stmt
         .order_by((SetMap::Table, SetMap::SetPosition), Order::Asc)
         .build_sqlx(PostgresQueryBuilder);
@@ -372,13 +400,14 @@ pub(crate) async fn select_data_set(pool: &Pool<Postgres>,
     sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
             // construct data_schema and insert it to data_schema_vec
-            let bytes: Vec<u8> = row.get(3);
-            let types: Vec<DataType> = row.get::<Vec<u8>,_>(4).into_iter().map(|ty| ty.into()).collect();
+            let bytes: Vec<u8> = row.get(4);
+            let types: Vec<DataType> = row.get::<Vec<u8>,_>(5).into_iter().map(|ty| ty.into()).collect();
             let data_schema = DataSchema {
                 device_id: row.get(0),
                 model_id: row.get(1),
                 timestamp: row.get(2),
-                data: ArrayDataValue::from_bytes(&bytes, &types).to_vec()
+                data: ArrayDataValue::from_bytes(&bytes, &types).to_vec(),
+                tag: row.get(3)
             };
             data_schema_vec.push(data_schema.clone());
             // get last data_set_schema in data_set_schema_vec
@@ -389,7 +418,7 @@ pub(crate) async fn select_data_set(pool: &Pool<Postgres>,
                     data_set_schema_vec.push(data_set_schema.clone());
                 }
                 // initialize data_set_schema data vector with Null
-                let number: i16 = row.get(7);
+                let number: i16 = row.get(8);
                 data_set_schema = DataSetSchema::default();
                 for _i in 0..number {
                     data_set_schema.data.push(DataValue::Null);
@@ -397,8 +426,8 @@ pub(crate) async fn select_data_set(pool: &Pool<Postgres>,
             }
             data_set_schema.set_id = set_id;
             data_set_schema.timestamp = data_schema.timestamp;
-            let indexes: Vec<u8> = row.get(5);
-            let position: i16 = row.get(6);
+            let indexes: Vec<u8> = row.get(6);
+            let position: i16 = row.get(7);
             // filter data vector by data_set data indexes of particular model
             // and replace data_set_schema data vector on the set position with filtered data vector
             for (position_offset, index) in indexes.into_iter().enumerate() {
@@ -417,7 +446,8 @@ pub(crate) async fn select_data_set(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_timestamp_set(pool: &Pool<Postgres>,
     selector: DataSelector,
-    set_id: Uuid
+    set_id: Uuid,
+    tag: Option<i16>
 ) -> Result<Vec<DateTime<Utc>>, Error>
 {
     let mut stmt = Query::select()
@@ -449,6 +479,10 @@ pub(crate) async fn select_timestamp_set(pool: &Pool<Postgres>,
         }
         _ => {}
     }
+
+    if let Some(t) = tag {
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::Tag)).eq(t)).to_owned();
+    }
     let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     let mut timestamps: Vec<DateTime<Utc>> = Vec::new();
@@ -472,7 +506,8 @@ pub(crate) async fn count_data(pool: &Pool<Postgres>,
     selector: DataSelector,
     device_ids: Vec<Uuid>,
     model_ids: Vec<Uuid>,
-    set_id: Option<Uuid>
+    set_id: Option<Uuid>,
+    tag: Option<i16>
 ) -> Result<usize, Error>
 {
     let mut stmt = Query::select()
@@ -516,6 +551,10 @@ pub(crate) async fn count_data(pool: &Pool<Postgres>,
                 .to_owned();
         },
         _ => {}
+    }
+
+    if let Some(t) = tag {
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::Tag)).eq(t)).to_owned();
     }
     let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
