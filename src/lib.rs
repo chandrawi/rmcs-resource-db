@@ -1272,7 +1272,7 @@ impl Resource {
     pub async fn read_buffer(&self, id: i32)
         -> Result<BufferSchema, Error>
     {
-        buffer::select_buffer(&self.pool, BufferSelector::None, Some(id), None, None, None).await?
+        buffer::select_buffer(&self.pool, BufferSelector::None, Some(vec![id]), None, None, None).await?
         .into_iter().next().ok_or(Error::RowNotFound)
     }
 
@@ -1282,6 +1282,13 @@ impl Resource {
         let selector = BufferSelector::Time(timestamp);
         buffer::select_buffer(&self.pool, selector, None, Some(vec![device_id]), Some(vec![model_id]), tag).await?
         .into_iter().next().ok_or(Error::RowNotFound)
+    }
+
+    pub async fn list_buffer(&self, ids: Vec<i32>)
+        -> Result<Vec<BufferSchema>, Error>
+    {
+        buffer::select_buffer(&self.pool, BufferSelector::None, Some(ids), None, None, None)
+        .await
     }
 
     pub async fn list_buffer_by_time(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, tag: Option<i16>)
@@ -1533,14 +1540,27 @@ impl Resource {
     pub async fn update_buffer(&self, id: i32, data: Option<Vec<DataValue>>, tag: Option<i16>)
         -> Result<(), Error>
     {
-        buffer::update_buffer(&self.pool, id, data, tag)
+        buffer::update_buffer(&self.pool, Some(id), None, None, None, data, tag)
+        .await
+    }
+
+    pub async fn update_buffer_by_time(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, data: Option<Vec<DataValue>>, tag: Option<i16>)
+        -> Result<(), Error>
+    {
+        buffer::update_buffer(&self.pool, None, Some(device_id), Some(model_id), Some(timestamp), data, tag)
         .await
     }
 
     pub async fn delete_buffer(&self, id: i32)
         -> Result<(), Error>
     {
-        buffer::delete_buffer(&self.pool, id).await
+        buffer::delete_buffer(&self.pool, Some(id), None, None, None, None).await
+    }
+
+    pub async fn delete_buffer_by_time(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, tag: Option<i16>)
+        -> Result<(), Error>
+    {
+        buffer::delete_buffer(&self.pool, None, Some(device_id), Some(model_id), Some(timestamp), tag).await
     }
 
     pub async fn read_buffer_timestamp_first(&self, device_id: Option<Uuid>, model_id: Option<Uuid>, tag: Option<i16>)
@@ -1771,7 +1791,7 @@ impl Resource {
     pub async fn read_log(&self, id: i32)
         -> Result<LogSchema, Error>
     {
-        log::select_log(&self.pool, LogSelector::None, Some(id), None, None, None).await?
+        log::select_log(&self.pool, LogSelector::None, Some(vec![id]), None, None, None).await?
         .into_iter().next().ok_or(Error::RowNotFound)
     }
 
@@ -1781,6 +1801,13 @@ impl Resource {
         let selector = LogSelector::Time(timestamp);
         log::select_log(&self.pool, selector, None, device_id, model_id, tag).await?
         .into_iter().next().ok_or(Error::RowNotFound)
+    }
+
+    pub async fn list_log(&self, ids: Vec<i32>)
+        -> Result<Vec<LogSchema>, Error>
+    {
+        log::select_log(&self.pool, LogSelector::None, Some(ids), None, None, None)
+        .await
     }
 
     pub async fn list_log_by_time(&self, timestamp: DateTime<Utc>, device_id: Option<Uuid>, model_id: Option<Uuid>, tag: Option<i16>)
@@ -1807,24 +1834,37 @@ impl Resource {
         .await
     }
 
-    pub async fn create_log(&self, timestamp: DateTime<Utc>, device_id: Option<Uuid>, model_id: Option<Uuid>, tag: i16, value: DataValue)
+    pub async fn create_log(&self, timestamp: DateTime<Utc>, device_id: Option<Uuid>, model_id: Option<Uuid>, value: DataValue, tag: Option<i16>)
         -> Result<i32, Error>
     {
-        log::insert_log(&self.pool, timestamp, device_id, model_id, tag, value)
+        log::insert_log(&self.pool, timestamp, device_id, model_id, value, tag)
         .await
     }
 
-    pub async fn update_log(&self, id: i32, tag: Option<i16>, value: Option<DataValue>)
+    pub async fn update_log(&self, id: i32, value: Option<DataValue>, tag: Option<i16>)
         -> Result<(), Error>
     {
-        log::update_log(&self.pool, id, tag, value)
+        log::update_log(&self.pool, Some(id), None, None, None, value, tag)
+        .await
+    }
+
+    pub async fn update_log_by_time(&self, timestamp: DateTime<Utc>, device_id: Option<Uuid>, model_id: Option<Uuid>, value: Option<DataValue>, tag: Option<i16>)
+        -> Result<(), Error>
+    {
+        log::update_log(&self.pool, None, Some(timestamp), device_id, model_id, value, tag)
         .await
     }
 
     pub async fn delete_log(&self, id: i32)
         -> Result<(), Error>
     {
-        log::delete_log(&self.pool, id).await
+        log::delete_log(&self.pool, Some(id), None, None, None, None).await
+    }
+
+    pub async fn delete_log_by_time(&self, timestamp: DateTime<Utc>, device_id: Option<Uuid>, model_id: Option<Uuid>, tag: Option<i16>)
+        -> Result<(), Error>
+    {
+        log::delete_log(&self.pool, None, Some(timestamp), device_id, model_id, tag).await
     }
 
 }

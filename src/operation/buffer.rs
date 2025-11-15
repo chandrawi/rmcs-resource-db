@@ -27,7 +27,7 @@ pub(crate) enum BufferSelector {
 
 pub(crate) async fn select_buffer(pool: &Pool<Postgres>, 
     selector: BufferSelector,
-    id: Option<i32>,
+    id: Option<Vec<i32>>,
     device_ids: Option<Vec<Uuid>>,
     model_ids: Option<Vec<Uuid>>,
     tag: Option<i16>
@@ -50,7 +50,7 @@ pub(crate) async fn select_buffer(pool: &Pool<Postgres>,
         .to_owned();
 
     if let Some(id) = id {
-        stmt = stmt.and_where(Expr::col(DataBuffer::Id).eq(id)).to_owned();
+        stmt = stmt.and_where(Expr::col(DataBuffer::Id).is_in(id)).to_owned();
     }
     if let Some(ids) = device_ids {
         if ids.len() == 1 {
@@ -352,7 +352,10 @@ pub(crate) async fn insert_buffer_multiple(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn update_buffer(pool: &Pool<Postgres>,
-    id: i32,
+    id: Option<i32>,
+    device_id: Option<Uuid>,
+    model_id: Option<Uuid>,
+    timestamp: Option<DateTime<Utc>>,
     data: Option<Vec<DataValue>>,
     tag: Option<i16>
 ) -> Result<(), Error>
@@ -361,21 +364,35 @@ pub(crate) async fn update_buffer(pool: &Pool<Postgres>,
         .table(DataBuffer::Table)
         .to_owned();
 
+    let mut types = Vec::new(); 
+    if let Some(id) = id {
+        types = select_buffer_types(pool, id).await.map_err(|_| Error::InvalidArgument(MODEL_NOT_EXISTS.to_string()))?;
+        stmt = stmt.and_where(Expr::col(DataBuffer::Id).eq(id)).to_owned();
+    }
+    if let (Some(device_id), Some(model_id), Some(timestamp)) = (device_id, model_id, timestamp) {
+        let types_vec = select_data_types(pool, vec![model_id]).await?;
+        types = types_vec.into_iter().next().ok_or(Error::InvalidArgument(MODEL_NOT_EXISTS.to_string()))?;
+        stmt = stmt
+            .and_where(Expr::col(DataBuffer::DeviceId).eq(device_id))
+            .and_where(Expr::col(DataBuffer::ModelId).eq(model_id))
+            .and_where(Expr::col(DataBuffer::Timestamp).eq(timestamp))
+            .to_owned();
+        if let Some(tag) = tag {
+            stmt = stmt.and_where(Expr::col(DataBuffer::Tag).eq(tag)).to_owned();
+        }
+    }
+
+    if let (Some(tag), None, None, None) = (tag, device_id, model_id, timestamp) {
+        stmt = stmt.value(DataBuffer::Tag, tag).to_owned();
+    }
     if let Some(value) = data {
-        let types = select_buffer_types(pool, id).await.map_err(|_| Error::InvalidArgument(MODEL_NOT_EXISTS.to_string()))?;
         let bytes = match ArrayDataValue::from_vec(&value).convert(&types) {
             Some(value) => value.to_bytes(),
             None => return Err(Error::InvalidArgument(DATA_TYPE_UNMATCH.to_string()))
         };
         stmt = stmt.value(DataBuffer::Data, bytes).to_owned();
     }
-    if let Some(value) = tag {
-        stmt = stmt.value(DataBuffer::Tag, i16::from(value)).to_owned();
-    }
-
-    let (sql, values) = stmt
-        .and_where(Expr::col(DataBuffer::Id).eq(id))
-        .build_sqlx(PostgresQueryBuilder);
+    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)
@@ -385,13 +402,31 @@ pub(crate) async fn update_buffer(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn delete_buffer(pool: &Pool<Postgres>,
-    id: i32
+    id: Option<i32>,
+    device_id: Option<Uuid>,
+    model_id: Option<Uuid>,
+    timestamp: Option<DateTime<Utc>>,
+    tag: Option<i16>
 ) -> Result<(), Error>
 {
-    let (sql, values) = Query::delete()
+    let mut stmt = Query::delete()
         .from_table(DataBuffer::Table)
-        .and_where(Expr::col(DataBuffer::Id).eq(id))
-        .build_sqlx(PostgresQueryBuilder);
+        .to_owned();
+
+    if let Some(id) = id {
+        stmt = stmt.and_where(Expr::col(DataBuffer::Id).eq(id)).to_owned();
+    }
+    if let (Some(device_id), Some(model_id), Some(timestamp)) = (device_id, model_id, timestamp) {
+        stmt = stmt
+            .and_where(Expr::col(DataBuffer::DeviceId).eq(device_id))
+            .and_where(Expr::col(DataBuffer::ModelId).eq(model_id))
+            .and_where(Expr::col(DataBuffer::Timestamp).eq(timestamp))
+            .to_owned();
+        if let Some(tag) = tag {
+            stmt = stmt.and_where(Expr::col(DataBuffer::Tag).eq(tag)).to_owned();
+        }
+    }
+    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     sqlx::query_with(&sql, values)
         .execute(pool)

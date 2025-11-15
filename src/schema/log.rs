@@ -22,8 +22,8 @@ pub struct LogSchema {
     pub timestamp: DateTime<Utc>,
     pub device_id: Option<Uuid>,
     pub model_id: Option<Uuid>,
-    pub tag: i16,
-    pub value: DataValue
+    pub value: DataValue,
+    pub tag: i16
 }
 
 impl From<log::LogSchema> for LogSchema {
@@ -33,11 +33,11 @@ impl From<log::LogSchema> for LogSchema {
             timestamp: Utc.timestamp_nanos(value.timestamp * 1000),
             device_id: value.device_id.map(|id| Uuid::from_slice(&id).unwrap_or_default()),
             model_id: value.model_id.map(|id| Uuid::from_slice(&id).unwrap_or_default()),
-            tag: value.tag as i16,
             value: DataValue::from_bytes(
                 &value.log_bytes,
                 DataType::from(value.log_type)
             ),
+            tag: value.tag as i16
         }
     }
 }
@@ -49,9 +49,9 @@ impl Into<log::LogSchema> for LogSchema {
             timestamp: self.timestamp.timestamp_micros(),
             device_id: self.device_id.map(|id| id.as_bytes().to_vec()),
             model_id: self.model_id.map(|id| id.as_bytes().to_vec()),
-            tag: self.tag.into(),
             log_bytes: self.value.to_bytes(),
-            log_type: self.value.get_type().into()
+            log_type: self.value.get_type().into(),
+            tag: self.tag.into()
         }
     }
 }

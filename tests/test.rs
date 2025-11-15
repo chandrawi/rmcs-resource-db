@@ -279,14 +279,14 @@ mod tests {
         assert!(result.is_err());
 
         // create system log
-        let log_id = resource.create_log(timestamp_1, Some(device_id1), None, tag::ERROR_UNKNOWN, String("testing success".to_owned())).await.unwrap();
+        let log_id = resource.create_log(timestamp_1, Some(device_id1), None, String("testing success".to_owned()), Some(tag::ERROR_UNKNOWN)).await.unwrap();
         // read log
         let logs = resource.list_log_by_range_time(timestamp_1, Utc::now(), None, None, None).await.unwrap();
         let log = logs.iter().filter(|x| x.device_id == Some(device_id1) && x.timestamp == timestamp_1).next().unwrap();
         assert_eq!(log.value, String("testing success".to_owned()));
 
         // update system log
-        resource.update_log(log_id, Some(tag::SUCCESS), None).await.unwrap();
+        resource.update_log(log_id, None, Some(tag::SUCCESS)).await.unwrap();
         let log = resource.read_log(log.id).await.unwrap();
         assert_eq!(log.tag, tag::SUCCESS);
 
