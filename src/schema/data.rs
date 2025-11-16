@@ -27,7 +27,8 @@ pub struct DataSchema {
 pub struct DataSetSchema {
     pub set_id: Uuid,
     pub timestamp: DateTime<Utc>,
-    pub data: Vec<DataValue>
+    pub data: Vec<DataValue>,
+    pub tag: i16
 }
 
 impl From<data::DataSchema> for DataSchema {
@@ -70,7 +71,8 @@ impl From<data::DataSetSchema> for DataSetSchema {
                     value.data_type.into_iter().map(|e| DataType::from(e))
                     .collect::<Vec<DataType>>()
                     .as_slice()
-                ).to_vec()
+                ).to_vec(),
+            tag: value.tag as i16
         }
     }
 }
@@ -81,7 +83,8 @@ impl Into<data::DataSetSchema> for DataSetSchema {
             set_id: self.set_id.as_bytes().to_vec(),
             timestamp: self.timestamp.timestamp_micros(),
             data_bytes: ArrayDataValue::from_vec(&self.data).to_bytes(),
-            data_type: self.data.into_iter().map(|e| e.get_type().into()).collect()
+            data_type: self.data.into_iter().map(|e| e.get_type().into()).collect(),
+            tag: self.tag as i32
         }
     }
 }

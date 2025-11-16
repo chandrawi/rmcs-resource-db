@@ -9,7 +9,7 @@ use crate::schema::value::{DataType, DataValue, ArrayDataValue};
 use crate::schema::model::Model;
 use crate::schema::data::{Data, DataSchema, DataSetSchema};
 use crate::schema::set::SetMap;
-use crate::operation::model::select_tag_members;
+use crate::operation::model::{select_tag_members, select_tag_members_set};
 use crate::utility::tag as Tag;
 use super::{EMPTY_LENGTH_UNMATCH, DATA_TYPE_UNMATCH, MODEL_NOT_EXISTS};
 
@@ -332,8 +332,9 @@ pub(crate) async fn delete_data(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_data_set(pool: &Pool<Postgres>, 
     selector: DataSelector,
-    set_id: Uuid
-) -> Result<(Vec<DataSchema>, Vec<DataSetSchema>), Error>
+    set_id: Uuid,
+    tag: Option<i16>
+) -> Result<Vec<DataSetSchema>, Error>
 {
     let mut stmt = Query::select()
         .columns([
@@ -378,33 +379,25 @@ pub(crate) async fn select_data_set(pool: &Pool<Postgres>,
                 .order_by((Data::Table, Data::Timestamp), Order::Asc)
                 .to_owned();
         },
-        DataSelector::NumberBefore(time, limit) => {
-            stmt = stmt
-                .and_where(Expr::col((Data::Table, Data::Timestamp)).lte(time))
-                .order_by((Data::Table, Data::Timestamp), Order::Desc)
-                .limit(limit as u64)
-                .to_owned();
-        },
-        DataSelector::NumberAfter(time, limit) => {
-            stmt = stmt
-                .and_where(Expr::col((Data::Table, Data::Timestamp)).gte(time))
-                .order_by((Data::Table, Data::Timestamp), Order::Asc)
-                .limit(limit as u64)
-                .to_owned();
-        }
+        _ => {}
     }
 
+    if let Some(t) = tag {
+        let tags = select_tag_members_set(pool, set_id, t).await?;
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::Tag)).is_in(tags)).to_owned();
+    }
     let (sql, values) = stmt
+        .order_by((Data::Table, Data::Tag), Order::Asc)
         .order_by((SetMap::Table, SetMap::SetPosition), Order::Asc)
         .build_sqlx(PostgresQueryBuilder);
 
-    let mut data_schema_vec: Vec<DataSchema> = Vec::new();
     let mut data_set_schema_vec: Vec<DataSetSchema> = Vec::new();
     let mut last_timestamp: Option<DateTime<Utc>> = None;
+    let mut last_tag: Option<i16> = None;
 
     sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
-            // construct data_schema and insert it to data_schema_vec
+            // construct a data_schema
             let bytes: Vec<u8> = row.get(4);
             let types: Vec<DataType> = row.get::<Vec<u8>,_>(5).into_iter().map(|ty| ty.into()).collect();
             let data_schema = DataSchema {
@@ -414,11 +407,10 @@ pub(crate) async fn select_data_set(pool: &Pool<Postgres>,
                 data: ArrayDataValue::from_bytes(&bytes, &types).to_vec(),
                 tag: row.get(3)
             };
-            data_schema_vec.push(data_schema.clone());
             // get last data_set_schema in data_set_schema_vec
             let mut data_set_schema = data_set_schema_vec.pop().unwrap_or_default();
-            // on every new timestamp found insert new data_set_schema to data_set_schema_vec
-            if last_timestamp != Some(data_schema.timestamp) {
+            // on every new timestamp or tag found, insert new data_set_schema to data_set_schema_vec
+            if last_timestamp != Some(data_schema.timestamp) || last_tag != Some(data_schema.tag) {
                 if last_timestamp != None {
                     data_set_schema_vec.push(data_set_schema.clone());
                 }
@@ -431,6 +423,7 @@ pub(crate) async fn select_data_set(pool: &Pool<Postgres>,
             }
             data_set_schema.set_id = set_id;
             data_set_schema.timestamp = data_schema.timestamp;
+            data_set_schema.tag = data_schema.tag;
             let indexes: Vec<u8> = row.get(6);
             let position: i16 = row.get(7);
             // filter data vector by data_set data indexes of particular model
@@ -440,74 +433,20 @@ pub(crate) async fn select_data_set(pool: &Pool<Postgres>,
                     data_schema.data.get(index as usize).map(|value| value.to_owned()).unwrap_or_default()
             }
             last_timestamp = Some(data_schema.timestamp);
+            last_tag = Some(data_schema.tag);
             // update data_set_schema_vec with updated data_set_schema
             data_set_schema_vec.push(data_set_schema);
         })
         .fetch_all(pool)
         .await?;
 
-    Ok((data_schema_vec, data_set_schema_vec))
-}
-
-pub(crate) async fn select_timestamp_set(pool: &Pool<Postgres>,
-    selector: DataSelector,
-    set_id: Uuid
-) -> Result<Vec<DateTime<Utc>>, Error>
-{
-    let mut stmt = Query::select()
-        .column((Data::Table, Data::Timestamp))
-        .from(Data::Table)
-        .inner_join(SetMap::Table, 
-            Condition::all()
-            .add(Expr::col((Data::Table, Data::DeviceId)).equals((SetMap::Table, SetMap::DeviceId)))
-            .add(Expr::col((Data::Table, Data::ModelId)).equals((SetMap::Table, SetMap::ModelId)))
-        )
-        .and_where(Expr::col((SetMap::Table, SetMap::SetId)).eq(set_id))
-        .to_owned();
-
-    match selector {
-        DataSelector::Time(time) => {
-            stmt = stmt.and_where(Expr::col((Data::Table, Data::Timestamp)).eq(time)).to_owned();
-        },
-        DataSelector::Last(last) => {
-            stmt = stmt.and_where(Expr::col((Data::Table, Data::Timestamp)).gt(last))
-            .order_by((Data::Table, Data::Timestamp), Order::Asc)
-            .to_owned();
-        },
-        DataSelector::Range(begin, end) => {
-            stmt = stmt
-                .and_where(Expr::col((Data::Table, Data::Timestamp)).gte(begin))
-                .and_where(Expr::col((Data::Table, Data::Timestamp)).lte(end))
-                .order_by((Data::Table, Data::Timestamp), Order::Asc)
-                .to_owned();
-        }
-        _ => {}
-    }
-
-    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
-
-    let mut timestamps: Vec<DateTime<Utc>> = Vec::new();
-    let mut last_timestamp: Option<DateTime<Utc>> = None;
-
-    sqlx::query_with(&sql, values)
-        .map(|row: PgRow| {
-            let timestamp = row.get(0);
-            if Some(timestamp) != last_timestamp {
-                timestamps.push(timestamp);
-            }
-            last_timestamp = Some(timestamp);
-        })
-        .fetch_all(pool)
-        .await?;
-
-    Ok(timestamps)
+    Ok(data_set_schema_vec)
 }
 
 pub(crate) async fn count_data(pool: &Pool<Postgres>,
     selector: DataSelector,
     device_ids: Vec<Uuid>,
     model_ids: Vec<Uuid>,
-    set_id: Option<Uuid>,
     tag: Option<i16>
 ) -> Result<usize, Error>
 {
@@ -516,29 +455,17 @@ pub(crate) async fn count_data(pool: &Pool<Postgres>,
         .from(Data::Table)
         .to_owned();
 
-    if let Some(set_id) = set_id {
-        stmt = stmt
-            .inner_join(SetMap::Table, 
-                Condition::all()
-                .add(Expr::col((Data::Table, Data::DeviceId)).equals((SetMap::Table, SetMap::DeviceId)))
-                .add(Expr::col((Data::Table, Data::ModelId)).equals((SetMap::Table, SetMap::ModelId)))
-            )
-            .and_where(Expr::col((SetMap::Table, SetMap::SetId)).eq(set_id)).to_owned()
-            .to_owned();
+    if device_ids.len() == 1 {
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::DeviceId)).eq(device_ids[0])).to_owned();
     }
     else {
-        if device_ids.len() == 1 {
-            stmt = stmt.and_where(Expr::col((Data::Table, Data::DeviceId)).eq(device_ids[0])).to_owned();
-        }
-        else {
-            stmt = stmt.and_where(Expr::col((Data::Table, Data::DeviceId)).is_in(device_ids)).to_owned();
-        }
-        if model_ids.len() == 1 {
-            stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).eq(model_ids[0])).to_owned();
-        }
-        else {
-            stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).is_in(model_ids.clone())).to_owned();
-        }
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::DeviceId)).is_in(device_ids)).to_owned();
+    }
+    if model_ids.len() == 1 {
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).eq(model_ids[0])).to_owned();
+    }
+    else {
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).is_in(model_ids.clone())).to_owned();
     }
 
     match selector {

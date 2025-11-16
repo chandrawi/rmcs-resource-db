@@ -25,6 +25,15 @@ pub struct BufferSchema {
     pub tag: i16
 }
 
+#[derive(Debug, Default, PartialEq, Clone)]
+pub struct BufferSetSchema {
+    pub ids: Vec<i32>,
+    pub set_id: Uuid,
+    pub timestamp: DateTime<Utc>,
+    pub data: Vec<DataValue>,
+    pub tag: i16
+}
+
 impl From<buffer::BufferSchema> for BufferSchema {
     fn from(value: buffer::BufferSchema) -> Self {
         Self {
@@ -49,6 +58,36 @@ impl Into<buffer::BufferSchema> for BufferSchema {
             id: self.id,
             device_id: self.device_id.as_bytes().to_vec(),
             model_id: self.model_id.as_bytes().to_vec(),
+            timestamp: self.timestamp.timestamp_micros(),
+            data_bytes: ArrayDataValue::from_vec(&self.data).to_bytes(),
+            data_type: self.data.into_iter().map(|e| e.get_type().into()).collect(),
+            tag: self.tag as i32
+        }
+    }
+}
+
+impl From<buffer::BufferSetSchema> for BufferSetSchema {
+    fn from(value: buffer::BufferSetSchema) -> Self {
+        Self {
+            ids: value.ids,
+            set_id: Uuid::from_slice(&value.set_id).unwrap_or_default(),
+            timestamp: Utc.timestamp_nanos(value.timestamp * 1000),
+            data: ArrayDataValue::from_bytes(
+                    &value.data_bytes,
+                    value.data_type.into_iter().map(|e| DataType::from(e))
+                    .collect::<Vec<DataType>>()
+                    .as_slice()
+                ).to_vec(),
+            tag: value.tag as i16
+        }
+    }
+}
+
+impl Into<buffer::BufferSetSchema> for BufferSetSchema {
+    fn into(self) -> buffer::BufferSetSchema {
+        buffer::BufferSetSchema {
+            ids: self.ids,
+            set_id: self.set_id.as_bytes().to_vec(),
             timestamp: self.timestamp.timestamp_micros(),
             data_bytes: ArrayDataValue::from_vec(&self.data).to_bytes(),
             data_type: self.data.into_iter().map(|e| e.get_type().into()).collect(),

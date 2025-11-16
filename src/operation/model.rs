@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::schema::value::{DataValue, DataType};
 use crate::schema::model::{Model, ModelTag, ModelConfig, ModelSchema, ModelConfigSchema, TagSchema, ModelSchemaFlat};
 use crate::schema::device::DeviceTypeModel;
+use crate::schema::set::SetMap;
 
 pub(crate) async fn select_model(pool: &Pool<Postgres>, 
     id: Option<Uuid>,
@@ -431,6 +432,37 @@ pub(crate) async fn select_tag_members(pool: &Pool<Postgres>,
         .column(ModelTag::Members)
         .from(ModelTag::Table)
         .and_where(Expr::col(ModelTag::ModelId).is_in(model_ids))
+        .and_where(Expr::col(ModelTag::Tag).eq(tag))
+        .build_sqlx(PostgresQueryBuilder);
+
+    let mut tags: Vec<i16> = vec![tag];
+    sqlx::query_with(&sql, values)
+        .map(|row: PgRow| {
+            let bytes: Vec<u8> = row.get(0);
+            for chunk in bytes.chunks_exact(2) {
+                tags.push(i16::from_be_bytes([chunk[0], chunk[1]]));
+            }
+        })
+        .fetch_all(pool)
+        .await?;
+
+    tags.sort();
+    tags.dedup();
+    Ok(tags)
+}
+
+pub(crate) async fn select_tag_members_set(pool: &Pool<Postgres>, 
+    set_id: Uuid,
+    tag: i16
+) -> Result<Vec<i16>, Error>
+{
+    let (sql, values) = Query::select()
+        .column(ModelTag::Members)
+        .from(ModelTag::Table)
+        .inner_join(SetMap::Table, 
+            Expr::col((ModelTag::Table, ModelTag::ModelId))
+            .equals((SetMap::Table, SetMap::ModelId)))
+        .and_where(Expr::col(SetMap::SetId).eq(set_id))
         .and_where(Expr::col(ModelTag::Tag).eq(tag))
         .build_sqlx(PostgresQueryBuilder);
 

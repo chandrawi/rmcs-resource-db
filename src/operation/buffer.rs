@@ -7,10 +7,10 @@ use uuid::Uuid;
 
 use crate::schema::value::{DataType, DataValue, ArrayDataValue};
 use crate::schema::model::Model;
-use crate::schema::buffer::{DataBuffer, BufferSchema};
+use crate::schema::buffer::{DataBuffer, BufferSchema, BufferSetSchema};
 use crate::schema::set::SetMap;
 use crate::operation::data::select_data_types;
-use crate::operation::model::select_tag_members;
+use crate::operation::model::{select_tag_members, select_tag_members_set};
 use crate::utility::tag as Tag;
 use super::{EMPTY_LENGTH_UNMATCH, DATA_TYPE_UNMATCH, MODEL_NOT_EXISTS};
 
@@ -437,8 +437,9 @@ pub(crate) async fn delete_buffer(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_buffer_set(pool: &Pool<Postgres>, 
     selector: BufferSelector,
-    set_id: Uuid
-) -> Result<Vec<BufferSchema>, Error>
+    set_id: Uuid,
+    tag: Option<i16>
+) -> Result<Vec<BufferSetSchema>, Error>
 {
     let mut stmt = Query::select().to_owned();
     stmt = stmt
@@ -451,6 +452,11 @@ pub(crate) async fn select_buffer_set(pool: &Pool<Postgres>,
             (DataBuffer::Table, DataBuffer::Data)
         ])
         .column((Model::Table, Model::DataType))
+        .columns([
+            (SetMap::Table, SetMap::DataIndex),
+            (SetMap::Table, SetMap::SetPosition),
+            (SetMap::Table, SetMap::SetNumber)
+        ])
         .from(DataBuffer::Table)
         .inner_join(Model::Table, 
             Expr::col((DataBuffer::Table, DataBuffer::ModelId))
@@ -479,107 +485,75 @@ pub(crate) async fn select_buffer_set(pool: &Pool<Postgres>,
                 .order_by((DataBuffer::Table, DataBuffer::Timestamp), Order::Asc)
                 .to_owned();
         },
-        BufferSelector::NumberBefore(timestamp, number) => {
-            stmt = stmt
-                .and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).lte(timestamp))
-                .order_by((DataBuffer::Table, DataBuffer::Timestamp), Order::Desc)
-                .limit(number as u64)
-                .to_owned();
-        },
-        BufferSelector::NumberAfter(timestamp, number) => {
-            stmt = stmt
-                .and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).gte(timestamp))
-                .order_by((DataBuffer::Table, DataBuffer::Timestamp), Order::Asc)
-                .limit(number as u64)
-                .to_owned();
-        },
-        BufferSelector::First(number, offset) => {
-            stmt = stmt
-                .order_by((DataBuffer::Table, DataBuffer::Id), Order::Asc)
-                .limit(number as u64)
-                .offset(offset as u64)
-                .to_owned();
-        },
-        BufferSelector::Last(number, offset) => {
-            stmt = stmt
-                .order_by((DataBuffer::Table, DataBuffer::Id), Order::Desc)
-                .limit(number as u64)
-                .offset(offset as u64)
-                .to_owned();
-        },
-        BufferSelector::None => {}
+        _ => {}
     }
-    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
-    let rows = sqlx::query_with(&sql, values)
+    if let Some(t) = tag {
+        let tags = select_tag_members_set(pool, set_id, t).await?;
+        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Tag)).is_in(tags)).to_owned();
+    }
+    let (sql, values) = stmt
+        .order_by((DataBuffer::Table, DataBuffer::Tag), Order::Asc)
+        .order_by((SetMap::Table, SetMap::SetPosition), Order::Asc)
+        .build_sqlx(PostgresQueryBuilder);
+
+    let mut buffer_set_schema_vec: Vec<BufferSetSchema> = Vec::new();
+    let mut last_timestamp: Option<DateTime<Utc>> = None;
+    let mut last_tag: Option<i16> = None;
+
+    sqlx::query_with(&sql, values)
         .map(|row: PgRow| {
+            // construct a buffer_schema
             let bytes: Vec<u8> = row.get(5);
             let types: Vec<DataType> = row.get::<Vec<u8>,_>(6).into_iter().map(|ty| ty.into()).collect();
-            BufferSchema {
+            let buffer_schema = BufferSchema {
                 id: row.get(0),
                 device_id: row.get(1),
                 model_id: row.get(2),
                 timestamp: row.get(3),
                 data: ArrayDataValue::from_bytes(&bytes, &types).to_vec(),
-                tag: row.get(5)
+                tag: row.get(4)
+            };
+            // get last buffer_set_schema in buffer_set_schema_vec
+            let mut buffer_set_schema = buffer_set_schema_vec.pop().unwrap_or_default();
+            // on every new timestamp or tag found, insert new buffer_set_schema to buffer_set_schema_vec
+            if last_timestamp != Some(buffer_schema.timestamp) || last_tag != Some(buffer_schema.tag) {
+                if last_timestamp != None {
+                    buffer_set_schema_vec.push(buffer_set_schema.clone());
+                }
+                // initialize buffer_set_schema data vector with Null
+                let number: i16 = row.get(9);
+                buffer_set_schema = BufferSetSchema::default();
+                for _i in 0..number {
+                    buffer_set_schema.data.push(DataValue::Null);
+                }
             }
+            buffer_set_schema.ids.push(buffer_schema.id);
+            buffer_set_schema.set_id = set_id;
+            buffer_set_schema.timestamp = buffer_schema.timestamp;
+            buffer_set_schema.tag = buffer_schema.tag;
+            let indexes: Vec<u8> = row.get(7);
+            let position: i16 = row.get(8);
+            // filter data vector by data_set data indexes of particular model
+            // and replace buffer_set_schema data vector on the set position with filtered data vector
+            for (position_offset, index) in indexes.into_iter().enumerate() {
+                buffer_set_schema.data[position as usize + position_offset] = 
+                buffer_schema.data.get(index as usize).map(|value| value.to_owned()).unwrap_or_default()
+            }
+            last_timestamp = Some(buffer_schema.timestamp);
+            last_tag = Some(buffer_schema.tag);
+            // update buffer_set_schema_vec with updated buffer_set_schema
+            buffer_set_schema_vec.push(buffer_set_schema);
         })
         .fetch_all(pool)
         .await?;
 
-    Ok(rows)
-}
-
-pub(crate) async fn select_timestamp_set(pool: &Pool<Postgres>,
-    selector: BufferSelector,
-    set_id: Uuid
-) -> Result<Vec<DateTime<Utc>>, Error>
-{
-    let mut stmt = Query::select()
-        .column((DataBuffer::Table, DataBuffer::Timestamp))
-        .from(DataBuffer::Table)
-        .inner_join(SetMap::Table, 
-            Condition::all()
-            .add(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).equals((SetMap::Table, SetMap::DeviceId)))
-            .add(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).equals((SetMap::Table, SetMap::ModelId)))
-        )
-        .and_where(Expr::col((SetMap::Table, SetMap::SetId)).eq(set_id))
-        .to_owned();
-
-    match selector {
-        BufferSelector::First(number, offset) => {
-            stmt = stmt
-                .order_by((DataBuffer::Table, DataBuffer::Id), Order::Asc)
-                .limit(number as u64)
-                .offset(offset as u64)
-                .to_owned();
-        },
-        BufferSelector::Last(number, offset) => {
-            stmt = stmt
-                .order_by((DataBuffer::Table, DataBuffer::Id), Order::Desc)
-                .limit(number as u64)
-                .offset(offset as u64)
-                .to_owned();
-        },
-        _ => {}
-    }
-    let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
-
-    let mut rows = sqlx::query_with(&sql, values)
-        .map(|row: PgRow| {
-            row.get(0)
-        })
-        .fetch_all(pool)
-        .await?;
-    rows.dedup();
-
-    Ok(rows)
+    Ok(buffer_set_schema_vec)
 }
 
 pub(crate) async fn count_buffer(pool: &Pool<Postgres>,
     device_ids: Option<Vec<Uuid>>,
     model_ids: Option<Vec<Uuid>>,
-    set_id: Option<Uuid>,
     tag: Option<i16>
 ) -> Result<usize, Error>
 {
@@ -588,32 +562,20 @@ pub(crate) async fn count_buffer(pool: &Pool<Postgres>,
         .from(DataBuffer::Table)
         .to_owned();
 
-    if let Some(set_id) = set_id {
-        stmt = stmt
-            .inner_join(SetMap::Table, 
-                Condition::all()
-                .add(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).equals((SetMap::Table, SetMap::DeviceId)))
-                .add(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).equals((SetMap::Table, SetMap::ModelId)))
-            )
-            .and_where(Expr::col((SetMap::Table, SetMap::SetId)).eq(set_id)).to_owned()
-            .to_owned();
-    }
-    else {
-        if let Some(ids) = device_ids {
-            if ids.len() == 1 {
-                stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).eq(ids[0])).to_owned();
-            }
-            else if ids.len() > 1 {
-                stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).is_in(ids)).to_owned();
-            }
+    if let Some(ids) = device_ids {
+        if ids.len() == 1 {
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).eq(ids[0])).to_owned();
         }
-        if let Some(ids) = model_ids.clone() {
-            if ids.len() == 1 {
-                stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).eq(ids[0])).to_owned();
-            }
-            else if ids.len() > 1 {
-                stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).is_in(ids)).to_owned();
-            }
+        else if ids.len() > 1 {
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).is_in(ids)).to_owned();
+        }
+    }
+    if let Some(ids) = model_ids.clone() {
+        if ids.len() == 1 {
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).eq(ids[0])).to_owned();
+        }
+        else if ids.len() > 1 {
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).is_in(ids)).to_owned();
         }
     }
     if let (Some(ids), Some(t)) = (model_ids, tag) {

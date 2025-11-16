@@ -229,14 +229,10 @@ mod tests {
         assert!(data_values.contains(&F32(speed1)));
         assert!(data_values.contains(&F32(speed2)));
 
-        // read data set and data using set
-        let data_set = resource.read_data_set(set_id, timestamp_1).await.unwrap();
-        let data_by_set = resource.list_data_by_set_time(set_id, timestamp_1).await.unwrap();
-        let data_by_set_values: Vec<Vec<DataValue>> = data_by_set.iter().map(|d| d.data.clone()).collect();
+        // read data set
+        let data_set = resource.read_data_set(set_id, timestamp_1, None).await.unwrap();
         assert_eq!(data_set.data[0], F32(direction1));
         assert_eq!(data_set.data[1], F32(direction2));
-        assert!(data_by_set_values.contains(&vec![F32(speed1), F32(direction1)]));
-        assert!(data_by_set_values.contains(&vec![F32(speed2), F32(direction2)]));
 
         // delete data
         resource.delete_data(device_id1, model_id, timestamp_1, None).await.unwrap();
