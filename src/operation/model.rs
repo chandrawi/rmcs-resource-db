@@ -424,14 +424,14 @@ pub(crate) async fn select_model_tag(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn select_tag_members(pool: &Pool<Postgres>, 
-    model_ids: Vec<Uuid>,
+    model_ids: &[Uuid],
     tag: i16
 ) -> Result<Vec<i16>, Error>
 {
     let (sql, values) = Query::select()
         .column(ModelTag::Members)
         .from(ModelTag::Table)
-        .and_where(Expr::col(ModelTag::ModelId).is_in(model_ids))
+        .and_where(Expr::col(ModelTag::ModelId).is_in(model_ids.to_vec()))
         .and_where(Expr::col(ModelTag::Tag).eq(tag))
         .build_sqlx(PostgresQueryBuilder);
 
@@ -486,7 +486,7 @@ pub(crate) async fn insert_model_tag(pool: &Pool<Postgres>,
     model_id: Uuid,
     tag: i16,
     name: &str,
-    members: Vec<i16>
+    members: &[i16]
 ) -> Result<(), Error>
 {
     let mut bytes: Vec<u8> = Vec::new();
@@ -521,7 +521,7 @@ pub(crate) async fn update_model_tag(pool: &Pool<Postgres>,
     model_id: Uuid,
     tag: i16,
     name: Option<&str>,
-    members: Option<Vec<i16>>
+    members: Option<&[i16]>
 ) -> Result<(), Error>
 {
     let mut stmt = Query::update()

@@ -27,9 +27,9 @@ pub(crate) enum BufferSelector {
 
 pub(crate) async fn select_buffer(pool: &Pool<Postgres>, 
     selector: BufferSelector,
-    id: Option<Vec<i32>>,
-    device_ids: Option<Vec<Uuid>>,
-    model_ids: Option<Vec<Uuid>>,
+    ids: Option<&[i32]>,
+    device_ids: Option<&[Uuid]>,
+    model_ids: Option<&[Uuid]>,
     tag: Option<i16>
 ) -> Result<Vec<BufferSchema>, Error>
 {
@@ -49,23 +49,23 @@ pub(crate) async fn select_buffer(pool: &Pool<Postgres>,
             .equals((Model::Table, Model::ModelId)))
         .to_owned();
 
-    if let Some(id) = id {
-        stmt = stmt.and_where(Expr::col(DataBuffer::Id).is_in(id)).to_owned();
+    if let Some(ids) = ids {
+        stmt = stmt.and_where(Expr::col(DataBuffer::Id).is_in(ids.to_vec())).to_owned();
     }
     if let Some(ids) = device_ids {
         if ids.len() == 1 {
             stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).eq(ids[0])).to_owned();
         }
         else if ids.len() > 1 {
-            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).is_in(ids)).to_owned();
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).is_in(ids.to_vec())).to_owned();
         }
     }
-    if let Some(ids) = model_ids.clone() {
+    if let Some(ids) = model_ids {
         if ids.len() == 1 {
             stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).eq(ids[0])).to_owned();
         }
         else if ids.len() > 1 {
-            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).is_in(ids)).to_owned();
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).is_in(ids.to_vec())).to_owned();
         }
     }
     if let (Some(ids), Some(t)) = (model_ids, tag) {
@@ -142,8 +142,8 @@ pub(crate) async fn select_buffer(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_timestamp(pool: &Pool<Postgres>,
     selector: BufferSelector,
-    device_ids: Option<Vec<Uuid>>,
-    model_ids: Option<Vec<Uuid>>,
+    device_ids: Option<&[Uuid]>,
+    model_ids: Option<&[Uuid]>,
     tag: Option<i16>
 ) -> Result<Vec<DateTime<Utc>>, Error>
 {
@@ -157,15 +157,15 @@ pub(crate) async fn select_timestamp(pool: &Pool<Postgres>,
             stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).eq(ids[0])).to_owned();
         }
         else if ids.len() > 1 {
-            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).is_in(ids)).to_owned();
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).is_in(ids.to_vec())).to_owned();
         }
     }
-    if let Some(ids) = model_ids.clone() {
+    if let Some(ids) = model_ids {
         if ids.len() == 1 {
             stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).eq(ids[0])).to_owned();
         }
         else if ids.len() > 1 {
-            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).is_in(ids)).to_owned();
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).is_in(ids.to_vec())).to_owned();
         }
     }
     if let (Some(ids), Some(t)) = (model_ids, tag) {
@@ -230,13 +230,13 @@ pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
     device_id: Uuid,
     model_id: Uuid,
     timestamp: DateTime<Utc>,
-    data: Vec<DataValue>,
+    data: &[DataValue],
     tag: Option<i16>
 ) -> Result<i32, Error>
 {
-    let types_vec = select_data_types(pool, vec![model_id]).await?;
+    let types_vec = select_data_types(pool, &[model_id]).await?;
     let types = types_vec.into_iter().next().ok_or(Error::InvalidArgument(MODEL_NOT_EXISTS.to_string()))?;
-    let bytes = match ArrayDataValue::from_vec(&data).convert(&types) {
+    let bytes = match ArrayDataValue::from_vec(data).convert(&types) {
         Some(value) => value.to_bytes(),
         None => return Err(Error::InvalidArgument(DATA_TYPE_UNMATCH.to_string()))
     };
@@ -278,32 +278,32 @@ pub(crate) async fn insert_buffer(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn insert_buffer_multiple(pool: &Pool<Postgres>,
-    device_ids: Vec<Uuid>,
-    model_ids: Vec<Uuid>,
-    timestamps: Vec<DateTime<Utc>>,
-    data: Vec<Vec<DataValue>>,
-    tags: Option<Vec<i16>>
+    device_ids: &[Uuid],
+    model_ids: &[Uuid],
+    timestamps: &[DateTime<Utc>],
+    data: &[&[DataValue]],
+    tags: Option<&[i16]>
 ) -> Result<Vec<i32>, Error>
 {
     let number = device_ids.len();
     let tags = match tags {
-        Some(value) => value,
+        Some(value) => value.to_vec(),
         None => (0..number).map(|_| Tag::DEFAULT).collect()
     };
     let numbers = vec![model_ids.len(), timestamps.len(), data.len(), tags.len()];
     if number == 0 || numbers.into_iter().any(|n| n != number) {
         return Err(Error::InvalidArgument(EMPTY_LENGTH_UNMATCH.to_string()))
     } 
-    let mut model_ids_unique = model_ids.clone();
+    let mut model_ids_unique = model_ids.to_vec();
     model_ids_unique.sort();
     model_ids_unique.dedup();
 
-    let types_vec = select_data_types(pool, model_ids.clone()).await?;
+    let types_vec = select_data_types(pool, model_ids).await?;
     if model_ids_unique.len() != types_vec.len() {
         return Err(Error::InvalidArgument(MODEL_NOT_EXISTS.to_string()));
     }
-    let types: Vec<Vec<DataType>> = model_ids.clone().into_iter().map(|id| {
-        let index = model_ids_unique.iter().position(|&el| el == id).unwrap_or_default();
+    let types: Vec<Vec<DataType>> = model_ids.into_iter().map(|id| {
+        let index = model_ids_unique.iter().position(|el| el == id).unwrap_or_default();
         types_vec[index].clone()
     }).collect();
 
@@ -318,7 +318,7 @@ pub(crate) async fn insert_buffer_multiple(pool: &Pool<Postgres>,
         ])
         .to_owned();
     for i in 0..number {
-        let bytes = match ArrayDataValue::from_vec(&data[i]).convert(&types[i]) {
+        let bytes = match ArrayDataValue::from_vec(data[i]).convert(&types[i]) {
             Some(value) => value.to_bytes(),
             None => return Err(Error::InvalidArgument(DATA_TYPE_UNMATCH.to_string()))
         };
@@ -356,7 +356,7 @@ pub(crate) async fn update_buffer(pool: &Pool<Postgres>,
     device_id: Option<Uuid>,
     model_id: Option<Uuid>,
     timestamp: Option<DateTime<Utc>>,
-    data: Option<Vec<DataValue>>,
+    data: Option<&[DataValue]>,
     tag: Option<i16>
 ) -> Result<(), Error>
 {
@@ -370,7 +370,7 @@ pub(crate) async fn update_buffer(pool: &Pool<Postgres>,
         stmt = stmt.and_where(Expr::col(DataBuffer::Id).eq(id)).to_owned();
     }
     if let (Some(device_id), Some(model_id), Some(timestamp)) = (device_id, model_id, timestamp) {
-        let types_vec = select_data_types(pool, vec![model_id]).await?;
+        let types_vec = select_data_types(pool, &[model_id]).await?;
         types = types_vec.into_iter().next().ok_or(Error::InvalidArgument(MODEL_NOT_EXISTS.to_string()))?;
         stmt = stmt
             .and_where(Expr::col(DataBuffer::DeviceId).eq(device_id))
@@ -386,7 +386,7 @@ pub(crate) async fn update_buffer(pool: &Pool<Postgres>,
         stmt = stmt.value(DataBuffer::Tag, tag).to_owned();
     }
     if let Some(value) = data {
-        let bytes = match ArrayDataValue::from_vec(&value).convert(&types) {
+        let bytes = match ArrayDataValue::from_vec(value).convert(&types) {
             Some(value) => value.to_bytes(),
             None => return Err(Error::InvalidArgument(DATA_TYPE_UNMATCH.to_string()))
         };
@@ -552,8 +552,8 @@ pub(crate) async fn select_buffer_set(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn count_buffer(pool: &Pool<Postgres>,
-    device_ids: Option<Vec<Uuid>>,
-    model_ids: Option<Vec<Uuid>>,
+    device_ids: Option<&[Uuid]>,
+    model_ids: Option<&[Uuid]>,
     tag: Option<i16>
 ) -> Result<usize, Error>
 {
@@ -567,7 +567,7 @@ pub(crate) async fn count_buffer(pool: &Pool<Postgres>,
             stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).eq(ids[0])).to_owned();
         }
         else if ids.len() > 1 {
-            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).is_in(ids)).to_owned();
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).is_in(ids.to_vec())).to_owned();
         }
     }
     if let Some(ids) = model_ids.clone() {
@@ -575,7 +575,7 @@ pub(crate) async fn count_buffer(pool: &Pool<Postgres>,
             stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).eq(ids[0])).to_owned();
         }
         else if ids.len() > 1 {
-            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).is_in(ids)).to_owned();
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).is_in(ids.to_vec())).to_owned();
         }
     }
     if let (Some(ids), Some(t)) = (model_ids, tag) {

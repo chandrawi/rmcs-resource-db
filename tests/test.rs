@@ -181,9 +181,9 @@ mod tests {
         let timestamp_2 = DateTime::parse_from_str("2025-06-11 14:49:36.123456 +0000", "%Y-%m-%d %H:%M:%S.%6f %z").unwrap().into();
         let raw_1 = vec![I32(1231),I32(890)];
         let raw_2 = vec![I32(1452),I32(-341)];
-        resource.create_buffer(device_id1, model_buf_id, timestamp_1, raw_1.clone(), Some(tag::ANALYSIS_1)).await.unwrap();
-        resource.create_buffer(device_id2, model_buf_id, timestamp_1, raw_2.clone(), Some(tag::ANALYSIS_1)).await.unwrap();
-        let ids = resource.create_buffer_multiple(vec![device_id1, device_id2], vec![model_buf_id, model_buf_id], vec![timestamp_2, timestamp_2], vec![raw_1.clone(), raw_2.clone()], Some(vec![tag::TRANSFER_LOCAL, tag::TRANSFER_LOCAL])).await.unwrap();
+        resource.create_buffer(device_id1, model_buf_id, timestamp_1, &raw_1, Some(tag::ANALYSIS_1)).await.unwrap();
+        resource.create_buffer(device_id2, model_buf_id, timestamp_1, &raw_2, Some(tag::ANALYSIS_1)).await.unwrap();
+        let ids = resource.create_buffer_multiple(&[device_id1, device_id2], &[model_buf_id, model_buf_id], &[timestamp_2, timestamp_2], &[&raw_1, &raw_2], Some(&[tag::TRANSFER_LOCAL, tag::TRANSFER_LOCAL])).await.unwrap();
 
         // read buffer
         let buffers = resource.list_buffer_first(100, None, None, None).await.unwrap();
@@ -192,28 +192,28 @@ mod tests {
         assert_eq!(ids.len(), 2);
 
         // read buffers from a device group
-        let buffers_group = resource.list_buffer_first_by_ids(100, Some(group_device.devices.clone()), None, None).await.unwrap();
+        let buffers_group = resource.list_buffer_first_by_ids(100, Some(&group_device.devices), None, None).await.unwrap();
         assert_eq!(buffers_group[0].data, raw_1);
         assert_eq!(buffers_group[1].data, raw_2);
 
         // get model config value then convert buffer data
-        let conf_val = |model_configs: Vec<DeviceConfigSchema>, name: &str| -> DataValue {
+        let conf_val = |model_configs: &[DeviceConfigSchema], name: &str| -> DataValue {
             model_configs.iter().filter(|&cfg| cfg.name == name.to_owned())
                 .next().unwrap().value.clone()
         };
         let convert = |raw: i32, coef0: i32, coef1: f64| -> f64 {
             (raw as f64 - coef0 as f64) * coef1
         };
-        let coef0 = conf_val(device_configs.clone(), "coef_0").try_into().unwrap();
-        let coef1 = conf_val(device_configs.clone(), "coef_1").try_into().unwrap();
+        let coef0 = conf_val(&device_configs, "coef_0").try_into().unwrap();
+        let coef1 = conf_val(&device_configs, "coef_1").try_into().unwrap();
         let speed1 = convert(raw_1[0].clone().try_into().unwrap(), coef0, coef1) as f32;
         let direction1 = convert(raw_1[1].clone().try_into().unwrap(), coef0, coef1) as f32;
         let speed2 = convert(raw_2[0].clone().try_into().unwrap(), coef0, coef1) as f32;
         let direction2 = convert(raw_2[1].clone().try_into().unwrap(), coef0, coef1) as f32;
         // create data
-        resource.create_data(device_id1, model_id, timestamp_1, vec![F32(speed1), F32(direction1)], None).await.unwrap();
-        resource.create_data(device_id2, model_id, timestamp_1, vec![F32(speed2), F32(direction2)], None).await.unwrap();
-        resource.create_data_multiple(vec![device_id1, device_id2], vec![model_id, model_id], vec![timestamp_2, timestamp_2], vec![vec![F32(speed1), F32(direction1)], vec![F32(speed2), F32(direction2)]], None).await.unwrap();
+        resource.create_data(device_id1, model_id, timestamp_1, &[F32(speed1), F32(direction1)], None).await.unwrap();
+        resource.create_data(device_id2, model_id, timestamp_1, &[F32(speed2), F32(direction2)], None).await.unwrap();
+        resource.create_data_multiple(&[device_id1, device_id2], &[model_id, model_id], &[timestamp_2, timestamp_2], &[&[F32(speed1), F32(direction1)], &[F32(speed2), F32(direction2)]], None).await.unwrap();
 
         // read data
         let datas = resource.list_data_by_number_before(device_id1, model_id, timestamp_1, 100, None).await.unwrap();
@@ -223,7 +223,7 @@ mod tests {
         assert_eq!(tag::DEFAULT, data.tag);
 
         // read data from a device group
-        let data_group = resource.list_data_by_ids_time(group_device.devices.clone(), vec![model_id], timestamp_1, None).await.unwrap();
+        let data_group = resource.list_data_by_ids_time(&group_device.devices, &[model_id], timestamp_1, None).await.unwrap();
         let data_values_vec: Vec<Vec<DataValue>> = data_group.iter().map(|d| d.data.clone()).collect();
         let data_values: Vec<DataValue> = data_values_vec.into_iter().flatten().collect();
         assert!(data_values.contains(&F32(speed1)));

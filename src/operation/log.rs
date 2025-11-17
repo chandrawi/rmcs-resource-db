@@ -18,7 +18,7 @@ pub(crate) enum LogSelector {
 
 pub(crate) async fn select_log(pool: &Pool<Postgres>,
     selector: LogSelector,
-    id: Option<Vec<i32>>,
+    id: Option<&[i32]>,
     device_id: Option<Uuid>,
     model_id: Option<Uuid>,
     tag: Option<i16>
@@ -37,7 +37,7 @@ pub(crate) async fn select_log(pool: &Pool<Postgres>,
         .from(SystemLog::Table)
         .to_owned();
     if let Some(id) = id {
-        stmt = stmt.and_where(Expr::col(SystemLog::Id).is_in(id)).to_owned();
+        stmt = stmt.and_where(Expr::col(SystemLog::Id).is_in(id.to_vec())).to_owned();
     }
     if let Some(id) = device_id {
         stmt = stmt.and_where(Expr::col(SystemLog::DeviceId).eq(id)).to_owned();

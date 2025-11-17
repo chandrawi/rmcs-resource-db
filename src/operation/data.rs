@@ -23,8 +23,8 @@ pub(crate) enum DataSelector {
 
 pub(crate) async fn select_data(pool: &Pool<Postgres>, 
     selector: DataSelector,
-    device_ids: Vec<Uuid>,
-    model_ids: Vec<Uuid>,
+    device_ids: &[Uuid],
+    model_ids: &[Uuid],
     tag: Option<i16>
 ) -> Result<Vec<DataSchema>, Error>
 {
@@ -50,13 +50,13 @@ pub(crate) async fn select_data(pool: &Pool<Postgres>,
         stmt = stmt.and_where(Expr::col((Data::Table, Data::DeviceId)).eq(device_ids[0])).to_owned();
     }
     else {
-        stmt = stmt.and_where(Expr::col((Data::Table, Data::DeviceId)).is_in(device_ids)).to_owned();
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::DeviceId)).is_in(device_ids.to_vec())).to_owned();
     }
     if model_ids.len() == 1 {
         stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).eq(model_ids[0])).to_owned();
     }
     else {
-        stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).is_in(model_ids.clone())).to_owned();
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).is_in(model_ids.to_vec())).to_owned();
     }
 
     match selector {
@@ -117,8 +117,8 @@ pub(crate) async fn select_data(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_timestamp(pool: &Pool<Postgres>,
     selector: DataSelector,
-    device_ids: Vec<Uuid>,
-    model_ids: Vec<Uuid>,
+    device_ids: &[Uuid],
+    model_ids: &[Uuid],
     tag: Option<i16>
 ) -> Result<Vec<DateTime<Utc>>, Error>
 {
@@ -134,13 +134,13 @@ pub(crate) async fn select_timestamp(pool: &Pool<Postgres>,
         stmt = stmt.and_where(Expr::col((Data::Table, Data::DeviceId)).eq(device_ids[0])).to_owned();
     }
     else {
-        stmt = stmt.and_where(Expr::col((Data::Table, Data::DeviceId)).is_in(device_ids)).to_owned();
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::DeviceId)).is_in(device_ids.to_vec())).to_owned();
     }
     if model_ids.len() == 1 {
         stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).eq(model_ids[0])).to_owned();
     }
     else {
-        stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).is_in(model_ids.clone())).to_owned();
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).is_in(model_ids.to_vec())).to_owned();
     }
 
     match selector {
@@ -180,13 +180,13 @@ pub(crate) async fn select_timestamp(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn select_data_types(pool: &Pool<Postgres>,
-    model_ids: Vec<Uuid>
+    model_ids: &[Uuid]
 ) -> Result<Vec<Vec<DataType>>, Error>
 {
     let (sql, values) = Query::select()
         .column((Model::Table, Model::DataType))
         .from(Model::Table)
-        .and_where(Expr::col((Model::Table, Model::ModelId)).is_in(model_ids))
+        .and_where(Expr::col((Model::Table, Model::ModelId)).is_in(model_ids.to_vec()))
         .order_by((Model::Table, Model::ModelId), Order::Asc)
         .build_sqlx(PostgresQueryBuilder);
 
@@ -202,13 +202,13 @@ pub(crate) async fn insert_data(pool: &Pool<Postgres>,
     device_id: Uuid,
     model_id: Uuid,
     timestamp: DateTime<Utc>,
-    data: Vec<DataValue>,
+    data: &[DataValue],
     tag: Option<i16>
 ) -> Result<(), Error>
 {
-    let types_vec = select_data_types(pool, vec![model_id]).await?;
+    let types_vec = select_data_types(pool, &[model_id]).await?;
     let types = types_vec.into_iter().next().ok_or(Error::InvalidArgument(MODEL_NOT_EXISTS.to_string()))?;
-    let bytes = match ArrayDataValue::from_vec(&data).convert(&types) {
+    let bytes = match ArrayDataValue::from_vec(data).convert(&types) {
         Some(value) => value.to_bytes(),
         None => return Err(Error::InvalidArgument(DATA_TYPE_UNMATCH.to_string()))
     };
@@ -242,32 +242,32 @@ pub(crate) async fn insert_data(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn insert_data_multiple(pool: &Pool<Postgres>,
-    device_ids: Vec<Uuid>,
-    model_ids: Vec<Uuid>,
-    timestamps: Vec<DateTime<Utc>>,
-    data: Vec<Vec<DataValue>>,
-    tags: Option<Vec<i16>>
+    device_ids: &[Uuid],
+    model_ids: &[Uuid],
+    timestamps: &[DateTime<Utc>],
+    data: &[&[DataValue]],
+    tags: Option<&[i16]>
 ) -> Result<(), Error>
 {
     let number = device_ids.len();
     let tags = match tags {
-        Some(value) => value,
+        Some(value) => value.to_vec(),
         None => (0..number).map(|_| Tag::DEFAULT).collect()
     };
     let numbers = vec![model_ids.len(), timestamps.len(), data.len(), tags.len()];
     if number == 0 || numbers.into_iter().any(|n| n != number) {
         return Err(Error::InvalidArgument(EMPTY_LENGTH_UNMATCH.to_string()))
     } 
-    let mut model_ids_unique = model_ids.clone();
+    let mut model_ids_unique = model_ids.to_vec();
     model_ids_unique.sort();
     model_ids_unique.dedup();
 
-    let types_vec = select_data_types(pool, model_ids.clone()).await?;
+    let types_vec = select_data_types(pool, model_ids).await?;
     if model_ids_unique.len() != types_vec.len() {
         return Err(Error::InvalidArgument(MODEL_NOT_EXISTS.to_string()));
     }
-    let types: Vec<Vec<DataType>> = model_ids.clone().into_iter().map(|id| {
-        let index = model_ids_unique.iter().position(|&el| el == id).unwrap_or_default();
+    let types: Vec<Vec<DataType>> = model_ids.into_iter().map(|id| {
+        let index = model_ids_unique.iter().position(|el| el == id).unwrap_or_default();
         types_vec[index].clone()
     }).collect();
 
@@ -445,8 +445,8 @@ pub(crate) async fn select_data_set(pool: &Pool<Postgres>,
 
 pub(crate) async fn count_data(pool: &Pool<Postgres>,
     selector: DataSelector,
-    device_ids: Vec<Uuid>,
-    model_ids: Vec<Uuid>,
+    device_ids: &[Uuid],
+    model_ids: &[Uuid],
     tag: Option<i16>
 ) -> Result<usize, Error>
 {
@@ -459,13 +459,13 @@ pub(crate) async fn count_data(pool: &Pool<Postgres>,
         stmt = stmt.and_where(Expr::col((Data::Table, Data::DeviceId)).eq(device_ids[0])).to_owned();
     }
     else {
-        stmt = stmt.and_where(Expr::col((Data::Table, Data::DeviceId)).is_in(device_ids)).to_owned();
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::DeviceId)).is_in(device_ids.to_vec())).to_owned();
     }
     if model_ids.len() == 1 {
         stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).eq(model_ids[0])).to_owned();
     }
     else {
-        stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).is_in(model_ids.clone())).to_owned();
+        stmt = stmt.and_where(Expr::col((Data::Table, Data::ModelId)).is_in(model_ids.to_vec())).to_owned();
     }
 
     match selector {
