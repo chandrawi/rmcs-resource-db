@@ -192,7 +192,7 @@ mod tests {
         assert_eq!(ids.len(), 2);
 
         // read buffers from a device group
-        let buffers_group = resource.list_buffer_first_by_ids(100, Some(&group_device.devices), None, None).await.unwrap();
+        let buffers_group = resource.list_buffer_group_first(100, Some(&group_device.devices), None, None).await.unwrap();
         assert_eq!(buffers_group[0].data, raw_1);
         assert_eq!(buffers_group[1].data, raw_2);
 
@@ -223,7 +223,7 @@ mod tests {
         assert_eq!(tag::DEFAULT, data.tag);
 
         // read data from a device group
-        let data_group = resource.list_data_by_ids_time(&group_device.devices, &[model_id], timestamp_1, None).await.unwrap();
+        let data_group = resource.list_data_group_by_time(&group_device.devices, &[model_id], timestamp_1, None).await.unwrap();
         let data_values_vec: Vec<Vec<DataValue>> = data_group.iter().map(|d| d.data.clone()).collect();
         let data_values: Vec<DataValue> = data_values_vec.into_iter().flatten().collect();
         assert!(data_values.contains(&F32(speed1)));
@@ -277,7 +277,7 @@ mod tests {
         // create system log
         let log_id = resource.create_log(timestamp_1, Some(device_id1), None, String("testing success".to_owned()), Some(tag::ERROR_UNKNOWN)).await.unwrap();
         // read log
-        let logs = resource.list_log_by_range_time(timestamp_1, Utc::now(), None, None, None).await.unwrap();
+        let logs = resource.list_log_by_range(timestamp_1, Utc::now(), None, None, None).await.unwrap();
         let log = logs.iter().filter(|x| x.device_id == Some(device_id1) && x.timestamp == timestamp_1).next().unwrap();
         assert_eq!(log.value, String("testing success".to_owned()));
 

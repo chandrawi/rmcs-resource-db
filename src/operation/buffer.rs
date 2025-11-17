@@ -16,8 +16,8 @@ use super::{EMPTY_LENGTH_UNMATCH, DATA_TYPE_UNMATCH, MODEL_NOT_EXISTS};
 
 pub(crate) enum BufferSelector {
     Time(DateTime<Utc>),
-    TimeLast(DateTime<Utc>),
-    TimeRange(DateTime<Utc>, DateTime<Utc>),
+    Latest(DateTime<Utc>),
+    Range(DateTime<Utc>, DateTime<Utc>),
     NumberBefore(DateTime<Utc>, usize),
     NumberAfter(DateTime<Utc>, usize),
     First(usize, usize),
@@ -77,12 +77,12 @@ pub(crate) async fn select_buffer(pool: &Pool<Postgres>,
         BufferSelector::Time(timestamp) => {
             stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).eq(timestamp)).to_owned();
         },
-        BufferSelector::TimeLast(last) => {
+        BufferSelector::Latest(last) => {
             stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).gt(last))
                 .order_by((DataBuffer::Table, DataBuffer::Timestamp), Order::Asc)
                 .to_owned();
         },
-        BufferSelector::TimeRange(begin, end) => {
+        BufferSelector::Range(begin, end) => {
             stmt = stmt
                 .and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).gte(begin))
                 .and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).lte(end))
@@ -473,12 +473,12 @@ pub(crate) async fn select_buffer_set(pool: &Pool<Postgres>,
         BufferSelector::Time(timestamp) => {
             stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).eq(timestamp)).to_owned();
         },
-        BufferSelector::TimeLast(last) => {
+        BufferSelector::Latest(last) => {
             stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).gt(last))
                 .order_by((DataBuffer::Table, DataBuffer::Timestamp), Order::Asc)
                 .to_owned();
         },
-        BufferSelector::TimeRange(begin, end) => {
+        BufferSelector::Range(begin, end) => {
             stmt = stmt
                 .and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).gte(begin))
                 .and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).lte(end))
