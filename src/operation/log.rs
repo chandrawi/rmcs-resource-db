@@ -11,7 +11,7 @@ use crate::utility::tag as Tag;
 
 pub(crate) enum LogSelector {
     Time(DateTime<Utc>),
-    Last(DateTime<Utc>),
+    Latest(DateTime<Utc>),
     Range(DateTime<Utc>, DateTime<Utc>),
     None
 }
@@ -52,7 +52,7 @@ pub(crate) async fn select_log(pool: &Pool<Postgres>,
         LogSelector::Time(timestamp) => {
             stmt = stmt.and_where(Expr::col(SystemLog::Timestamp).eq(timestamp)).to_owned();
         },
-        LogSelector::Last(timestamp) => {
+        LogSelector::Latest(timestamp) => {
             stmt = stmt.and_where(Expr::col(SystemLog::Timestamp).gt(timestamp))
                 .order_by(SystemLog::Timestamp, Order::Asc)
                 .to_owned();

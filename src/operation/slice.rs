@@ -16,6 +16,7 @@ pub(crate) enum SliceSelector {
 pub(crate) async fn select_slice(pool: &Pool<Postgres>,
     selector: SliceSelector,
     id: Option<i32>,
+    ids: Option<&[i32]>,
     device_id: Option<Uuid>,
     model_id: Option<Uuid>,
     name: Option<&str>
@@ -36,6 +37,9 @@ pub(crate) async fn select_slice(pool: &Pool<Postgres>,
 
     if let Some(id) = id {
         stmt = stmt.and_where(Expr::col(SliceData::Id).eq(id)).to_owned();
+    }
+    else if let Some(ids) = ids {
+        stmt = stmt.and_where(Expr::col((SliceData::Table, SliceData::Id)).is_in(ids.to_vec())).to_owned();
     }
     else {
         if let Some(id) = device_id {
@@ -186,6 +190,7 @@ pub(crate) async fn delete_slice(pool: &Pool<Postgres>,
 pub(crate) async fn select_slice_set(pool: &Pool<Postgres>,
     selector: SliceSelector,
     id: Option<i32>,
+    ids: Option<&[i32]>,
     set_id: Option<Uuid>,
     name: Option<&str>
 ) -> Result<Vec<SliceSetSchema>, Error>
@@ -204,6 +209,9 @@ pub(crate) async fn select_slice_set(pool: &Pool<Postgres>,
 
     if let Some(id) = id {
         stmt = stmt.and_where(Expr::col(SliceDataSet::Id).eq(id)).to_owned();
+    }
+    else if let Some(ids) = ids {
+        stmt = stmt.and_where(Expr::col((SliceDataSet::Table, SliceDataSet::Id)).is_in(ids.to_vec())).to_owned();
     }
     else {
         if let Some(id) = set_id {

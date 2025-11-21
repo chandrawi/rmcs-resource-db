@@ -15,7 +15,7 @@ use super::{EMPTY_LENGTH_UNMATCH, DATA_TYPE_UNMATCH, MODEL_NOT_EXISTS};
 
 pub(crate) enum DataSelector {
     Time(DateTime<Utc>),
-    Last(DateTime<Utc>),
+    Latest(DateTime<Utc>),
     Range(DateTime<Utc>, DateTime<Utc>),
     NumberBefore(DateTime<Utc>, usize),
     NumberAfter(DateTime<Utc>, usize)
@@ -63,7 +63,7 @@ pub(crate) async fn select_data(pool: &Pool<Postgres>,
         DataSelector::Time(time) => {
             stmt = stmt.and_where(Expr::col((Data::Table, Data::Timestamp)).eq(time)).to_owned();
         },
-        DataSelector::Last(last) => {
+        DataSelector::Latest(last) => {
             stmt = stmt.and_where(Expr::col((Data::Table, Data::Timestamp)).gt(last))
                 .order_by((Data::Table, Data::Timestamp), Order::Asc)
                 .to_owned();
@@ -147,7 +147,7 @@ pub(crate) async fn select_timestamp(pool: &Pool<Postgres>,
         DataSelector::Time(time) => {
             stmt = stmt.and_where(Expr::col((Data::Table, Data::Timestamp)).eq(time)).to_owned();
         },
-        DataSelector::Last(last) => {
+        DataSelector::Latest(last) => {
             stmt = stmt.and_where(Expr::col((Data::Table, Data::Timestamp)).gt(last))
             .order_by((Data::Table, Data::Timestamp), Order::Asc)
             .to_owned();
@@ -366,7 +366,7 @@ pub(crate) async fn select_data_set(pool: &Pool<Postgres>,
         DataSelector::Time(time) => {
             stmt = stmt.and_where(Expr::col((Data::Table, Data::Timestamp)).eq(time)).to_owned();
         },
-        DataSelector::Last(last) => {
+        DataSelector::Latest(last) => {
             stmt = stmt
                 .and_where(Expr::col((Data::Table, Data::Timestamp)).gt(last))
                 .order_by((Data::Table, Data::Timestamp), Order::Asc)
@@ -469,7 +469,7 @@ pub(crate) async fn count_data(pool: &Pool<Postgres>,
     }
 
     match selector {
-        DataSelector::Last(last) => {
+        DataSelector::Latest(last) => {
             stmt = stmt.and_where(Expr::col(Data::Timestamp).gt(last)).to_owned();
         },
         DataSelector::Range(begin, end) => {
