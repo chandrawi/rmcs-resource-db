@@ -13,14 +13,16 @@ pub(crate) enum LogSelector {
     Time(DateTime<Utc>),
     Latest(DateTime<Utc>),
     Range(DateTime<Utc>, DateTime<Utc>),
+    First(usize, usize),
+    Last(usize, usize),
     None
 }
 
 pub(crate) async fn select_log(pool: &Pool<Postgres>,
     selector: LogSelector,
-    id: Option<&[i32]>,
-    device_id: Option<Uuid>,
-    model_id: Option<Uuid>,
+    ids: Option<&[i32]>,
+    device_ids: Option<&[Uuid]>,
+    model_ids: Option<&[Uuid]>,
     tag: Option<i16>
 ) -> Result<Vec<LogSchema>, Error>
 {
@@ -36,18 +38,34 @@ pub(crate) async fn select_log(pool: &Pool<Postgres>,
         ])
         .from(SystemLog::Table)
         .to_owned();
-    if let Some(id) = id {
-        stmt = stmt.and_where(Expr::col(SystemLog::Id).is_in(id.to_vec())).to_owned();
+
+    if let Some(ids) = ids {
+        if ids.len() == 1 {
+            stmt = stmt.and_where(Expr::col(SystemLog::Id).eq(ids[0])).to_owned();
+        } else {
+            stmt = stmt.and_where(Expr::col(SystemLog::Id).is_in(ids.to_vec())).to_owned();
+        }
     }
-    if let Some(id) = device_id {
-        stmt = stmt.and_where(Expr::col(SystemLog::DeviceId).eq(id)).to_owned();
+    if let Some(ids) = device_ids {
+        if ids.len() == 1 {
+            stmt = stmt.and_where(Expr::col((SystemLog::Table, SystemLog::DeviceId)).eq(ids[0])).to_owned();
+        }
+        else if ids.len() > 1 {
+            stmt = stmt.and_where(Expr::col((SystemLog::Table, SystemLog::DeviceId)).is_in(ids.to_vec())).to_owned();
+        }
     }
-    if let Some(id) = model_id {
-        stmt = stmt.and_where(Expr::col(SystemLog::ModelId).eq(id)).to_owned();
+    if let Some(ids) = model_ids {
+        if ids.len() == 1 {
+            stmt = stmt.and_where(Expr::col((SystemLog::Table, SystemLog::ModelId)).eq(ids[0])).to_owned();
+        }
+        else if ids.len() > 1 {
+            stmt = stmt.and_where(Expr::col((SystemLog::Table, SystemLog::ModelId)).is_in(ids.to_vec())).to_owned();
+        }
     }
     if let Some(t) = tag {
         stmt = stmt.and_where(Expr::col(SystemLog::Tag).eq(t)).to_owned();
     }
+
     match selector {
         LogSelector::Time(timestamp) => {
             stmt = stmt.and_where(Expr::col(SystemLog::Timestamp).eq(timestamp)).to_owned();
@@ -62,6 +80,20 @@ pub(crate) async fn select_log(pool: &Pool<Postgres>,
                 .and_where(Expr::col(SystemLog::Timestamp).gte(begin))
                 .and_where(Expr::col(SystemLog::Timestamp).lte(end))
                 .order_by(SystemLog::Timestamp, Order::Asc)
+                .to_owned();
+        },
+        LogSelector::First(number, offset) => {
+            stmt = stmt
+                .order_by((SystemLog::Table, SystemLog::Id), Order::Asc)
+                .limit(number as u64)
+                .offset(offset as u64)
+                .to_owned();
+        },
+        LogSelector::Last(number, offset) => {
+            stmt = stmt
+                .order_by((SystemLog::Table, SystemLog::Id), Order::Desc)
+                .limit(number as u64)
+                .offset(offset as u64)
                 .to_owned();
         },
         LogSelector::None => {}

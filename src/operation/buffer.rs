@@ -50,7 +50,11 @@ pub(crate) async fn select_buffer(pool: &Pool<Postgres>,
         .to_owned();
 
     if let Some(ids) = ids {
-        stmt = stmt.and_where(Expr::col(DataBuffer::Id).is_in(ids.to_vec())).to_owned();
+        if ids.len() == 1 {
+            stmt = stmt.and_where(Expr::col(DataBuffer::Id).eq(ids[0])).to_owned();
+        } else {
+            stmt = stmt.and_where(Expr::col(DataBuffer::Id).is_in(ids.to_vec())).to_owned();
+        }
     }
     if let Some(ids) = device_ids {
         if ids.len() == 1 {
