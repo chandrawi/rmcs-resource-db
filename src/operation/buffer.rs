@@ -178,6 +178,21 @@ pub(crate) async fn select_timestamp(pool: &Pool<Postgres>,
     }
 
     match selector {
+        BufferSelector::Time(timestamp) => {
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).eq(timestamp)).to_owned();
+        },
+        BufferSelector::Latest(last) => {
+            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).gt(last))
+                .order_by((DataBuffer::Table, DataBuffer::Timestamp), Order::Asc)
+                .to_owned();
+        },
+        BufferSelector::Range(begin, end) => {
+            stmt = stmt
+                .and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).gte(begin))
+                .and_where(Expr::col((DataBuffer::Table, DataBuffer::Timestamp)).lte(end))
+                .order_by((DataBuffer::Table, DataBuffer::Timestamp), Order::Asc)
+                .to_owned();
+        },
         BufferSelector::First(number, offset) => {
             stmt = stmt
                 .order_by((DataBuffer::Table, DataBuffer::Id), Order::Asc)
@@ -556,8 +571,9 @@ pub(crate) async fn select_buffer_set(pool: &Pool<Postgres>,
 }
 
 pub(crate) async fn count_buffer(pool: &Pool<Postgres>,
-    device_ids: Option<&[Uuid]>,
-    model_ids: Option<&[Uuid]>,
+    selector: BufferSelector,
+    device_ids: &[Uuid],
+    model_ids: &[Uuid],
     tag: Option<i16>
 ) -> Result<usize, Error>
 {
@@ -566,27 +582,36 @@ pub(crate) async fn count_buffer(pool: &Pool<Postgres>,
         .from(DataBuffer::Table)
         .to_owned();
 
-    if let Some(ids) = device_ids {
-        if ids.len() == 1 {
-            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).eq(ids[0])).to_owned();
-        }
-        else if ids.len() > 1 {
-            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).is_in(ids.to_vec())).to_owned();
-        }
+    if device_ids.len() == 1 {
+        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).eq(device_ids[0])).to_owned();
     }
-    if let Some(ids) = model_ids.clone() {
-        if ids.len() == 1 {
-            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).eq(ids[0])).to_owned();
-        }
-        else if ids.len() > 1 {
-            stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).is_in(ids.to_vec())).to_owned();
-        }
+    else {
+        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::DeviceId)).is_in(device_ids.to_vec())).to_owned();
     }
-    if let (Some(ids), Some(t)) = (model_ids, tag) {
-        let tags = select_tag_members(pool, ids, t).await?;
-        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Tag)).is_in(tags)).to_owned();
+    if model_ids.len() == 1 {
+        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).eq(model_ids[0])).to_owned();
+    }
+    else {
+        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::ModelId)).is_in(model_ids.to_vec())).to_owned();
     }
 
+    match selector {
+        BufferSelector::Latest(last) => {
+            stmt = stmt.and_where(Expr::col(DataBuffer::Timestamp).gt(last)).to_owned();
+        },
+        BufferSelector::Range(begin, end) => {
+            stmt = stmt
+                .and_where(Expr::col(DataBuffer::Timestamp).gte(begin))
+                .and_where(Expr::col(DataBuffer::Timestamp).lte(end))
+                .to_owned();
+        },
+        _ => {}
+    }
+
+    if let  Some(t) = tag {
+        let tags = select_tag_members(pool, model_ids, t).await?;
+        stmt = stmt.and_where(Expr::col((DataBuffer::Table, DataBuffer::Tag)).is_in(tags)).to_owned();
+    }
     let (sql, values) = stmt.build_sqlx(PostgresQueryBuilder);
 
     let count: i64 = sqlx::query_with(&sql, values)

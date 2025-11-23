@@ -1595,20 +1595,28 @@ impl Resource {
         buffer::delete_buffer(&self.pool, None, Some(device_id), Some(model_id), Some(timestamp), tag).await
     }
 
-    pub async fn read_buffer_timestamp_first(&self, device_id: Option<Uuid>, model_id: Option<Uuid>, tag: Option<i16>)
+    pub async fn read_buffer_timestamp(&self, device_id: Uuid, model_id: Uuid, timestamp: DateTime<Utc>, tag: Option<i16>)
         -> Result<DateTime<Utc>, Error>
     {
-        let selector = BufferSelector::First(1, 0);
-        buffer::select_timestamp(&self.pool, selector, device_id.as_ref().map(|id| from_ref(id)), model_id.as_ref().map(|id| from_ref(id)), tag).await?
+        let selector = BufferSelector::Time(timestamp);
+        buffer::select_timestamp(&self.pool, selector, Some(&[device_id]), Some(&[model_id]), tag).await?
         .into_iter().next().ok_or(Error::RowNotFound)
     }
 
-    pub async fn read_buffer_timestamp_last(&self, device_id: Option<Uuid>, model_id: Option<Uuid>, tag: Option<i16>)
-        -> Result<DateTime<Utc>, Error>
+    pub async fn list_buffer_timestamp_by_latest(&self, device_id: Uuid, model_id: Uuid, latest: DateTime<Utc>, tag: Option<i16>)
+        -> Result<Vec<DateTime<Utc>>, Error>
     {
-        let selector = BufferSelector::Last(1, 0);
-        buffer::select_timestamp(&self.pool, selector, device_id.as_ref().map(|id| from_ref(id)), model_id.as_ref().map(|id| from_ref(id)), tag).await?
-        .into_iter().next().ok_or(Error::RowNotFound)
+        let selector = BufferSelector::Latest(latest);
+        buffer::select_timestamp(&self.pool, selector, Some(&[device_id]), Some(&[model_id]), tag)
+        .await
+    }
+
+    pub async fn list_buffer_timestamp_by_range(&self, device_id: Uuid, model_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>, tag: Option<i16>)
+        -> Result<Vec<DateTime<Utc>>, Error>
+    {
+        let selector = BufferSelector::Range(begin, end);
+        buffer::select_timestamp(&self.pool, selector, Some(&[device_id]), Some(&[model_id]), tag)
+        .await
     }
 
     pub async fn list_buffer_timestamp_first(&self, number: usize, device_id: Option<Uuid>, model_id: Option<Uuid>, tag: Option<i16>)
@@ -1624,6 +1632,30 @@ impl Resource {
     {
         let selector = BufferSelector::Last(number, 0);
         buffer::select_timestamp(&self.pool, selector, device_id.as_ref().map(|id| from_ref(id)), model_id.as_ref().map(|id| from_ref(id)), tag)
+        .await
+    }
+
+    pub async fn read_buffer_group_timestamp(&self, device_ids: &[Uuid], model_ids: &[Uuid], timestamp: DateTime<Utc>, tag: Option<i16>)
+        -> Result<DateTime<Utc>, Error>
+    {
+        let selector = BufferSelector::Time(timestamp);
+        buffer::select_timestamp(&self.pool, selector, Some(device_ids), Some(model_ids), tag).await?
+        .into_iter().next().ok_or(Error::RowNotFound)
+    }
+
+    pub async fn list_buffer_group_timestamp_by_latest(&self, device_ids: &[Uuid], model_ids: &[Uuid], latest: DateTime<Utc>, tag: Option<i16>)
+        -> Result<Vec<DateTime<Utc>>, Error>
+    {
+        let selector = BufferSelector::Latest(latest);
+        buffer::select_timestamp(&self.pool, selector, Some(device_ids), Some(model_ids), tag)
+        .await
+    }
+
+    pub async fn list_buffer_group_timestamp_by_range(&self, device_ids: &[Uuid], model_ids: &[Uuid], begin: DateTime<Utc>, end: DateTime<Utc>, tag: Option<i16>)
+        -> Result<Vec<DateTime<Utc>>, Error>
+    {
+        let selector = BufferSelector::Range(begin, end);
+        buffer::select_timestamp(&self.pool, selector, Some(device_ids), Some(model_ids), tag)
         .await
     }
 
@@ -1643,17 +1675,45 @@ impl Resource {
         .await
     }
 
-    pub async fn count_buffer(&self, device_id: Option<Uuid>, model_id: Option<Uuid>, tag: Option<i16>)
+    pub async fn count_buffer(&self, device_id: Uuid, model_id: Uuid, tag: Option<i16>)
         -> Result<usize, Error>
     {
-        buffer::count_buffer(&self.pool, device_id.as_ref().map(|id| from_ref(id)), model_id.as_ref().map(|id| from_ref(id)), tag)
+        buffer::count_buffer(&self.pool, BufferSelector::None, &[device_id], &[model_id], tag)
         .await
     }
 
-    pub async fn count_buffer_group(&self, device_ids: Option<&[Uuid]>, model_ids: Option<&[Uuid]>, tag: Option<i16>)
+    pub async fn count_buffer_by_latest(&self, device_id: Uuid, model_id: Uuid, latest: DateTime<Utc>, tag: Option<i16>)
         -> Result<usize, Error>
     {
-        buffer::count_buffer(&self.pool, device_ids, model_ids, tag)
+        buffer::count_buffer(&self.pool, BufferSelector::Latest(latest), &[device_id], &[model_id], tag)
+        .await
+    }
+
+    pub async fn count_buffer_by_range(&self, device_id: Uuid, model_id: Uuid, begin: DateTime<Utc>, end: DateTime<Utc>, tag: Option<i16>)
+        -> Result<usize, Error>
+    {
+        buffer::count_buffer(&self.pool, BufferSelector::Range(begin, end), &[device_id], &[model_id], tag)
+        .await
+    }
+
+    pub async fn count_buffer_group(&self, device_ids: &[Uuid], model_ids: &[Uuid], tag: Option<i16>)
+        -> Result<usize, Error>
+    {
+        buffer::count_buffer(&self.pool, BufferSelector::None, device_ids, model_ids, tag)
+        .await
+    }
+
+    pub async fn count_buffer_group_by_latest(&self, device_ids: &[Uuid], model_ids: &[Uuid], latest: DateTime<Utc>, tag: Option<i16>)
+        -> Result<usize, Error>
+    {
+        buffer::count_buffer(&self.pool, BufferSelector::Latest(latest), device_ids, model_ids, tag)
+        .await
+    }
+
+    pub async fn count_buffer_group_by_range(&self, device_ids: &[Uuid], model_ids: &[Uuid], begin: DateTime<Utc>, end: DateTime<Utc>, tag: Option<i16>)
+        -> Result<usize, Error>
+    {
+        buffer::count_buffer(&self.pool, BufferSelector::Range(begin, end), device_ids, model_ids, tag)
         .await
     }
 
