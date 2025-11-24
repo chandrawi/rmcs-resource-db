@@ -45,3 +45,11 @@ CREATE TABLE IF NOT EXISTS "set_map" (
   FOREIGN KEY ("model_id")
     REFERENCES "model" ("model_id") ON UPDATE CASCADE ON DELETE CASCADE
 );
+
+INSERT INTO "set_template" ("template_id", "name", "description")
+  VALUES (
+    '00000000-0000-0000-0000-000000000000', 
+    'default', 
+    'default set template'
+  ) 
+  ON CONFLICT ("template_id") DO NOTHING;

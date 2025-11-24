@@ -941,14 +941,14 @@ impl Resource {
     pub async fn read_slice(&self, id: i32)
         -> Result<SliceSchema, Error>
     {
-        slice::select_slice(&self.pool, SliceSelector::None, Some(id), None, None, None, None).await?
+        slice::select_slice(&self.pool, SliceSelector::None, Some(&[id]), None, None, None).await?
         .into_iter().next().ok_or(Error::RowNotFound)
     }
 
     pub async fn list_slice_by_ids(&self, ids: &[i32])
         -> Result<Vec<SliceSchema>, Error>
     {
-        slice::select_slice(&self.pool, SliceSelector::None, None, Some(ids), None, None, None)
+        slice::select_slice(&self.pool, SliceSelector::None, Some(ids), None, None, None)
         .await
     }
 
@@ -956,7 +956,7 @@ impl Resource {
         -> Result<Vec<SliceSchema>, Error>
     {
         let selector = SliceSelector::Time(timestamp);
-        slice::select_slice(&self.pool, selector, None, None, Some(device_id), Some(model_id), None)
+        slice::select_slice(&self.pool, selector, None, Some(&[device_id]), Some(&[model_id]), None)
         .await
     }
 
@@ -964,7 +964,7 @@ impl Resource {
         -> Result<Vec<SliceSchema>, Error>
     {
         let selector = SliceSelector::Range(begin, end);
-        slice::select_slice(&self.pool, selector, None, None, Some(device_id), Some(model_id), None)
+        slice::select_slice(&self.pool, selector, None, Some(&[device_id]), Some(&[model_id]), None)
         .await
     }
 
@@ -972,7 +972,7 @@ impl Resource {
         -> Result<Vec<SliceSchema>, Error>
     {
         let selector = SliceSelector::Time(timestamp);
-        slice::select_slice(&self.pool, selector, None, None, None, None, Some(name))
+        slice::select_slice(&self.pool, selector, None, None, None, Some(name))
         .await
     }
 
@@ -980,7 +980,7 @@ impl Resource {
         -> Result<Vec<SliceSchema>, Error>
     {
         let selector = SliceSelector::Range(begin, end);
-        slice::select_slice(&self.pool, selector, None, None, None, None, Some(name))
+        slice::select_slice(&self.pool, selector, None, None, None, Some(name))
         .await
     }
 
@@ -992,7 +992,34 @@ impl Resource {
             (Some(timestamp), None) => SliceSelector::Time(timestamp),
             _ => SliceSelector::None
         };
-        slice::select_slice(&self.pool, selector, None, None, device_id, model_id, name).await
+        slice::select_slice(&self.pool, selector, None, device_id.as_ref().map(|id| from_ref(id)), model_id.as_ref().map(|id| from_ref(id)), name).await
+    }
+
+    pub async fn list_slice_group_by_time(&self, device_ids: &[Uuid], model_ids: &[Uuid], timestamp: DateTime<Utc>)
+        -> Result<Vec<SliceSchema>, Error>
+    {
+        let selector = SliceSelector::Time(timestamp);
+        slice::select_slice(&self.pool, selector, None, Some(device_ids), Some(model_ids), None)
+        .await
+    }
+
+    pub async fn list_slice_group_by_range(&self, device_ids: &[Uuid], model_ids: &[Uuid], begin: DateTime<Utc>, end: DateTime<Utc>)
+        -> Result<Vec<SliceSchema>, Error>
+    {
+        let selector = SliceSelector::Range(begin, end);
+        slice::select_slice(&self.pool, selector, None, Some(device_ids), Some(model_ids), None)
+        .await
+    }
+
+    pub async fn list_slice_group_option(&self, device_ids: Option<&[Uuid]>, model_ids: Option<&[Uuid]>, name: Option<&str>, begin_or_timestamp: Option<DateTime<Utc>>, end: Option<DateTime<Utc>>)
+        -> Result<Vec<SliceSchema>, Error>
+    {
+        let selector = match (begin_or_timestamp, end) {
+            (Some(begin), Some(end)) => SliceSelector::Range(begin, end),
+            (Some(timestamp), None) => SliceSelector::Time(timestamp),
+            _ => SliceSelector::None
+        };
+        slice::select_slice(&self.pool, selector, None, device_ids, model_ids, name).await
     }
 
     pub async fn create_slice(&self, device_id: Uuid, model_id: Uuid, timestamp_begin: DateTime<Utc>, timestamp_end: DateTime<Utc>, name: &str, description: Option<&str>)
@@ -1018,14 +1045,14 @@ impl Resource {
     pub async fn read_slice_set(&self, id: i32)
         -> Result<SliceSetSchema, Error>
     {
-        slice::select_slice_set(&self.pool, SliceSelector::None, Some(id), None, None, None).await?
+        slice::select_slice_set(&self.pool, SliceSelector::None, Some(&[id]), None, None).await?
         .into_iter().next().ok_or(Error::RowNotFound)
     }
 
     pub async fn list_slice_set_by_ids(&self, ids: &[i32])
         -> Result<Vec<SliceSetSchema>, Error>
     {
-        slice::select_slice_set(&self.pool, SliceSelector::None, None, Some(ids), None, None)
+        slice::select_slice_set(&self.pool, SliceSelector::None, Some(ids), None, None)
         .await
     }
 
@@ -1033,7 +1060,7 @@ impl Resource {
         -> Result<Vec<SliceSetSchema>, Error>
     {
         let selector = SliceSelector::Time(timestamp);
-        slice::select_slice_set(&self.pool, selector, None, None, Some(set_id), None)
+        slice::select_slice_set(&self.pool, selector, None, Some(set_id), None)
         .await
     }
 
@@ -1041,7 +1068,7 @@ impl Resource {
         -> Result<Vec<SliceSetSchema>, Error>
     {
         let selector = SliceSelector::Range(begin, end);
-        slice::select_slice_set(&self.pool, selector, None, None, Some(set_id), None)
+        slice::select_slice_set(&self.pool, selector, None, Some(set_id), None)
         .await
     }
 
@@ -1049,7 +1076,7 @@ impl Resource {
         -> Result<Vec<SliceSetSchema>, Error>
     {
         let selector = SliceSelector::Time(timestamp);
-        slice::select_slice_set(&self.pool, selector, None, None, None, Some(name))
+        slice::select_slice_set(&self.pool, selector, None, None, Some(name))
         .await
     }
 
@@ -1057,7 +1084,7 @@ impl Resource {
         -> Result<Vec<SliceSetSchema>, Error>
     {
         let selector = SliceSelector::Range(begin, end);
-        slice::select_slice_set(&self.pool, selector, None, None, None, Some(name))
+        slice::select_slice_set(&self.pool, selector, None, None, Some(name))
         .await
     }
 
@@ -1069,7 +1096,7 @@ impl Resource {
             (Some(timestamp), None) => SliceSelector::Time(timestamp),
             _ => SliceSelector::None
         };
-        slice::select_slice_set(&self.pool, selector, None, None, set_id, name).await
+        slice::select_slice_set(&self.pool, selector, None, set_id, name).await
     }
 
     pub async fn create_slice_set(&self, set_id: Uuid, timestamp_begin: DateTime<Utc>, timestamp_end: DateTime<Utc>, name: &str, description: Option<&str>)

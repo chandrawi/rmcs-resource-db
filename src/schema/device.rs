@@ -85,7 +85,7 @@ pub struct TypeSchema {
     pub id: Uuid,
     pub name: String,
     pub description: String,
-    pub models: Vec<Uuid>
+    pub model_ids: Vec<Uuid>
 }
 
 #[derive(Debug, Default, PartialEq, Clone)]
@@ -235,7 +235,7 @@ impl From<device::TypeSchema> for TypeSchema {
             id: Uuid::from_slice(&value.id).unwrap_or_default(),
             name: value.name,
             description: value.description,
-            models: value.models.into_iter().map(|u| Uuid::from_slice(&u).unwrap_or_default()).collect()
+            model_ids: value.model_ids.into_iter().map(|u| Uuid::from_slice(&u).unwrap_or_default()).collect()
         }
     }
 }
@@ -246,7 +246,7 @@ impl Into<device::TypeSchema> for TypeSchema {
             id: self.id.as_bytes().to_vec(),
             name: self.name,
             description: self.description,
-            models: self.models.into_iter().map(|u| u.as_bytes().to_vec()).collect()
+            model_ids: self.model_ids.into_iter().map(|u| u.as_bytes().to_vec()).collect()
         }
     }
 }

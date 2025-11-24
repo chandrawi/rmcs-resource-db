@@ -15,10 +15,9 @@ pub(crate) enum SliceSelector {
 
 pub(crate) async fn select_slice(pool: &Pool<Postgres>,
     selector: SliceSelector,
-    id: Option<i32>,
     ids: Option<&[i32]>,
-    device_id: Option<Uuid>,
-    model_id: Option<Uuid>,
+    device_ids: Option<&[Uuid]>,
+    model_ids: Option<&[Uuid]>,
     name: Option<&str>
 ) -> Result<Vec<SliceSchema>, Error>
 {
@@ -35,18 +34,29 @@ pub(crate) async fn select_slice(pool: &Pool<Postgres>,
         .from(SliceData::Table)
         .to_owned();
 
-    if let Some(id) = id {
-        stmt = stmt.and_where(Expr::col(SliceData::Id).eq(id)).to_owned();
-    }
-    else if let Some(ids) = ids {
-        stmt = stmt.and_where(Expr::col((SliceData::Table, SliceData::Id)).is_in(ids.to_vec())).to_owned();
+    if let Some(ids) = ids {
+        if ids.len() == 1 {
+            stmt = stmt.and_where(Expr::col(SliceData::Id).eq(ids[0])).to_owned();
+        } else {
+            stmt = stmt.and_where(Expr::col(SliceData::Id).is_in(ids.to_vec())).to_owned();
+        }
     }
     else {
-        if let Some(id) = device_id {
-            stmt = stmt.and_where(Expr::col(SliceData::DeviceId).eq(id)).to_owned();
+        if let Some(ids) = device_ids {
+            if ids.len() == 1 {
+                stmt = stmt.and_where(Expr::col(SliceData::DeviceId).eq(ids[0])).to_owned();
+            }
+            else if ids.len() > 1 {
+                stmt = stmt.and_where(Expr::col(SliceData::DeviceId).is_in(ids.to_vec())).to_owned();
+            }
         }
-        if let Some(id) = model_id {
-            stmt = stmt.and_where(Expr::col(SliceData::ModelId).eq(id)).to_owned();
+        if let Some(ids) = model_ids {
+            if ids.len() == 1 {
+                stmt = stmt.and_where(Expr::col(SliceData::ModelId).eq(ids[0])).to_owned();
+            }
+            else if ids.len() > 1 {
+                stmt = stmt.and_where(Expr::col(SliceData::ModelId).is_in(ids.to_vec())).to_owned();
+            }
         }
         if let Some(name) = name {
             let name_like = String::from("%") + name + "%";
@@ -189,7 +199,6 @@ pub(crate) async fn delete_slice(pool: &Pool<Postgres>,
 
 pub(crate) async fn select_slice_set(pool: &Pool<Postgres>,
     selector: SliceSelector,
-    id: Option<i32>,
     ids: Option<&[i32]>,
     set_id: Option<Uuid>,
     name: Option<&str>
@@ -207,11 +216,12 @@ pub(crate) async fn select_slice_set(pool: &Pool<Postgres>,
         .from(SliceDataSet::Table)
         .to_owned();
 
-    if let Some(id) = id {
-        stmt = stmt.and_where(Expr::col(SliceDataSet::Id).eq(id)).to_owned();
-    }
-    else if let Some(ids) = ids {
-        stmt = stmt.and_where(Expr::col((SliceDataSet::Table, SliceDataSet::Id)).is_in(ids.to_vec())).to_owned();
+    if let Some(ids) = ids {
+        if ids.len() == 1 {
+            stmt = stmt.and_where(Expr::col(SliceDataSet::Id).eq(ids[0])).to_owned();
+        } else {
+            stmt = stmt.and_where(Expr::col(SliceDataSet::Id).is_in(ids.to_vec())).to_owned();
+        }
     }
     else {
         if let Some(id) = set_id {

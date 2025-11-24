@@ -112,13 +112,13 @@ mod tests {
 
         // read group model
         let groups = resource.list_group_model_by_category("APPLICATION").await.unwrap();
-        let group_model = groups.iter().filter(|x| x.models.contains(&model_id)).next().unwrap();
+        let group_model = groups.iter().filter(|x| x.model_ids.contains(&model_id)).next().unwrap();
         assert_eq!(group_model.name, "data");
         assert_eq!(group_model.category, "APPLICATION");
         // read group device
         let groups = resource.list_group_device_by_name("sensor").await.unwrap();
-        let group_device = groups.iter().filter(|x| x.devices.contains(&device_id1)).next().unwrap();
-        assert_eq!(group_device.devices, [device_id2, device_id1]); // device_id1 > device_id2, so device1 in second (last) order
+        let group_device = groups.iter().filter(|x| x.device_ids.contains(&device_id1)).next().unwrap();
+        assert_eq!(group_device.device_ids, [device_id2, device_id1]); // device_id1 > device_id2, so device1 in second (last) order
         assert_eq!(group_device.name, "sensor");
         assert_eq!(group_device.category, "APPLICATION");
 
@@ -192,7 +192,7 @@ mod tests {
         assert_eq!(ids.len(), 2);
 
         // read buffers from a device group
-        let buffers_group = resource.list_buffer_group_first(100, Some(&group_device.devices), None, None).await.unwrap();
+        let buffers_group = resource.list_buffer_group_first(100, Some(&group_device.device_ids), None, None).await.unwrap();
         assert_eq!(buffers_group[0].data, raw_1);
         assert_eq!(buffers_group[1].data, raw_2);
 
@@ -223,7 +223,7 @@ mod tests {
         assert_eq!(tag::DEFAULT, data.tag);
 
         // read data from a device group
-        let data_group = resource.list_data_group_by_time(&group_device.devices, &[model_id], timestamp_1, None).await.unwrap();
+        let data_group = resource.list_data_group_by_time(&group_device.device_ids, &[model_id], timestamp_1, None).await.unwrap();
         let data_values_vec: Vec<Vec<DataValue>> = data_group.iter().map(|d| d.data.clone()).collect();
         let data_values: Vec<DataValue> = data_values_vec.into_iter().flatten().collect();
         assert!(data_values.contains(&F32(speed1)));
@@ -328,9 +328,9 @@ mod tests {
 
         // check number of member of the group
         let group = resource.read_group_model(group_model_id).await.unwrap();
-        assert_eq!(group.models.len(), 0);
+        assert_eq!(group.model_ids.len(), 0);
         let group = resource.read_group_device(group_device_id).await.unwrap();
-        assert_eq!(group.devices.len(), 0);
+        assert_eq!(group.device_ids.len(), 0);
         // delete group model and device
         resource.delete_group_model(group_model_id).await.unwrap();
         resource.delete_group_device(group_device_id).await.unwrap();

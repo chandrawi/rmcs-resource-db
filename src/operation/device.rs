@@ -119,7 +119,7 @@ pub(crate) async fn select_device(pool: &Pool<Postgres>,
             let model_id = row.try_get(8).ok();
             if last_model == None || last_model != Some(model_id.unwrap_or_default()) {
                 if let Some(id) = model_id {
-                    device_schema.type_.models.push(id);
+                    device_schema.type_.model_ids.push(id);
                 }
                 device_schema.configs = Vec::new();
             }

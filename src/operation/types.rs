@@ -69,7 +69,7 @@ pub(crate) async fn select_device_type(pool: &Pool<Postgres>,
             // update type_schema if non empty model_id found
             let model_id: Result<Uuid, Error> = row.try_get(3);
             if let Ok(value) = model_id {
-                type_schema.models.push(value);
+                type_schema.model_ids.push(value);
             }
             // update type_schema_vec with updated type_schema
             type_schema_vec.push(type_schema.clone());

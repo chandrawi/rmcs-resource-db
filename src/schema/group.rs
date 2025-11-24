@@ -77,7 +77,7 @@ impl GroupSchema {
             name: self.name,
             category: self.category,
             description: self.description,
-            models: self.members.into_iter().map(|el| el).collect()
+            model_ids: self.members.into_iter().map(|el| el).collect()
         }
     }
     pub(crate) fn into_group_device(self) -> GroupDeviceSchema
@@ -87,7 +87,7 @@ impl GroupSchema {
             name: self.name,
             category: self.category,
             description: self.description,
-            devices: self.members
+            device_ids: self.members
         }
     }
     pub(crate) fn into_group_gateway(self) -> GroupGatewaySchema
@@ -97,7 +97,7 @@ impl GroupSchema {
             name: self.name,
             category: self.category,
             description: self.description,
-            gateways: self.members
+            gateway_ids: self.members
         }
     }
 }
@@ -108,7 +108,7 @@ pub struct GroupModelSchema {
     pub name: String,
     pub category: String,
     pub description: String,
-    pub models: Vec<Uuid>
+    pub model_ids: Vec<Uuid>
 }
 
 #[derive(Debug, Default, PartialEq, Clone)]
@@ -117,7 +117,7 @@ pub struct GroupDeviceSchema {
     pub name: String,
     pub category: String,
     pub description: String,
-    pub devices: Vec<Uuid>
+    pub device_ids: Vec<Uuid>
 }
 
 #[derive(Debug, Default, PartialEq, Clone)]
@@ -126,7 +126,7 @@ pub struct GroupGatewaySchema {
     pub name: String,
     pub category: String,
     pub description: String,
-    pub gateways: Vec<Uuid>
+    pub gateway_ids: Vec<Uuid>
 }
 
 impl From<group::GroupModelSchema> for GroupModelSchema {
@@ -136,7 +136,7 @@ impl From<group::GroupModelSchema> for GroupModelSchema {
             name: value.name,
             category: value.category,
             description: value.description,
-            models: value.models.into_iter().map(|u| Uuid::from_slice(&u).unwrap_or_default()).collect()
+            model_ids: value.model_ids.into_iter().map(|u| Uuid::from_slice(&u).unwrap_or_default()).collect()
         }
     }
 }
@@ -148,7 +148,7 @@ impl Into<group::GroupModelSchema> for GroupModelSchema {
             name: self.name,
             category: self.category,
             description: self.description,
-            models: self.models.into_iter().map(|u| u.as_bytes().to_vec()).collect()
+            model_ids: self.model_ids.into_iter().map(|u| u.as_bytes().to_vec()).collect()
         }
     }
 }
@@ -160,7 +160,7 @@ impl From<group::GroupDeviceSchema> for GroupDeviceSchema {
             name: value.name,
             category: value.category,
             description: value.description,
-            devices: value.devices.into_iter().map(|u| Uuid::from_slice(&u).unwrap_or_default()).collect()
+            device_ids: value.device_ids.into_iter().map(|u| Uuid::from_slice(&u).unwrap_or_default()).collect()
         }
     }
 }
@@ -172,7 +172,7 @@ impl Into<group::GroupDeviceSchema> for GroupDeviceSchema {
             name: self.name,
             category: self.category,
             description: self.description,
-            devices: self.devices.into_iter().map(|u| u.as_bytes().to_vec()).collect()
+            device_ids: self.device_ids.into_iter().map(|u| u.as_bytes().to_vec()).collect()
         }
     }
 }
@@ -184,7 +184,7 @@ impl From<group::GroupDeviceSchema> for GroupGatewaySchema {
             name: value.name,
             category: value.category,
             description: value.description,
-            gateways: value.devices.into_iter().map(|u| Uuid::from_slice(&u).unwrap_or_default()).collect()
+            gateway_ids: value.device_ids.into_iter().map(|u| Uuid::from_slice(&u).unwrap_or_default()).collect()
         }
     }
 }
@@ -196,7 +196,7 @@ impl Into<group::GroupDeviceSchema> for GroupGatewaySchema {
             name: self.name,
             category: self.category,
             description: self.description,
-            devices: self.gateways.into_iter().map(|u| u.as_bytes().to_vec()).collect()
+            device_ids: self.gateway_ids.into_iter().map(|u| u.as_bytes().to_vec()).collect()
         }
     }
 }
